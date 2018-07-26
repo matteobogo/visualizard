@@ -6,6 +6,12 @@ const mime = {
     json: 'application/json',
 };
 
+/**
+ *
+ * @param req
+ * @param res
+ * @returns {Promise<*>}
+ */
 const getHeatMap = async (req, res) => {
 
     let img_type = req.params.img_type
@@ -28,6 +34,12 @@ const getHeatMap = async (req, res) => {
     }
 };
 
+/**
+ *
+ * @param req
+ * @param res
+ * @returns {Promise<*>}
+ */
 const buildResourceUsageHeatMaps = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
 
