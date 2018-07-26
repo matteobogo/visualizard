@@ -43,17 +43,14 @@ const getHeatMap = async (req, res) => {
 const buildResourceUsageHeatMaps = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
 
-    let err, type, dbname, policy, interval, fields, n_machines, period, response;
+    let err, type, dbname, policy, fields, n_measurements, period;
 
-    type = req.params.type;
-    dbname = req.params.dbname;
-    policy = req.params.policy;
-
-    interval = req.query.interval.split(',');
+    type = req.query.type;
+    dbname = req.query.dbname;
+    policy = req.query.policy;
     fields = req.query.fields.split(',');
-    n_machines = req.query.n_machines;
+    n_measurements = req.query.n_measurements;
     period = req.query.period;
-
 
     // [err, response] = await to(
     //     heatmaps.buildHeatMapOrderByMachineId(
@@ -65,21 +62,27 @@ const buildResourceUsageHeatMaps = async function(req, res) {
     //         500
     //     ));
 
-    [err, response] = await to(heatmaps.buildHeatMaps(
-        {
-            dbname: dbname,
-            policy: policy,
-            interval: interval,
-            fields: fields,
-            n_machines: n_machines,
-            period: period,
-            type: type,
-        }
-    ));
+    let interval = req.query.interval.split(',');
+    if (interval.length !== 2)
+        return ReE(res, {message: 'two timestamps are required'}, 400);
 
-    //if(err) return ReE(res, err.message, 400);
+    heatmaps.entrypoint(
 
-    return ReS(res, {message: 'HeatMap built'}, 200);
+        dbname,
+        policy,
+        interval[0],
+        interval[1],
+        fields,
+        n_measurements,
+        period,
+        type
+    )
+        .then(result => {
+            return ReS(res, {message: 'HeatMaps generation started'}, 200);
+        })
+        .catch(err => {
+            return ReE(res, err.message, 400);
+        });
 };
 
 module.exports = {
