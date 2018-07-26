@@ -1,0 +1,41 @@
+{
+  "name": "Visualizard",
+  "version": "1.0.0",
+  "description": "A one month analysis of the use of computational resources of a cluster of Google Cloud using d3.js",
+  "main": "src/app.js",
+  "keywords": [
+    "Cluster Analysis",
+    "Google Cloud",
+    "d3"
+  ],
+  "author": {
+    "name": "Matteo Bogo",
+    "email": "matteo.bogo@gmail.com"
+  },
+  "license": "ISC",
+  "scripts": {
+    "dev": "webpack-dev-server --inline --hot --open",
+    "build": "webpack -p --config webpack.config.js --hide-modules"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.5",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "copy-webpack-plugin": "^4.0.1",
+    "css-loader": "^1.0.0",
+    "html-webpack-plugin": "^3.2.0",
+    "node-sass": "^4.9.2",
+    "sass-loader": "^7.0.3",
+    "style-loader": "^0.21.0",
+    "webpack": "^4.16.1",
+    "webpack-cli": "^3.1.0",
+    "webpack-dev-server": "^3.1.4"
+  },
+  "dependencies": {
+    "babel-runtime": "^6.26.0",
+    "d3": "^5.5.0",
+    "d3-fetch": "^1.1.0"
+  }
+}

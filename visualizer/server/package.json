@@ -1,0 +1,30 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Visualizard backend for fetching time series from InfluxDB",
+  "scripts": {
+    "start": "node ./bin/www",
+    "lint": "eslint .",
+    "dev": "nodemon ./bin/www"
+  },
+  "author": "Matteo Bogo",
+  "dependencies": {
+    "app-root-path": "^2.0.1",
+    "body-parser": "^1.18.3",
+    "canvas": "^2.0.0-alpha.12",
+    "datejs": "^1.0.0-rc3",
+    "dotenv": "^6.0.0",
+    "dotenvenc": "^1.0.4",
+    "ejs": "^2.6.1",
+    "express": "^4.16.3",
+    "fast-csv": "^2.4.1",
+    "influx": "^5.0.0-alpha.4",
+    "morgan": "^1.9.0",
+    "parse-error": "^0.2.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.0.0",
+    "nodemon": "^1.17.5"
+  }
+}
