@@ -43,6 +43,37 @@ const palette_shades_red = [
     {r:127 , g:0 , b:0 }
 ];
 
+const getPalette = (palette) => {
+
+    switch(palette) {
+
+        case 'red':
+            return palette_shades_red;
+
+        case 'gray':
+            return palette_shades_gray;
+
+        default:
+            return palette_shades_gray;
+    }
+};
+
+/*
+ * Feature Scaling: Standardization
+ * https://en.wikipedia.org/wiki/Standard_score
+ * (used by colorize())
+ */
+let _MIN_Z_SCORE = -3
+,   _MAX_Z_SCORE = 3;
+
+const _PATH_IMAGES_HEATMAPS = './public/images';
+
+const computation_stages = {
+    //TODO
+    //TODO each method update a global var with computation stage
+};
+
+
 //Fast, small color manipulation and conversion for JavaScript
 //https://github.com/bgrins/TinyColor
 //const tinycolor = require("tinycolor2");
@@ -56,11 +87,11 @@ const palette_shades_red = [
 // const domain_max = 13.267759;
 
 /**
- * Manage missing parameters in functions.
- * @param p the missing parameter
+ *
+ * @param path
+ * @param fields
+ * @returns {Promise<any>}
  */
-const x = p => { throw new Error(`Missing parameter: ${p}`) };
-
 const fetchDataFromCSV = (path, ...fields) => {
 
     return new Promise(
@@ -87,6 +118,10 @@ const fetchDataFromCSV = (path, ...fields) => {
     )
 };
 
+/**
+ *
+ * @returns {Promise<any>}
+ */
 const fetchCSVList = () => {
 
     return new Promise(
@@ -103,6 +138,11 @@ const fetchCSVList = () => {
     )
 };
 
+/**
+ *
+ * @param dbname
+ * @returns {Promise<any>}
+ */
 const fetchMeasurementsListFromHttpApi = (dbname) => {
 
     return new Promise(
@@ -122,6 +162,17 @@ const fetchMeasurementsListFromHttpApi = (dbname) => {
     )
 };
 
+/**
+ *
+ * @param dbname
+ * @param policy
+ * @param measurement
+ * @param start_interval
+ * @param end_interval
+ * @param period
+ * @param fields
+ * @returns {Promise<any>}
+ */
 const fetchPointsFromHttpApi = (
     dbname,
     policy,
@@ -201,34 +252,17 @@ const fetchPointsFromHttpApi = (
     )
 };
 
-const validateDatabaseArgs = async (dbname, policy, fields) => {
-
-    const [dbs, policies, measurements] = await Promise.all([
-        influx.getDatabases(),
-        influx.getRetentionPolicies(dbname),
-        fetchMeasurementsListFromHttpApi(dbname)
-    ]).catch(err => { throw new Error('database unavailable');});
-
-    if (dbs.filter(d => (d.name === dbname)).length === 0)
-        throw new Error(`invalid database ${dbname}`);
-
-    if (policies.filter(p => (p.name === policy)).length === 0)
-        throw new Error(`invalid policy ${policy}`);
-
-    if (measurements.length === 0) throw new Error('no data available');
-    else {
-
-        let measurement = measurements[0];
-        await influx.getFieldsKeyByName(measurement)
-            .catch(err => { throw new Error('no data available'); })
-            .then(res => {
-
-                let fieldKeys = res.map(k => k.fieldKey);
-                if (!fieldKeys.some(r => fields.includes(r))) throw new Error('wrong fields');
-            })
-    }
-};
-
+/**
+ *
+ * @param dbname
+ * @param policy
+ * @param measurements
+ * @param start_interval
+ * @param end_interval
+ * @param period
+ * @param fields
+ * @returns {Promise<*[]>}
+ */
 const analyzeMeasurements = async (
     dbname,
     policy,
@@ -356,7 +390,7 @@ const analyzeMeasurements = async (
             end_interval,
             period,
             fields
-        ).then(points => { return points; }); //non serve
+        ).catch(err => { throw new Error(err.message); });
 
         points.forEach(point => {
 
@@ -376,13 +410,14 @@ const analyzeMeasurements = async (
     return [dataset_stats, measurements_stats];
 };
 
-const paintPalette = () => {
-
-    //TODO
-};
-
-//feature scaling: standardization
-//https://en.wikipedia.org/wiki/Feature_scaling
+/**
+ *
+ * @param points
+ * @param field
+ * @param mean
+ * @param std
+ * @returns {Array}
+ */
 const standardization = (points, field, mean, std) => {
 
     let standardizated_points = [];
@@ -394,117 +429,55 @@ const standardization = (points, field, mean, std) => {
     return standardizated_points;
 };
 
+/**
+ *
+ * @param value
+ * @param min
+ * @param max
+ * @param palette
+ * @returns {*}
+ */
+const colorize = (value, min, max, palette) => {    //value must be standardized first
+
+    let range = Math.abs(max - min);
+    let bucket_len = range / palette.length;
+
+    //outliers
+    if (value < min) return {r:255, g:255, b:255};   //white
+    if (value > max) return {r:0, g:0, b:0};         //black
+
+    //mapping colors to normal distribution
+    for(let i = 0, b = min; i < palette.length; ++i, b += bucket_len) {
+
+        //value in the current bucket
+        if (value <= b + bucket_len)
+            return palette[i];
+    }
+};
+
+/**
+ *
+ * @param width
+ * @param height
+ * @param dataset_stats
+ * @param measurement_stats
+ * @param palette
+ * @param heatmap_type
+ * @returns {Promise<void>}
+ */
 const drawHeatMap = async (
     { width, height },
     {dataset_stats, measurement_stats},
     { palette },
     heatmap_type) => {
 
-    let first_pixel = false;
-
-    let current_palette;
-    if (palette === 'gray')
-        current_palette = palette_shades_gray;
-    else if (palette === 'red')
-        current_palette = palette_shades_red;
-    else throw new Error('invalid palette');
-
-    console.log(`${palette} palette selected`);
+    let current_palette = getPalette(palette);
 
     //one heatmap for each field
     let fields = measurement_stats[0]['fields'];
     for(let k = 0; k < fields.length; ++k) {
 
         console.log(`Start building HeatMap ${heatmap_type} for ${fields[k]}`);
-
-        // //domain
-        // let max = Number.MIN_SAFE_INTEGER
-        // ,   min = Number.MAX_SAFE_INTEGER;
-        //
-        // console.log(`Computing domain..`);
-        // measurement_stats.forEach(s => {
-        //
-        //     if (s['stats'][fields[k]]['min'] < min) min = s['stats'][fields[k]]['min'];
-        //     if (s['stats'][fields[k]]['max'] > max) max = s['stats'][fields[k]]['max'];
-        // });
-        // console.log(`Domain: [${min} - ${max}]`);
-        //
-        // //normalize data
-        // // zi = (xi - min(x)) / (max(x) - min(x))
-        // const normalize = (value) => {
-        //
-        //     return (value - min) / (max - min);
-        // };
-
-        //feature scaling: standardization
-        //https://en.wikipedia.org/wiki/Feature_scaling
-        // let min = Number.MAX_SAFE_INTEGER;
-        // let max = Number.MIN_SAFE_INTEGER;
-        // for(let i = 0; i < height; ++i) {
-        //
-        //     let points = await fetchPointsFromHttpApi(
-        //         measurement_stats[i]['dbname'],
-        //         measurement_stats[i]['policy'],
-        //         measurement_stats[i]['measurement'],
-        //         measurement_stats[i]['start_interval'],
-        //         measurement_stats[i]['end_interval'],
-        //         measurement_stats[i]['period'],
-        //         [fields[k]]) //f needs an array of fields, just pass 1 field within an array
-        //
-        //         .catch(err => {
-        //
-        //             console.log(err);
-        //             throw new Error('error fetching points from database');
-        //         });
-        //
-        //     if (points.length === 0) throw new Error(`no points available for ${measurement_stats[i]['measurement']}`);
-        //
-        //     let standardizated_points = standardization(
-        //         points,
-        //         fields[k],
-        //         dataset_stats[fields[k]]['mean'],
-        //         dataset_stats[fields[k]]['std']
-        //     );
-        //
-        //     standardizated_points.forEach(std_point => {
-        //
-        //         if (std_point < min) min = std_point;
-        //         if (std_point > max) max = std_point;
-        //     })
-        // }
-        //
-        //console.log(`standardizated domain: [${min} - ${max}]`);
-
-        /* Color Function */
-
-        // Feature Scaling
-        // standardizated points:
-        // less than -1 => white (outlier)
-        // greater than +1 => black (outlier)
-        // between -1 and +1 we maps the color palette
-        // we can play with bounds [-1.5,1.5], [-2,+2], ecc to optimize the result
-        let min = -3, max = 3;  //-5,5
-        let range = Math.abs(max - min);
-        let bucket_len = range / current_palette.length;
-
-        const color = (value) => { //value need to be standardizated with feature scaling
-
-            if (value < min) return {r:255, g:255, b:255};   //white
-            if (value > max) return {r:0, g:0, b:0};         //black
-
-            let rgb;
-            for(let i = 0, b = min; i < current_palette.length; ++i, b += bucket_len) {
-
-                if (value <= b + bucket_len) { //value in the current bucket
-
-                    //console.log(value, current_palette[i]);
-                    rgb = current_palette[i];
-                    break;
-                }
-            }
-
-            return rgb;
-        };
 
         //init canvas
         console.log(`Generating Canvas [${width}x${height}]..`);
@@ -534,6 +507,7 @@ const drawHeatMap = async (
 
             if (points.length === 0) throw new Error(`no points available for ${measurement_stats[i]['measurement']}`);
 
+            //standardize points with feature scaling
             let standardizated_points = standardization(
                 points,
                 fields[k],
@@ -544,45 +518,34 @@ const drawHeatMap = async (
             //console.log(`Drawing line #${i+1} with ${standardizated_points.length} points`);
             for (let j = 0; j < standardizated_points.length; ++j, l += 4) {
 
-                let c = color(standardizated_points[j]);
+                let c = colorize(standardizated_points[j], _MIN_Z_SCORE, _MAX_Z_SCORE, current_palette);
 
                 imageData.data[l + 0] = c.r;
                 imageData.data[l + 1] = c.g;
                 imageData.data[l + 2] = c.b;
                 imageData.data[l + 3] = 255;
-
-                //first red pixel (0,0) position
-                if (first_pixel === false) {
-                    first_pixel = true;
-                    imageData.data[0] = 255;
-                    imageData.data[1] = 0;
-                    imageData.data[2] = 0;
-                    imageData.data[3] = 255;
-                }
             }
         }
         ctx.putImageData(imageData, 0, 0);
 
         console.log(`HeatMap ${heatmap_type} built`);
 
-        //palette
-        //TODO
+        console.log(`Saving HeatMap for ${fields[k]}..`);
 
         //write .PNG
-        console.log(`Saving HeatMap for ${fields[k]}..`);
         canvas
             .createPNGStream()
-            .pipe(fs.createWriteStream(path.join(__dirname + `/heatmap_${heatmap_type}_${fields[k]}.png`)))
+            .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.png`))
             .on('finish', () => console.log(`HeatMap .PNG for ${fields[k]} saved`));
 
+        //write .JPEG
         canvas
             .createJPEGStream()
-            .pipe(fs.createWriteStream(path.join(__dirname + `/heatmap_${heatmap_type}_${fields[k]}.jpeg`)))
+            .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.jpeg`))
             .on('finish', () => console.log(`HeatMap .JPEG for ${fields[k]} saved`));
     }
     //check png saved true/false
     //TODO
-    return true;
 };
 
 const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
@@ -593,132 +556,230 @@ const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
     });
 };
 
-const buildHeatMaps = async (
-    {
-        dbname = x`dbname`,
-        policy = x`policy`,
-        interval = x`interval`,
-        fields = x`fields`,
-        n_machines = 0,
-        period = 300,
-        type = 'all',
-        palette= 'gray',
-    } = {}) => {
+/**
+ * Building a set of HeatMaps.
+ * @param {string} dbname - the database name
+ * @param {string} policy - the retention policy
+ * @param {Object} interval - the interval of time
+ * @param {string} interval.start_time - the start interval (UTC)
+ * @param {string} interval.end_time - the end interval (UTC)
+ * @param {string[]} fields - the fields of the points which will be fetched
+ * @param {number} [n_measurements=0] - the number of measurements sampled, 0 means all measurements
+ * @param {number} [period=300] - the interval of time between interval's timestamps, 300 means 300 seconds
+ * @param {string} [type=all] - the type of heatmaps that will be generated
+ * @param {string} [palette=gray] - the color palette used to paint pixels
+ * @returns {Promise<void>}
+ */
 
-    try {
+/**
+ *
+ * @param options
+ * @returns {Promise<void>}
+ */
+const buildHeatMaps = async (options) => {
 
-        //database args
-        await validateDatabaseArgs(dbname, policy, fields);  //TODO catch error
+    /* Fetch Measurements from Database */
+    console.log(`Fetching list of measurements from database..`);
+    let measurements = await fetchMeasurementsListFromHttpApi(options.dbname);
 
-        //intervals
-        let start_time, end_time;
-        try {
+    //only a sample of machines
+    if (options.n_measurements > 0) {
+        console.log(`Selected only a sample of ${options.n_measurements} measurements`);
+        measurements = measurements.slice(0, options.n_measurements);
+    }
 
-            start_time = Date.parse(interval[0]);
-            end_time = Date.parse(interval[1]);
-        }
-        catch (e) {
-            throw new Error('invalid timestamps');
-        }
+    /* Analyze Measurements */
+    console.log(`Start analyzing ${measurements.length} measurements..`);
+    let dataset_stats, measurement_stats;
+    [dataset_stats, measurement_stats] = await
+        analyzeMeasurements(
+            options.dbname,
+            options.policy,
+            measurements,
+            options.start_time,
+            options.end_time,
+            options.period,
+            options.fields);
 
-        const diff_time = start_time - end_time;
-        if (diff_time > 0)
-            throw new Error('end interval must be greater or equal then start');
+    if (measurement_stats.length === 0) throw new Error('measurements analysis fails');
 
-        //period
-        if ((period % 300) !== 0) throw new Error('invalid period, must be multiple of 300 (5min)');
+    let width = (Date.parse(options.end_time) - Date.parse(options.start_time)) / (options.period * 1000) + 1
+    ,   height = measurements.length;
+    console.log(`Computed HeatMaps dimensions (W x H): [${width} x ${height}]`);
 
-        /* Fetch Measurements from Database */
-        let measurements = await fetchMeasurementsListFromHttpApi(dbname);
+    switch(options.type) {
 
-        //only a sample of machines
-        if (n_machines > 0)
-            measurements = measurements.slice(0, n_machines);
+        case "sortByMachine":
 
-        /* Analyze Measurements */
-        console.log(`Start analyzing ${measurements.length} measurements..`);
-        let dataset_stats, measurement_stats;
-        [dataset_stats, measurement_stats] = await
-            analyzeMeasurements(
-                dbname,
-                policy,
-                measurements,
-                interval[0],
-                interval[1],
-                period,
-                fields);
+            console.log(`Building ${options.type} HeatMaps..`);
 
-        if (measurement_stats.length === 0) throw new Error('measurements analysis fails');
-
-        //TEST
-        console.log(dataset_stats);
-
-        console.log(`Start building HeatMaps..`);
-        let width = (end_time - start_time) / (period * 1000) + 1
-        ,   height = measurements.length;
-
-        switch(type) {
-
-            case "sortByMachine":
-
+            for(let i = 0; i < options.fields.length; ++i) {
                 await drawHeatMap(
                     {width: width, height: height},
                     {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
-                    {palette: palette}, type);
-                break;
+                    {palette: options.palette}, options.type);
+            }
+            break;
 
-            case "sortBySum":
+        case "sortBySum":
 
-                break;
+            console.log(`Building ${options.type} HeatMaps..`);
+            break;
 
-            case "sortByTsOfMaxValue":
+        case "sortByTsOfMaxValue":
 
-                break;
+            console.log(`Building ${options.type} HeatMaps..`);
+            break;
 
-            default:
+        default:
 
-                for(let i = 0; i < fields.length; ++i) {
+            console.log(`Building ${options.type} HeatMaps..`);
+            for(let i = 0; i < options.fields.length; ++i) {
 
-                    await Promise.all([
+                await Promise.all([
 
-                        //sorted by machine id
-                        drawHeatMap(
-                            {width: width, height: height},
-                            {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
-                            {palette: palette},
-                            'original'
-                        ),
+                    //sorted by machine id
+                    drawHeatMap(
+                        {width: width, height: height},
+                        {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
+                        {palette: options.palette},
+                        'original'
+                    ),
 
-                        //sorted by sum (integral)
-                        drawHeatMap(
-                            {width: width, height: height},
-                            {
-                                dataset_stats: dataset_stats,
-                                measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, fields[i], 'sum')
-                            },
-                            {palette: palette},
-                            'sum'
-                        ),
+                    //sorted by sum (integral)
+                    drawHeatMap(
+                        {width: width, height: height},
+                        {
+                            dataset_stats: dataset_stats,
+                            measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, options.fields[i], 'sum')
+                        },
+                        {palette: options.palette},
+                        'sum'
+                    ),
 
-                        //sorted by timestamp of max value
-                        drawHeatMap(
-                            {width: width, height: height},
-                            {
-                                dataset_stats: dataset_stats,
-                                measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, fields[i], 'sum')
-                            },
-                            {palette: palette},
-                            'max_ts'
-                        )
-                    ]);
-                }
-        }
-    }
-    catch (e) {
-        console.log(e);
+                    //sorted by timestamp of max value
+                    drawHeatMap(
+                        {width: width, height: height},
+                        {
+                            dataset_stats: dataset_stats,
+                            measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, options.fields[i], 'sum')
+                        },
+                        {palette: options.palette},
+                        'max_ts'
+                    )
+                ]);
+            }
     }
 };
 
+/**
+ *
+ * @param dbname
+ * @param policy
+ * @param fields
+ * @returns {Promise<void>}
+ */
+const validateDatabaseArgs = async (dbname, policy, fields) => {
+
+    const [dbs, policies, measurements] = await Promise.all([
+        influx.getDatabases(),
+        influx.getRetentionPolicies(dbname),
+        fetchMeasurementsListFromHttpApi(dbname)
+    ]).catch(err => { throw new Error('database unavailable');});
+
+    if (dbs.filter(d => (d.name === dbname)).length === 0)
+        throw new Error(`invalid database ${dbname}`);
+
+    if (policies.filter(p => (p.name === policy)).length === 0)
+        throw new Error(`invalid policy ${policy}`);
+
+    if (measurements.length === 0) throw new Error('no measurements available');
+    if (fields.length === 0) throw new Error('missing fields');
+
+    let measurement = measurements[0];
+    await influx.getFieldsKeyByName(measurement)
+        .catch(err => { throw new Error('no points available'); })
+        .then(res => {
+
+            let fieldKeys = res.map(k => k.fieldKey);
+            if (!fieldKeys.some(r => fields.includes(r))) throw new Error('wrong fields');
+        })
+};
+
+/**
+ * Manage missing parameters in functions.
+ * @param p the missing parameter
+ */
+const x = p => { throw new Error(`Missing parameter: ${p}`) };
+
+/**
+ *
+ * @param dbname
+ * @param policy
+ * @param start_time
+ * @param end_time
+ * @param fields
+ * @param n_measurements
+ * @param period
+ * @param type
+ * @param palette
+ * @returns {Promise<void>}
+ */
+const validation = async (
+
+        dbname = x`dbname`,
+        policy = x`policy`,
+        start_time = x`start time`,
+        end_time = x`end time`,
+        fields = x`fields`,
+        n_measurements = 0,
+        period = 300,
+        type = 'all',
+        palette = 'gray') => {
+
+    //database validation
+    console.log(`Validating DB: ${dbname} \n - policy: ${policy} \n - fields: ${fields}`);
+    await validateDatabaseArgs(dbname, policy, fields);
+
+    //intervals validation
+    console.log(`Validating time interval [${start_time} - ${end_time}]`);
+    let start_interval, end_interval;
+    try {
+
+        start_interval = Date.parse(start_time);
+        end_interval = Date.parse(end_time);
+    }
+    catch (e) {
+        throw new Error(`invalid interval: [${start_time} - ${end_time}]`);
+    }
+
+    //end interval must be equal or greater than start interval
+    const diff_time = start_interval - end_interval;
+    if (diff_time > 0)
+        throw new Error('end interval must be greater or equal then start');
+
+    //period validation
+    console.log(`Validating period [${period}]`);
+    if ((period % 300) !== 0) throw new Error('invalid period, must be multiple of 300 (5min)');
+
+    //start computation
+    buildHeatMaps({
+        dbname,
+        policy,
+        start_time,
+        end_time,
+        fields,
+        n_measurements,
+        period,
+        type,
+        palette});
+};
+
+const entrypoint = async (...args) => {
+
+    await validation(...args);
+};
+
 module.exports = {
-    buildHeatMaps: buildHeatMaps,
+    entrypoint: entrypoint,
 };
