@@ -725,7 +725,7 @@ const x = p => { throw new Error(`Missing parameter: ${p}`) };
  * @param palette
  * @returns {Promise<void>}
  */
-const validation = async (
+const entrypoint = async (
 
         dbname = x`dbname`,
         policy = x`policy`,
@@ -773,11 +773,6 @@ const validation = async (
         period,
         type,
         palette});
-};
-
-const entrypoint = async (...args) => {
-
-    await validation(...args);
 };
 
 module.exports = {
