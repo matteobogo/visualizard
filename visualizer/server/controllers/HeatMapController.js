@@ -41,7 +41,7 @@ const getHeatMap = async (req, res) => {
  * @returns {Promise<*>}
  */
 const buildResourceUsageHeatMaps = async function(req, res) {
-    res.setHeader('Content-Type', 'application/json');
+    //res.setHeader('Content-Type', 'image/png');
 
     let err, type, dbname, policy, fields, n_measurements, period;
 
@@ -66,7 +66,7 @@ const buildResourceUsageHeatMaps = async function(req, res) {
     if (interval.length !== 2)
         return ReE(res, {message: 'two timestamps are required'}, 400);
 
-    heatmaps.entrypoint(
+    let body = await heatmaps.entrypoint(
 
         dbname,
         policy,
@@ -77,12 +77,25 @@ const buildResourceUsageHeatMaps = async function(req, res) {
         period,
         type
     )
-        .then(result => {
-            return ReS(res, {message: 'HeatMaps generation started'}, 200);
-        })
-        .catch(err => {
-            return ReE(res, err.message, 400);
+        .then(data => {
+            res.set('Content-Type', 'image/png');
+			res.send(data);
         });
+
+    //TODO gestisci error (non usare to() perche vale solo per i JSON
+    //TODO cambia da fields a richiesta su singolo field
+    //TODO rivedi in heatmaps.js la catena di return ed elimina i for sui fields
+
+    // res.set('Content-Type', 'image/png');
+    // res.send(body);
+        // .then(result => {
+        //     console.log(result);
+        //     return ReS(res, result, 200);
+        // })
+        // .catch(err => {
+			// console.log(err);
+        //     return ReE(res, err.message, 400);
+        // });
 };
 
 module.exports = {
