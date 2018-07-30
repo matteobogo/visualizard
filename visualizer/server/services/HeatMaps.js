@@ -7,6 +7,9 @@ const fs = require('fs'),
 
 const csv = require("fast-csv");
 
+//node-canvas
+let Canvas = require('canvas')
+
 //palette for nodejs (https://github.com/tj/palette)
 //const palette = require('palette');
 
@@ -463,7 +466,7 @@ const colorize = (value, min, max, palette) => {    //value must be standardized
  * @param measurement_stats
  * @param palette
  * @param heatmap_type
- * @returns {Promise<void>}
+ * @returns {Promise<string>}
  */
 const drawHeatMap = async (
     { width, height },
@@ -481,8 +484,7 @@ const drawHeatMap = async (
 
         //init canvas
         console.log(`Generating Canvas [${width}x${height}]..`);
-        let Canvas = require('canvas')
-        ,   canvas = Canvas.createCanvas(width, height)
+        let canvas = Canvas.createCanvas(width, height)
         ,   ctx = canvas.getContext('2d')
         ,   imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -532,17 +534,19 @@ const drawHeatMap = async (
 
         console.log(`Saving HeatMap for ${fields[k]}..`);
 
-        //write .PNG
-        canvas
-            .createPNGStream()
-            .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.png`))
-            .on('finish', () => console.log(`HeatMap .PNG for ${fields[k]} saved`));
+        // //write .PNG
+        // canvas
+        //     .createPNGStream()
+        //     .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.png`))
+        //     .on('finish', () => console.log(`HeatMap .PNG for ${fields[k]} saved`));
+		//
+        // //write .JPEG
+        // canvas
+        //     .createJPEGStream()
+        //     .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.jpeg`))
+        //     .on('finish', () => console.log(`HeatMap .JPEG for ${fields[k]} saved`));
 
-        //write .JPEG
-        canvas
-            .createJPEGStream()
-            .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.jpeg`))
-            .on('finish', () => console.log(`HeatMap .JPEG for ${fields[k]} saved`));
+        return canvas.toDataURL('image/png');
     }
     //check png saved true/false
     //TODO
@@ -614,7 +618,7 @@ const buildHeatMaps = async (options) => {
             console.log(`Building ${options.type} HeatMaps..`);
 
             for(let i = 0; i < options.fields.length; ++i) {
-                await drawHeatMap(
+                return await drawHeatMap(
                     {width: width, height: height},
                     {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
                     {palette: options.palette}, options.type);
@@ -735,7 +739,7 @@ const entrypoint = async (
         n_measurements = 0,
         period = 300,
         type = 'all',
-        palette = 'gray') => {
+        palette = 'red') => {
 
     //database validation
     console.log(`Validating DB: ${dbname} \n - policy: ${policy} \n - fields: ${fields}`);
@@ -763,7 +767,7 @@ const entrypoint = async (
     if ((period % 300) !== 0) throw new Error('invalid period, must be multiple of 300 (5min)');
 
     //start computation
-    buildHeatMaps({
+    return await buildHeatMaps({
         dbname,
         policy,
         start_time,
