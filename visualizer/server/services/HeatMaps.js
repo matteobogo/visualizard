@@ -739,7 +739,7 @@ const entrypoint = async (
         n_measurements = 0,
         period = 300,
         type = 'all',
-        palette = 'red') => {
+        palette = 'gray') => {
 
     //database validation
     console.log(`Validating DB: ${dbname} \n - policy: ${policy} \n - fields: ${fields}`);
