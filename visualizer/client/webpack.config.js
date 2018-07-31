@@ -1,6 +1,6 @@
 const webpack = require("webpack");
 
-const OpenBrowserPlugin = require('open-browser-webpack-plugin');
+//const OpenBrowserPlugin = require('open-browser-webpack-plugin');
 const path = require('path');
 const Dotenv = require('dotenv-webpack');
 
@@ -11,11 +11,12 @@ module.exports = {
         filename: "bundle.js",
         publicPath: "assets"
     },
-    plugins: [
-        new OpenBrowserPlugin({url: 'http://localhost:4800'}),
-        new Dotenv()
-    ],
+    // plugins: [
+    //     new OpenBrowserPlugin({url: 'http://localhost:4800'}),
+    //     new Dotenv()
+    // ],
     devServer: {
+        host: '0.0.0.0',
         inline: true,
         contentBase: './dist',
         hot: true,  //live-reload
