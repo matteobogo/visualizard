@@ -1,5 +1,5 @@
 import React from 'react';
-import {config} from '../config/config';
+import {config} from '../../config/config';
 
 //react-bootstrap
 import { Panel } from 'react-bootstrap';
@@ -16,35 +16,36 @@ export default class StaticHeatMap extends React.Component {
         super(props);
 
         this.state = {
-            isLoading: false
+            isLoading: false,
         };
     }
 
     componentDidMount() {
 
-        //change to onClick
-        this.setState({isLoading: true});
-
-        fetch(config.API_URL+'' +
-            '/heatmaps?' +
-            'type=sortByMachine&' +
-            'dbname=google_cluster&' +
-            'policy=autogen&' +
-            'interval=2011-02-01T00:15:00.000Z,2011-02-04T13:30:00.000Z&' +
-            'fields=mean_cpu_usage_rate&' +
-            'n_measurements=100&' +
-            'period=300')
-            .then(res => {
-                return res.text();
-            })
-            .then((res => {
-                this.setState({
-                    image: res,
-                    isLoading: false
-                });
-            }));
-
-        //TODO errore cosa fare?
+        // //change to onClick
+        // this.setState({isLoading: true});
+        //
+        // fetch(config.API_URL+'' +
+        //     '/heatmaps?' +
+        //     'type=sortByMachine&' +
+        //     'dbname=google_cluster&' +
+        //     'policy=autogen&' +
+        //     'interval=2011-02-01T00:15:00.000Z,2011-02-04T13:30:00.000Z&' +
+        //     'fields=mean_cpu_usage_rate&' +
+        //     'n_measurements=100&' +
+        //     'period=300')
+        //     .then(res => {
+        //         return res.text();
+        //     })
+        //     .then((res => {
+        //         console.log(res);   //TEST
+        //         this.setState({
+        //             image: res,
+        //             isLoading: false
+        //         });
+        //     }));
+        //
+        // //TODO errore cosa fare?
     }
 
     render() {
