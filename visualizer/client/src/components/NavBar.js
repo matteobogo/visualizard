@@ -55,6 +55,9 @@ export default class NavBar extends React.Component {
                     <NavItem eventKey={2} href="#">
                         Real-time Analysis
                     </NavItem>
+                    <NavItem eventKey={3} href="#">
+                        About
+                    </NavItem>
                 </Nav>
                 <Navbar.Collapse>
                     <Navbar.Text pullRight>
