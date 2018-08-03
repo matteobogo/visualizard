@@ -5,7 +5,7 @@ const influx = new InfluxClient.InfluxDB(
     'http://'+CONFIG.db_user+':'+CONFIG.db_password+'@'+CONFIG.db_host+':'+CONFIG.db_port+'/'+CONFIG.db_name);
 
 /**
- * Ping the database server.
+ * Ping the timeseries server.
  * @param timeout
  * @returns {Promise<IPingStats[]>}
  */
@@ -51,9 +51,17 @@ const getMeasurements = (dbname) => {
     );
 };
 
+const getFirstMeasurement = (dbname) => {
+    return influx.query(
+        `
+        show measurements on ${dbname} limit 1
+        `
+    )
+};
+
 /**
  * Get the first measurement time of a field of a specific time serie.
- * @param {string} dbname - the database name.
+ * @param {string} dbname - the timeseries name.
  * @param {string} name - the name of the time serie.
  * @param {string} policy - the name of the policy.
  * @param {string} field -the name of the field.
@@ -169,22 +177,18 @@ const getAllTagKeysByName = (name, limit, offset) => {
 /**
  * Get the field keys of all the time series.
  */
-const getAllFieldsKey = () => {
+const getAllFieldsKeyByDatabase = (dbname) => {
     return influx.query(
         `
-        show field keys on ${CONFIG.db_name}
+        show field keys on ${dbname}
         `
     );
 };
 
-/**
- * Get the field keys of a time serie.
- * @param {string} name - the name of the time serie.
- */
-const getFieldsKeyByName = (name) => {
+const getAllFieldsKeyByDatabaseByName = (dbname, name) => {
     return influx.query(
         `
-        show field keys on ${CONFIG.db_name} from ${name}
+        show field keys on ${dbname} from ${name}
         `
     );
 };
@@ -194,6 +198,7 @@ module.exports = {
     getDatabases: getDatabases,
     getRetentionPolicies: getRetentionPolicies,
     getMeasurements: getMeasurements,
+    getFirstMeasurement: getFirstMeasurement,
     getStartInterval: getStartInterval,
     getEndInterval: getEndInterval,
     getDataByPolicyByName: getDataByPolicyByName,
@@ -202,6 +207,6 @@ module.exports = {
     getNamesByTagKeyByTagValue: getNamesByTagKeyByTagValue,
     getAllTagKeys: getAllTagKeys,
     getAllTagKeysByName: getAllTagKeysByName,
-    getAllFieldsKey: getAllFieldsKey,
-    getFieldsKeyByName: getFieldsKeyByName
+    getAllFieldsKeyByDatabase: getAllFieldsKeyByDatabase,
+    getAllFieldsKeyByDatabaseByName: getAllFieldsKeyByDatabaseByName
 };
