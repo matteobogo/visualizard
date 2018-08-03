@@ -16,15 +16,18 @@ router.get('/', function(req, res, next) {
 router.get('/ping', HomeController.ping);
 
 router.get('/influx/ping', TimeSeriesController.ping);
+router.get('/influx/databases', TimeSeriesController.getDatabases);
 router.get('/influx/policies', TimeSeriesController.getAllPolicies);
+router.get('/influx/fields', TimeSeriesController.getAllFields);
 router.get('/influx/measurements', TimeSeriesController.getMeasurements);
 router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesController.getTimeIntervalByPolicyByNameByField);
 router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDataByPolicyByName);
 router.get('/influx/measurements/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsByPolicyByNameByStartTimeByEndTime);
 router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getNamesByTagKeyByTagValue);
 
-router.get('/heatmaps', HeatMapController.buildResourceUsageHeatMaps);
+router.get('/heatmaps/palettes', HeatMapController.getPalettes);
 router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
+router.get('/heatmaps', HeatMapController.buildResourceUsageHeatMaps);
 
 
 // api_v1.route('/').get(function (req, res) {
