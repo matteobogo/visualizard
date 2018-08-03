@@ -4,11 +4,9 @@ import {config} from '../../config/config';
 //react-bootstrap
 import { Panel } from 'react-bootstrap';
 
-//styled-components
-import styled from 'styled-components';
+const styles = {
 
-const PanelWrapper = styled.div`
-`;
+};
 
 export default class StaticHeatMap extends React.Component {
 
@@ -57,18 +55,14 @@ export default class StaticHeatMap extends React.Component {
         }
 
         return(
-          <div>
-              <PanelWrapper>
-                  <Panel>
-                      <Panel.Heading>
-                          <Panel.Title componentClass="h3"> HeatMap</Panel.Title>
-                      </Panel.Heading>
-                      <Panel.Body>
-                          <img src={image} />
-                      </Panel.Body>
-                  </Panel>
-              </PanelWrapper>
-          </div>
+              <Panel>
+                  <Panel.Heading>
+                      <Panel.Title componentClass="h3">HeatMap</Panel.Title>
+                  </Panel.Heading>
+                  <Panel.Body>
+                      <img src={image} />
+                  </Panel.Body>
+              </Panel>
         );
     }
 }
