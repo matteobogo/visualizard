@@ -17,11 +17,30 @@ const ping = async function(req, res) {
     return ReS(res, pings_json);
 };
 
+const getDatabases = async function (req, res) {
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, databases;
+    [err, databases] = await to(influx.getDatabases());
+
+    if (err) return ReE(res, 'error retrieving databases');
+
+    let databases_json = [];
+    databases
+        .filter(db => db['name'] !== '_internal')   //remove influx internal db
+        .forEach(db => databases_json.push(db['name']));
+
+    return ReS(res, {payload: databases_json}, 200);
+};
+
 const getAllPolicies = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
 
-    let err, policies;
-    [err, policies] = await to(influx.getRetentionPolicies());
+    let err, dbname, policies;
+
+    dbname = req.query.dbname;
+
+    [err, policies] = await to(influx.getRetentionPolicies(dbname));
 
     if (err) return ReE(res, 'error retrieving policies');
 
@@ -30,7 +49,31 @@ const getAllPolicies = async function(req, res) {
         policies_json.push(p.name);
     });
 
-    return ReS(res, {policies: policies_json}, 200);
+    return ReS(res, {payload: policies_json}, 200);
+};
+
+const getAllFields = async function(req, res) {
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, dbname, firstMeasurement, fields;
+
+    dbname = req.query.dbname;
+
+    //take the first measurement name (there is at least one, otherwise the database is empty)
+    //assuming all time series have the same fields
+
+    [err, firstMeasurement] = await to(influx.getFirstMeasurement(dbname));
+    if (err) return ReE(res, 'error retrieving fields');
+
+    [err, fields] = await to(influx.getAllFieldsKeyByDatabaseByName(dbname, firstMeasurement[0]['name']));
+    if (err) return ReE(res, 'error retrieving fields');
+
+    let fields_json = [];
+    fields.forEach(f => {
+        fields_json.push(f['fieldKey']);
+    });
+
+    return ReS(res, {payload: fields_json}, 200);
 };
 
 const getMeasurements = async function(req, res) {
@@ -169,7 +212,9 @@ const buildResourceUsageHeatMapOverMachineIdByResource = async function(req, res
 
 module.exports = {
     ping: ping,
+    getDatabases: getDatabases,
     getAllPolicies: getAllPolicies,
+    getAllFields: getAllFields,
     getMeasurements: getMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
     getDataByPolicyByName: getDataByPolicyByName,
