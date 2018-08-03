@@ -8,7 +8,7 @@ const fs = require('fs'),
 const csv = require("fast-csv");
 
 //node-canvas
-let Canvas = require('canvas')
+let Canvas = require('canvas');
 
 //palette for nodejs (https://github.com/tj/palette)
 //const palette = require('palette');
@@ -19,6 +19,9 @@ let Canvas = require('canvas')
 //     "#B0B0B0","#A8A8A8","#A0A0A0","#989898","#909090","#888888","#808080","#787878","#707070","#686868",
 //     "#606060","#585858","#505050","#484848","#404040","#383838","#303030","#282828","#202020","#181818",
 //     "#101010","#080808","#000000"];
+
+const _PALETTE_GRAY     = 'GRAY';
+const _PALETTE_RED      = 'RED';
 
 const palette_shades_gray = [
     {r:61 , g:61 , b:61},
@@ -46,15 +49,26 @@ const palette_shades_red = [
     {r:127 , g:0 , b:0 }
 ];
 
-const getPalette = (palette) => {
+const getPalettesNames = () => {
 
-    switch(palette) {
+    return [
 
-        case 'red':
-            return palette_shades_red;
+        _PALETTE_GRAY,
+        _PALETTE_RED,
+    ]
+};
 
-        case 'gray':
+const getPalettes = (palette) => {
+
+    switch (palette) {
+
+        case _PALETTE_GRAY:
+
             return palette_shades_gray;
+
+        case _PALETTE_RED:
+
+            return palette_shades_red;
 
         default:
             return palette_shades_gray;
@@ -474,7 +488,7 @@ const drawHeatMap = async (
     { palette },
     heatmap_type) => {
 
-    let current_palette = getPalette(palette);
+    let current_palette = getPalettes(palette);
 
     //one heatmap for each field
     let fields = measurement_stats[0]['fields'];
@@ -504,7 +518,7 @@ const drawHeatMap = async (
                 .catch(err => {
 
                     console.log(err);
-                    throw new Error('error fetching points from database');
+                    throw new Error('error fetching points from timeseries');
                 });
 
             if (points.length === 0) throw new Error(`no points available for ${measurement_stats[i]['measurement']}`);
@@ -562,7 +576,7 @@ const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
 
 /**
  * Building a set of HeatMaps.
- * @param {string} dbname - the database name
+ * @param {string} dbname - the timeseries name
  * @param {string} policy - the retention policy
  * @param {Object} interval - the interval of time
  * @param {string} interval.start_time - the start interval (UTC)
@@ -689,7 +703,7 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         influx.getDatabases(),
         influx.getRetentionPolicies(dbname),
         fetchMeasurementsListFromHttpApi(dbname)
-    ]).catch(err => { throw new Error('database unavailable');});
+    ]).catch(err => { throw new Error('timeseries unavailable');});
 
     if (dbs.filter(d => (d.name === dbname)).length === 0)
         throw new Error(`invalid database ${dbname}`);
@@ -739,9 +753,9 @@ const entrypoint = async (
         n_measurements = 0,
         period = 300,
         type = 'all',
-        palette = 'gray') => {
+        palette = _PALETTE_GRAY) => {
 
-    //database validation
+    //timeseries validation
     console.log(`Validating DB: ${dbname} \n - policy: ${policy} \n - fields: ${fields}`);
     await validateDatabaseArgs(dbname, policy, fields);
 
@@ -780,5 +794,6 @@ const entrypoint = async (
 };
 
 module.exports = {
+    getPalettesNames: getPalettesNames,
     entrypoint: entrypoint,
 };
