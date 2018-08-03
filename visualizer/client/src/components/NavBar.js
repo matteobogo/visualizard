@@ -1,5 +1,5 @@
 import React from 'react';
-import {config} from "../config/config";
+import * as config from "../config/config";
 
 //react-bootstrap
 import {
@@ -9,13 +9,24 @@ import {
     Nav,
 } from 'react-bootstrap'
 
+//react toasts
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const _TIMEOUT_PING = 5000;
+const _TOAST_SETTINGS = {
+
+    position: toast.POSITION.BOTTOM_LEFT,
+    autoClose: _TIMEOUT_PING
+};
+
 export default class NavBar extends React.Component {
 
     constructor(props) {
         super(props);
 
         this.state = {
-            status: 'offline',
+            isOnline: true,
         };
     }
 
@@ -25,46 +36,69 @@ export default class NavBar extends React.Component {
             fetch(config.API_URL+'/ping')
                 .then((res) => res.json())
                 .then(res => {
-                    if (res.success === true)
-                        this.setState({ status: 'online' });
-                    else
-                        this.setState({ status: 'offline' });
+                    if (this.state.isOnline === false) {
+                        this.notifyToast('Great! Server is now online!', 'success');
+                    }
+                    if (res.success === true) {
+                        this.setState({isOnline: true});
+                    }
                 })
                 .catch((err) => {
-                    this.setState({ status: 'offline' });
+                    if (this.state.isOnline === true) {
+                        this.notifyToast('Sorry! Service is offline! Try Later!', 'error');
+                    }
+                    this.setState({ isOnline: false });
                 });
-        }, 5000)
+        }, _TIMEOUT_PING)
     }
 
     componentWillUnmount() {
         clearInterval(this.interval);
     }
 
+    notifyToast(message, type) {
+
+        switch(type) {
+
+            case 'success':
+                toast.success(message, {
+                    position: _TOAST_SETTINGS.position,
+                    autoClose: _TOAST_SETTINGS.autoClose
+                });
+                break;
+
+            case 'error':
+                toast.error(message, {
+                    position: _TOAST_SETTINGS.position,
+                    autoClose: _TOAST_SETTINGS.autoClose
+                });
+                break;
+        }
+    }
+
     render() {
         return(
-            <Navbar staticTop inverse fluid>
-                <Navbar.Header>
-                    <Navbar.Brand>
-                        <a href="#home">Visualizard</a>
-                    </Navbar.Brand>
-                </Navbar.Header>
-                <Nav>
-                    <NavItem eventKey={1} href="#">
-                        Static Analysis
-                    </NavItem>
-                    <NavItem eventKey={2} href="#">
-                        Real-time Analysis
-                    </NavItem>
-                    <NavItem eventKey={3} href="#">
-                        About
-                    </NavItem>
-                </Nav>
-                <Navbar.Collapse>
-                    <Navbar.Text pullRight>
-                        Service is {this.state.status}
-                    </Navbar.Text>
-                </Navbar.Collapse>
-            </Navbar>
+            <div>
+                <ToastContainer/>
+                <Navbar staticTop inverse fluid>
+                    <Navbar.Header>
+                        <Navbar.Brand>
+                            <a href="#home">Visualizard</a>
+                        </Navbar.Brand>
+                    </Navbar.Header>
+                    <Nav>
+                        <NavItem eventKey={1} href="#">
+                            Static Analysis
+                        </NavItem>
+                        <NavItem eventKey={2} href="#">
+                            Real-time Analysis
+                        </NavItem>
+                        <NavItem eventKey={3} href="#">
+                            About
+                        </NavItem>
+                    </Nav>
+                </Navbar>
+            </div>
         );
     }
 }
