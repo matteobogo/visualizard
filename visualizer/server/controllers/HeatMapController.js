@@ -6,12 +6,18 @@ const mime = {
     json: 'application/json',
 };
 
-/**
- *
- * @param req
- * @param res
- * @returns {Promise<*>}
- */
+const getPalettes = async (req, res) => {
+
+    let palettes = heatmaps.getPalettesNames();
+
+    console.log(palettes);
+
+    if (palettes.length === 0) ReE(res, 'no getPalettes availables');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: palettes}, 200);
+};
+
 const getHeatMap = async (req, res) => {
 
     let img_type = req.params.img_type
@@ -34,12 +40,6 @@ const getHeatMap = async (req, res) => {
     }
 };
 
-/**
- *
- * @param req
- * @param res
- * @returns {Promise<*>}
- */
 const buildResourceUsageHeatMaps = async function(req, res) {
     //res.setHeader('Content-Type', 'image/png');
 
@@ -99,6 +99,7 @@ const buildResourceUsageHeatMaps = async function(req, res) {
 };
 
 module.exports = {
+    getPalettes: getPalettes,
     getHeatMap: getHeatMap,
     buildResourceUsageHeatMaps: buildResourceUsageHeatMaps
 };
