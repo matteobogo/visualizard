@@ -21,7 +21,7 @@ const styles = {
     panel: {
     },
     panelBody: {
-        height: "250px"
+        height: "265px"
     }
 };
 
