@@ -8,7 +8,7 @@ const ping = async function(req, res) {
     let err, hosts;
     [err, hosts] = await to(influx.ping(timeout));
 
-    if(err) return ReE('error pinging the database');
+    if(err) return ReE('error pinging the timeseries');
 
     let ping_json;
     hosts.forEach(host => {
