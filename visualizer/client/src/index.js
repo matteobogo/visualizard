@@ -4,14 +4,31 @@ import ReactDOM from 'react-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/css/bootstrap-theme.min.css';
 
-//localization with Moment
-import Moment from 'moment'
-import momentLocalizer from 'react-widgets-moment';
-
 import App from './app';
 
-//localization - required for react-widgets DateTimePicker
+import { createStore, applyMiddleware } from 'redux';
+import { createLogger } from 'redux-logger'
+import { Provider } from 'react-redux';
+import thunk from 'redux-thunk';
+import rootReducer from './store/reducers'
+
+//localization with Moment
+//required for react-widgets DateTimePicker
+import Moment from 'moment'
+import momentLocalizer from 'react-widgets-moment';
 Moment.locale('en');
 momentLocalizer();
 
-ReactDOM.render(<App/>, document.getElementById('app'));
+const loggerMiddleware = createLogger();
+const store = createStore(
+    rootReducer,
+    applyMiddleware(
+        thunk,
+        loggerMiddleware
+    ));
+
+ReactDOM.render(
+    <Provider store={store}>
+        <App />
+    </Provider>,
+    document.getElementById('app'));
