@@ -76,6 +76,25 @@ const getAllFields = async function(req, res) {
     return ReS(res, {payload: fields_json}, 200);
 };
 
+const getFirstInterval = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, dbname, policy, field, firstMeasurement, startInterval;
+
+    dbname = req.query.dbname;
+    policy = req.query.policy;
+    field = req.query.field;
+
+    [err, firstMeasurement] = await to(influx.getFirstMeasurement(dbname));
+    if (err) return ReE(res, 'error retrieving start interval');
+
+    [err, startInterval] = await to(influx.getFirstInterval(dbname, firstMeasurement[0]['name'], policy, field));
+    if (err) return ReE(res, 'error retrieving start interval');
+
+    return ReS(res, {payload: startInterval.pop().time._nanoISO}, 200);
+};
+
 const getMeasurements = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
     
@@ -215,6 +234,7 @@ module.exports = {
     getDatabases: getDatabases,
     getAllPolicies: getAllPolicies,
     getAllFields: getAllFields,
+    getFirstInterval: getFirstInterval,
     getMeasurements: getMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
     getDataByPolicyByName: getDataByPolicyByName,
