@@ -61,7 +61,7 @@ const getFirstMeasurement = (dbname) => {
 
 /**
  * Get the first measurement time of a field of a specific time serie.
- * @param {string} dbname - the timeseries name.
+ * @param {string} dbname - the database name.
  * @param {string} name - the name of the time serie.
  * @param {string} policy - the name of the policy.
  * @param {string} field -the name of the field.
@@ -76,14 +76,15 @@ const getStartInterval = (dbname, name, policy, field) => {
 
 /**
  * Get the last measurement time of a field of a specific time serie.
+ * @param {string} dbname - the database name.
  * @param {string} name - the name of the time serie.
  * @param {string} policy - the name of the policy.
  * @param {string} field -the name of the field.
  */
-const getEndInterval = (name, policy, field) => {
+const getEndInterval = (dbname, name, policy, field) => {
     return influx.query(
         `
-        select last(${field}) from ${CONFIG.db_name}.${policy}.${name}
+        select last(${field}) from ${dbname}.${policy}.${name}
         `
     );
 };
