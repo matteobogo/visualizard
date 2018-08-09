@@ -1,3 +1,5 @@
+const config = require('../config/config');
+
 const influx = require('../database/influxdb');
 const heatmaps = require('../services/HeatMaps');
 
@@ -80,19 +82,48 @@ const getFirstInterval = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/json');
 
-    let err, dbname, policy, field, firstMeasurement, startInterval;
+    let err, dbname, policy, field, firstMeasurement, firstInterval;
 
     dbname = req.query.dbname;
     policy = req.query.policy;
     field = req.query.field;
 
     [err, firstMeasurement] = await to(influx.getFirstMeasurement(dbname));
-    if (err) return ReE(res, 'error retrieving start interval');
+    if (err) return ReE(res, 'error retrieving first interval');
 
-    [err, startInterval] = await to(influx.getFirstInterval(dbname, firstMeasurement[0]['name'], policy, field));
-    if (err) return ReE(res, 'error retrieving start interval');
+    [err, firstInterval] = await to(influx.getFirstInterval(dbname, firstMeasurement[0]['name'], policy, field));
+    if (err) return ReE(res, 'error retrieving first interval');
 
-    return ReS(res, {payload: startInterval.pop().time._nanoISO}, 200);
+    return ReS(res, {payload: firstInterval.pop().time._nanoISO}, 200);
+};
+
+const getLastInterval = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, dbname, policy, field, firstMeasurement, lastInterval;
+
+    dbname = req.query.dbname;
+    policy = req.query.policy;
+    field = req.query.field;
+
+    [err, firstMeasurement] = await to(influx.getFirstMeasurement(dbname));
+    if (err) return ReE(res, 'error retrieving last interval');
+
+    [err, lastInterval] = await to(influx.getLastInterval(dbname, firstMeasurement[0]['name'], policy, field));
+    if (err) return ReE(res, 'error retrieving last interval');
+
+    return ReS(res, {payload: lastInterval.pop().time._nanoISO}, 200);
+};
+
+const getPeriods = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    let periods = [];
+    periods.push(config.TIMESERIES.period);  //now is only 1
+
+    return ReS(res, {payload: periods}, 200);
 };
 
 const getMeasurements = async function(req, res) {
@@ -235,6 +266,8 @@ module.exports = {
     getAllPolicies: getAllPolicies,
     getAllFields: getAllFields,
     getFirstInterval: getFirstInterval,
+    getLastInterval: getLastInterval,
+    getPeriods: getPeriods,
     getMeasurements: getMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
     getDataByPolicyByName: getDataByPolicyByName,
