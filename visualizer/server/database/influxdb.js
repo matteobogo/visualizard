@@ -2,7 +2,11 @@ const config = require("../config/config");
 const InfluxClient = require("influx");
 
 const influx = new InfluxClient.InfluxDB(
-    'http://'+CONFIG.db_user+':'+CONFIG.db_password+'@'+CONFIG.db_host+':'+CONFIG.db_port+'/'+CONFIG.db_name);
+    'http://'+config.DATABASE.db_user+
+    ':'+config.DATABASE.db_password
+    +'@'+config.DATABASE.db_host
+    +':'+config.DATABASE.db_port
+    +'/'+config.DATABASE.db_name);
 
 /**
  * Ping the timeseries server.
@@ -66,7 +70,7 @@ const getFirstMeasurement = (dbname) => {
  * @param {string} policy - the name of the policy.
  * @param {string} field -the name of the field.
  */
-const getStartInterval = (dbname, name, policy, field) => {
+const getFirstInterval = (dbname, name, policy, field) => {
     return influx.query(
         `
         select first(${field}) from ${dbname}.${policy}.${name}
@@ -81,7 +85,7 @@ const getStartInterval = (dbname, name, policy, field) => {
  * @param {string} policy - the name of the policy.
  * @param {string} field -the name of the field.
  */
-const getEndInterval = (dbname, name, policy, field) => {
+const getLastInterval = (dbname, name, policy, field) => {
     return influx.query(
         `
         select last(${field}) from ${dbname}.${policy}.${name}
@@ -200,8 +204,8 @@ module.exports = {
     getRetentionPolicies: getRetentionPolicies,
     getMeasurements: getMeasurements,
     getFirstMeasurement: getFirstMeasurement,
-    getStartInterval: getStartInterval,
-    getEndInterval: getEndInterval,
+    getFirstInterval: getFirstInterval,
+    getLastInterval: getLastInterval,
     getDataByPolicyByName: getDataByPolicyByName,
     getPointsByPolicyByNameByStartTimeByEndTime: getPointsByPolicyByNameByStartTimeByEndTime,
     getPointsByPolicyByNameByStartTimeByEndTimeByField: getPointsByPolicyByNameByStartTimeByEndTimeByField,
