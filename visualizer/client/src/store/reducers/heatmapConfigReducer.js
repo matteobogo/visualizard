@@ -1,23 +1,23 @@
-import * as datasetTypes from '../types/datasetInfoTypes';
-import * as heatmapTypes from '../types/heatmapConfigTypes';
+import * as actionTypes from '../types/actionTypes';
 
 const initialState = {
 
     currentDatabase: "",
     currentPolicy: "",
-    currentTimeStart: "",
-    currentTimeEnd: "",
     currentField: "",
     currentPalette: "",
+    currentPeriod: "",
+    currentTimeStart: "",
+    currentTimeEnd: "",
 };
 
 export const heatmapConfig = (state = initialState, action) => {
 
     switch (action.type) {
 
-        case heatmapTypes.SET_ITEM_CURRENT_CONFIG:
+        case actionTypes.CURRENT_CONFIG_SET_ITEM:
 
-            if (action.itemType === datasetTypes._TYPE_DATABASE) {
+            if (action.itemType === actionTypes._TYPE_DATABASE) {
 
                 return {
                     ...state,
@@ -25,7 +25,7 @@ export const heatmapConfig = (state = initialState, action) => {
                 };
             }
 
-            else if (action.itemType === datasetTypes._TYPE_POLICY) {
+            else if (action.itemType === actionTypes._TYPE_POLICY) {
 
                 return {
                     ...state,
@@ -33,7 +33,7 @@ export const heatmapConfig = (state = initialState, action) => {
                 };
             }
 
-            else if (action.itemType === datasetTypes._TYPE_FIELD) {
+            else if (action.itemType === actionTypes._TYPE_FIELD) {
 
                 return {
                     ...state,
@@ -41,7 +41,7 @@ export const heatmapConfig = (state = initialState, action) => {
                 };
             }
 
-            else if (action.itemType === datasetTypes._TYPE_PALETTE) {
+            else if (action.itemType === actionTypes._TYPE_PALETTE) {
 
                 return {
                     ...state,
@@ -49,7 +49,35 @@ export const heatmapConfig = (state = initialState, action) => {
                 };
             }
 
+            else if (action.itemType === actionTypes._TYPE_PERIOD) {
+
+                return {
+                    ...state,
+                    currentPeriod: action.payload,
+                }
+            }
+
+            else if (action.itemType === actionTypes._TYPE_FIRST_INTERVAL) {
+
+                return {
+                    ...state,
+                    currentTimeStart: action.payload,
+                };
+            }
+
+            else if (action.itemType === actionTypes._TYPE_LAST_INTERVAL) {
+
+                return {
+                    ...state,
+                    currentTimeEnd: action.payload,
+                };
+            }
+
             break;
+
+        case actionTypes.CURRENT_CONFIG_RESET:
+
+            return initialState;
 
         default:
             return state;

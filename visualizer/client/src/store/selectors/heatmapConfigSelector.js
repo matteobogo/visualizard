@@ -1,4 +1,4 @@
-import * as datasetTypes from '../types/datasetInfoTypes';
+import * as datasetTypes from '../types/actionTypes';
 
 export const getItemsHeatmapConfiguration = (state, itemType) => {
 
@@ -19,5 +19,17 @@ export const getItemsHeatmapConfiguration = (state, itemType) => {
         case datasetTypes._TYPE_PALETTE:
 
             return state.heatmapConfig.currentPalette;
+
+        case datasetTypes._TYPE_PERIOD:
+
+            return state.heatmapConfig.currentPeriod;
+
+        case datasetTypes._TYPE_FIRST_INTERVAL:
+
+            return state.heatmapConfig.currentTimeStart;
+
+        case datasetTypes._TYPE_LAST_INTERVAL:
+
+            return state.heatmapConfig.currentTimeEnd;
     }
 };
