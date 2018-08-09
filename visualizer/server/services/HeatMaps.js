@@ -715,7 +715,7 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
     if (fields.length === 0) throw new Error('missing fields');
 
     let measurement = measurements[0];
-    await influx.getFieldsKeyByName(measurement)
+    await influx.getAllFieldsKeyByDatabaseByName(dbname, measurement)
         .catch(err => { throw new Error('no points available'); })
         .then(res => {
 
