@@ -1,14 +1,13 @@
-require('./config/config');
+const config = require('./config/config');
 require('./utils/global_functions');
 
-console.log("Environment: ", CONFIG.app);
+console.log("Environment: ", config.app);
 
-const express       = require('express')
-    , logger        = require('morgan')
-    , bodyParser    = require('body-parser')
-    , path          = require('path');
-
-const v1 = require('./routes/routes');
+const express           = require('express')
+    , logger            = require('morgan')
+    , bodyParser        = require('body-parser')
+    , path              = require('path')
+    , socketIo          = require('socket.io');
 
 const app = express();
 
@@ -25,14 +24,22 @@ app.use(function (req, res, next) {
     next();  //next layer of middleware
 });
 
-/** Routes */
-app.use('/api', v1);
+/* WebSockets - Socket.io */
+let io = socketIo();
+app.io = io;
 
-/** Home */
-app.use('/', function(req, res) {
-    res.statusCode = 200;
-    res.json({status:"success", message:"Visualizard API", data:{}})
-});
+/** Routes - classic */
+const api = require('./routes/routes');
+app.use('/api', api);
+
+/** Routes - WebSockets */
+const apiWS = require('./routes/routesWS')(io);
+
+// /** Home */
+// app.use('/', function(req, res) {
+//     res.statusCode = 200;
+//     res.json({status:"success", message:"Visualizard API", data:{}})
+// });
 
 /** Handling Errors */
 app.use(function(req, res, next) {
