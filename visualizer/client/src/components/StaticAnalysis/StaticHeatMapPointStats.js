@@ -73,7 +73,8 @@ export default class StaticHeatMapPointStats extends React.Component {
                                 fill="#8884d8"
                                 label>
                                 {
-                                    data.map((entry, index) => <Cell fill={COLORS[index % COLORS.length]}/>)
+                                    data.map(
+                                        (entry, index) => <Cell key={entry} fill={COLORS[index % COLORS.length]}/>)
                                 }
                             </Pie>
                         </PieChart>

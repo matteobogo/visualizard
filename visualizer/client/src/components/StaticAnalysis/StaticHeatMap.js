@@ -1,5 +1,5 @@
 import React from 'react';
-import {config} from '../../config/config';
+import * as config from '../../config/config';
 
 //react-bootstrap
 import { Panel } from 'react-bootstrap';
@@ -20,9 +20,9 @@ export default class StaticHeatMap extends React.Component {
 
     componentDidMount() {
 
-        // //change to onClick
-        // this.setState({isLoading: true});
-        //
+        //change to onClick
+        this.setState({isLoading: true});
+
         // fetch(config.API_URL+'' +
         //     '/heatmaps?' +
         //     'type=sortByMachine&' +
@@ -42,8 +42,8 @@ export default class StaticHeatMap extends React.Component {
         //             isLoading: false
         //         });
         //     }));
-        //
-        // //TODO errore cosa fare?
+
+        //TODO rimuovere in favore di redux / websocket?
     }
 
     render() {
