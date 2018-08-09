@@ -15,7 +15,7 @@
  * Selectors are composable. They can be used as input to other selectors.
  */
 
-import * as types from '../../store/types/datasetInfoTypes';
+import * as types from '../types/actionTypes';
 
 export const getItems = (state, itemType) => {
 
@@ -36,6 +36,18 @@ export const getItems = (state, itemType) => {
         case types._TYPE_PALETTE:
 
             return state.datasetInfo.palettes;
+
+        case types._TYPE_PERIOD:
+
+            return state.datasetInfo.periods;
+
+        case types._TYPE_FIRST_INTERVAL:
+
+            return state.datasetInfo.firstInterval;
+
+        case types._TYPE_LAST_INTERVAL:
+
+            return state.datasetInfo.lastInterval;
     }
 };
 

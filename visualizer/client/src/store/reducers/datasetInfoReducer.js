@@ -1,4 +1,4 @@
-import * as types from '../types/datasetInfoTypes';
+import * as types from '../types/actionTypes';
 //import makeSentinel from "mutation-sentinel";
 //const wrapper = makeSentinel(obj)
 //import _ from 'lodash';
@@ -9,7 +9,10 @@ const initialState = {
     policies: [],
     fields: [],
     palettes: [],
-    hasErrored: false,
+    periods: [],
+    firstInterval: "",
+    lastInterval: "",
+    hasErrored: "",
     isLoading: false,
 };
 
@@ -61,8 +64,33 @@ export const datasetInfo = (state = initialState, action) => {
                     palettes: action.payload,
                 };
             }
+            else if (action.itemType === types._TYPE_PERIOD) {
+
+                return {
+                    ...state,
+                    periods: action.payload,
+                };
+            }
+            else if (action.itemType === types._TYPE_FIRST_INTERVAL) {
+
+                return {
+                    ...state,
+                    firstInterval: action.payload,
+                };
+            }
+            else if (action.itemType === types._TYPE_LAST_INTERVAL) {
+
+                return {
+                    ...state,
+                    lastInterval: action.payload,
+                };
+            }
 
             break;
+
+        case types.FETCH_ITEMS_RESET:
+
+            return initialState;
 
         default:
             return state;
