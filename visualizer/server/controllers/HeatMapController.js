@@ -8,9 +8,7 @@ const mime = {
 
 const getPalettes = async (req, res) => {
 
-    let palettes = heatmaps.getPalettesNames();
-
-    console.log(palettes);
+    let palettes = heatmaps.getPalettes();
 
     if (palettes.length === 0) ReE(res, 'no getPalettes availables');
 
