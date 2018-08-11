@@ -21,6 +21,7 @@ router.get('/influx/policies', TimeSeriesController.getAllPolicies);
 router.get('/influx/fields', TimeSeriesController.getAllFields);
 router.get('/influx/firstInterval', TimeSeriesController.getFirstInterval);
 router.get('/influx/lastInterval', TimeSeriesController.getLastInterval);
+router.get('/influx/intervals', TimeSeriesController.getFirstAndLastIntervals);
 router.get('/influx/periods', TimeSeriesController.getPeriods);
 router.get('/influx/measurements', TimeSeriesController.getMeasurements);
 router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesController.getTimeIntervalByPolicyByNameByField);
