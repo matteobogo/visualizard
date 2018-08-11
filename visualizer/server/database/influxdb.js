@@ -108,21 +108,23 @@ const getDataByPolicyByName = (name, policy) => {
 
 /**
  * Get all the points of a specific time serie in a time interval [start, end].
+ * @param {string} dbname - the database name.
  * @param {string} policy - the name of the policy.
  * @param {string} name - the name of the time serie.
  * @param {Date} time_start - the start time of the interval, in UTC.
  * @param {Date} time_end - the end time of the interval, in UTC.
  */
-const getPointsByPolicyByNameByStartTimeByEndTime = (policy, name, time_start, time_end) => {
+const getPointsByPolicyByNameByStartTimeByEndTime = (dbname, policy, name, time_start, time_end) => {
     return influx.query(
         `
-        select * from ${CONFIG.db_name}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
+        select * from ${dbname}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
         `
     );
 };
 
 /**
  * Get all the points of a specified field of a specified time serie in a time interval [start, end].
+ * @param {string} dbname - the database name.
  * @param {string} policy - the name of the policy.
  * @param {string} name - the name of the time serie.
  * @param {Date} time_start - the start time of the interval, in UTC.
@@ -130,11 +132,11 @@ const getPointsByPolicyByNameByStartTimeByEndTime = (policy, name, time_start, t
  * @param {string} field - the specified field of the time serie.
  * @returns {Promise<IResults<any>>}
  */
-const getPointsByPolicyByNameByStartTimeByEndTimeByField = (policy, name, time_start, time_end, field) => {
+const getPointsByPolicyByNameByStartTimeByEndTimeByField = (dbname, policy, name, time_start, time_end, field) => {
 
     return influx.query(
         `
-        select ${field} from ${CONFIG.db_name}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
+        select ${field} from ${dbname}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
         `
     )
 };
