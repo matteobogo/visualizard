@@ -41,13 +41,13 @@ export const getItems = (state, itemType) => {
 
             return state.datasetInfo.periods;
 
-        case types._TYPE_FIRST_INTERVAL:
+        case types._TYPE_INTERVALS:
 
-            return state.datasetInfo.firstInterval;
+            return {
 
-        case types._TYPE_LAST_INTERVAL:
-
-            return state.datasetInfo.lastInterval;
+                firstInterval: state.datasetInfo.firstInterval,
+                lastInterval: state.datasetInfo.lastInterval,
+            }
     }
 };
 

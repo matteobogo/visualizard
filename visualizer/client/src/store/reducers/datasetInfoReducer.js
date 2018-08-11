@@ -71,18 +71,12 @@ export const datasetInfo = (state = initialState, action) => {
                     periods: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_FIRST_INTERVAL) {
+            else if (action.itemType === types._TYPE_INTERVALS) {
 
                 return {
                     ...state,
-                    firstInterval: action.payload,
-                };
-            }
-            else if (action.itemType === types._TYPE_LAST_INTERVAL) {
-
-                return {
-                    ...state,
-                    lastInterval: action.payload,
+                    firstInterval: action.payload.firstInterval,
+                    lastInterval: action.payload.lastInterval,
                 };
             }
 
