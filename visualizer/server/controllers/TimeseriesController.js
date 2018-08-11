@@ -116,6 +116,32 @@ const getLastInterval = async (req, res) => {
     return ReS(res, {payload: lastInterval.pop().time._nanoISO}, 200);
 };
 
+const getFirstAndLastIntervals = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, dbname, policy, field, firstMeasurement, firstInterval, lastInterval, timeRange;
+
+    dbname = req.query.dbname;
+    policy = req.query.policy;
+    field = req.query.field;
+
+    [err, firstMeasurement] = await to(influx.getFirstMeasurement(dbname));
+    if (err) return ReE(res, 'error retrieving time range');
+
+    [err, firstInterval] = await to(influx.getFirstInterval(dbname, firstMeasurement[0]['name'], policy, field));
+    [err, lastInterval] = await to(influx.getLastInterval(dbname, firstMeasurement[0]['name'], policy, field));
+
+    if(err) return ReE(res, 'error retrieving time range');
+
+    return ReS(res, {
+        payload: {
+            firstInterval: firstInterval.pop().time._nanoISO,
+            lastInterval: lastInterval.pop().time._nanoISO
+        }
+    });
+};
+
 const getPeriods = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/json');
@@ -267,6 +293,7 @@ module.exports = {
     getAllFields: getAllFields,
     getFirstInterval: getFirstInterval,
     getLastInterval: getLastInterval,
+    getFirstAndLastIntervals: getFirstAndLastIntervals,
     getPeriods: getPeriods,
     getMeasurements: getMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
