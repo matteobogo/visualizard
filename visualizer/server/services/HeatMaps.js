@@ -20,8 +20,15 @@ let Canvas = require('canvas');
 //     "#606060","#585858","#505050","#484848","#404040","#383838","#303030","#282828","#202020","#181818",
 //     "#101010","#080808","#000000"];
 
+/* Palettes */
+
 const _PALETTE_GRAY     = 'GRAY';
 const _PALETTE_RED      = 'RED';
+
+const palettes = [
+    _PALETTE_GRAY,
+    _PALETTE_RED
+];
 
 const palette_shades_gray = [
     {r:61 , g:61 , b:61},
@@ -49,16 +56,7 @@ const palette_shades_red = [
     {r:127 , g:0 , b:0 }
 ];
 
-const getPalettesNames = () => {
-
-    return [
-
-        _PALETTE_GRAY,
-        _PALETTE_RED,
-    ]
-};
-
-const getPalettes = (palette) => {
+const getPalettesRGB = (palette) => {
 
     switch (palette) {
 
@@ -75,6 +73,22 @@ const getPalettes = (palette) => {
     }
 };
 
+exports.getPalettes = () => {
+
+    return palettes;
+};
+
+/* HeatMap Types */
+const _HEATMAP_TYPE_BY_MACHINE              = 'Sort by machine';
+const _HEATMAP_TYPE_BY_SUM                  = 'Sort by sum';
+const _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE      = 'Sort by TimeStamp of Max Value';
+
+const heatMapTypes = [
+    _HEATMAP_TYPE_BY_MACHINE,
+    _HEATMAP_TYPE_BY_SUM,
+    _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE,
+];
+
 /*
  * Feature Scaling: Standardization
  * https://en.wikipedia.org/wiki/Standard_score
@@ -89,6 +103,12 @@ const computation_stages = {
     //TODO
     //TODO each method update a global var with computation stage
 };
+
+/**
+ * Manage missing parameters in functions.
+ * @param p the missing parameter
+ */
+const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
 
 //Fast, small color manipulation and conversion for JavaScript
@@ -203,6 +223,7 @@ const fetchPointsFromHttpApi = (
         function (resolve, reject) {
 
             influx.getPointsByPolicyByNameByStartTimeByEndTime(
+                dbname,
                 policy,
                 measurement,
                 start_interval,
@@ -269,163 +290,8 @@ const fetchPointsFromHttpApi = (
     )
 };
 
-/**
- *
- * @param dbname
- * @param policy
- * @param measurements
- * @param start_interval
- * @param end_interval
- * @param period
- * @param fields
- * @returns {Promise<*[]>}
- */
-const analyzeMeasurements = async (
-    dbname,
-    policy,
-    measurements,
-    start_interval,
-    end_interval,
-    period,
-    fields) => {
 
-    let sample_point_length = -1;
-    let measurements_stats = [];
-    for (let i = 0; i < measurements.length; ++i) {
 
-        let stat = {};
-        let points = await fetchPointsFromHttpApi(
-            dbname,
-            policy,
-            measurements[i],
-            start_interval,
-            end_interval,
-            period,
-            fields
-        ).then(points => { return points; }); //non serve
-
-        //need at the end to compute dataset mean
-        sample_point_length = points.length;
-
-        //initialize
-        stat['dbname'] = dbname;
-        stat['policy'] = policy;
-        stat['measurement'] = measurements[i];
-        stat['start_interval'] = start_interval;
-        stat['end_interval'] = end_interval;
-        stat['period'] = period;
-        stat['intervals'] = (Date.parse(end_interval) - Date.parse(start_interval)) / (period * 1000) + 1;
-        stat['fields'] = fields;
-        stat['stats'] = {};
-        fields.forEach(field => {
-            stat['stats'][field] = {
-                min: Number.MAX_SAFE_INTEGER,
-                max: Number.MIN_SAFE_INTEGER,
-                sum: 0,
-                mean: -1,
-                max_ts: '',
-                min_ts: ''
-            }
-        });
-
-        //collect stats
-        points.forEach(p => {
-
-            fields.forEach(field => {
-
-                //min
-                if (stat['stats'][field]['min'] === undefined || p[field] < stat['stats'][field]['min']) {
-                    stat['stats'][field]['min'] = p[field];
-                    stat['stats'][field]['min_ts'] = Date.parse(p['time']);
-                }
-
-                //max
-                if (stat['stats'][field]['max'] === undefined || p[field] > stat['stats'][field]['max']) {
-                    stat['stats'][field]['max'] = p[field];
-                    stat['stats'][field]['max_ts'] = Date.parse(p['time']);
-                }
-
-                //sum
-                stat['stats'][field]['sum'] += p[field];
-            });
-        });
-
-        //mean
-        fields.forEach(field => {
-
-            stat['stats'][field]['mean'] = stat['stats'][field]['sum'] / points.length;
-        });
-        measurements_stats.push(stat);
-    }
-
-    //global dataset stats
-    let dataset_stats = {};
-    fields.forEach(field => {
-
-        //initialize
-        dataset_stats[field] = {
-            min: Number.MAX_SAFE_INTEGER,
-            max: Number.MIN_SAFE_INTEGER,
-            sum: 0,
-            mean: -1,
-            std: -1,
-            population: 0
-        };
-
-        measurements_stats.forEach(stat => {
-
-            //sum
-            dataset_stats[field]['sum'] += stat['stats'][field]['sum'];
-
-            //min - max
-            if (stat['stats'][field]['min'] < dataset_stats[field]['min'])
-                dataset_stats[field]['min'] = stat['stats'][field]['min'];
-
-            if (stat['stats'][field]['max'] > dataset_stats[field]['max'])
-                dataset_stats[field]['max'] = stat['stats'][field]['max'];
-
-        });
-
-        //mean
-        dataset_stats[field]['mean'] = dataset_stats[field]['sum'] / (measurements.length * sample_point_length);
-    });
-
-    //standard deviation (std)
-    // sqrt ( 1/N * sum from 1 to N of (xi - dataset_mean)^2 ) , with N the entire population
-    let tmp_data = {};
-    fields.forEach(field => {
-        tmp_data[field] = 0
-    });
-
-    for (let i = 0; i < measurements.length; ++i) {
-
-        let points = await fetchPointsFromHttpApi(
-            dbname,
-            policy,
-            measurements[i],
-            start_interval,
-            end_interval,
-            period,
-            fields
-        ).catch(err => { throw new Error(err.message); });
-
-        points.forEach(point => {
-
-            fields.forEach(field => {
-
-                dataset_stats[field]['population'] += 1;
-                tmp_data[field] += Math.pow((point[field] - dataset_stats[field]['mean']), 2);
-            });
-        });
-    }
-
-    fields.forEach(field => {
-
-        dataset_stats[field]['std'] = Math.sqrt(tmp_data[field] / dataset_stats[field]['population']);
-    });
-
-    return [dataset_stats, measurements_stats];
-};
 
 /**
  *
@@ -488,7 +354,7 @@ const drawHeatMap = async (
     { palette },
     heatmap_type) => {
 
-    let current_palette = getPalettes(palette);
+    let current_palette = getPalettesRGB(palette);
 
     //one heatmap for each field
     let fields = measurement_stats[0]['fields'];
@@ -596,30 +462,30 @@ const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
  */
 const buildHeatMaps = async (options) => {
 
-    /* Fetch Measurements from Database */
-    console.log(`Fetching list of measurements from database..`);
-    let measurements = await fetchMeasurementsListFromHttpApi(options.dbname);
-
-    //only a sample of machines
-    if (options.n_measurements > 0) {
-        console.log(`Selected only a sample of ${options.n_measurements} measurements`);
-        measurements = measurements.slice(0, options.n_measurements);
-    }
-
-    /* Analyze Measurements */
-    console.log(`Start analyzing ${measurements.length} measurements..`);
-    let dataset_stats, measurement_stats;
-    [dataset_stats, measurement_stats] = await
-        analyzeMeasurements(
-            options.dbname,
-            options.policy,
-            measurements,
-            options.start_time,
-            options.end_time,
-            options.period,
-            options.fields);
-
-    if (measurement_stats.length === 0) throw new Error('measurements analysis fails');
+    // /* Fetch Measurements from Database */
+    // console.log(`Fetching list of measurements from database..`);
+    // let measurements = await fetchMeasurementsListFromHttpApi(options.dbname);
+    //
+    // //only a sample of machines
+    // if (options.n_measurements > 0) {
+    //     console.log(`Selected only a sample of ${options.n_measurements} measurements`);
+    //     measurements = measurements.slice(0, options.n_measurements);
+    // }
+    //
+    // /* Analyze Measurements */
+    // console.log(`Start analyzing ${measurements.length} measurements..`);
+    // let dataset_stats, measurement_stats;
+    // [dataset_stats, measurement_stats] = await
+    //     analyzeMeasurements(
+    //         options.dbname,
+    //         options.policy,
+    //         measurements,
+    //         options.start_time,
+    //         options.end_time,
+    //         options.period,
+    //         options.fields);
+    //
+    // if (measurement_stats.length === 0) throw new Error('measurements analysis fails');
 
     let width = (Date.parse(options.end_time) - Date.parse(options.start_time)) / (options.period * 1000) + 1
     ,   height = measurements.length;
@@ -690,13 +556,257 @@ const buildHeatMaps = async (options) => {
     }
 };
 
-/**
- *
- * @param dbname
- * @param policy
- * @param fields
- * @returns {Promise<void>}
- */
+
+
+
+
+
+
+
+
+
+
+
+
+/* HeatMap Analysis */
+
+const initializeMeanPointsPerTS = (startInterval, endInterval, period, fields) => {
+
+    let structure = {};
+
+    let currentIntervalParsed = new Date(startInterval);
+    let endIntervalParsed = new Date(endInterval);
+    while (currentIntervalParsed <= endIntervalParsed) {
+
+        let entry = {timestamp: currentIntervalParsed.toUTCString()};
+        fields.forEach(field => entry[field] = []); //array of points (of field)
+        structure[currentIntervalParsed.getTime()] = entry;
+
+        currentIntervalParsed.setSeconds(currentIntervalParsed.getSeconds() + period);
+    }
+
+    return structure;
+};
+
+const analyzeMeasurements = async (
+    dbname,
+    policy,
+    measurements,
+    start_interval,
+    end_interval,
+    period,
+    fields) => {
+
+    //init mean points per ts
+    let mean_points_per_timestamp = initializeMeanPointsPerTS(start_interval, end_interval, period, fields);
+
+    let sample_points_length = -1;
+    let measurements_stats = [];
+    for (let i = 0; i < measurements.length; ++i) {
+
+        let stats = {};
+        let points = await fetchPointsFromHttpApi(
+            dbname,
+            policy,
+            measurements[i],
+            start_interval,
+            end_interval,
+            period,
+            fields
+        ).then(points => { return points; }); //non serve
+
+        //need at the end to compute dataset mean
+        sample_points_length = points.length;
+
+        //initialize
+        stats['dbname'] = dbname;
+        stats['policy'] = policy;
+        stats['measurement'] = measurements[i];
+        stats['start_interval'] = start_interval;
+        stats['end_interval'] = end_interval;
+        stats['period'] = period;
+        stats['intervals'] = (Date.parse(end_interval) - Date.parse(start_interval)) / (period * 1000) + 1;
+        stats['fields'] = fields;
+        stats['stats'] = {};
+        fields.forEach(field => {
+            stats['stats'][field] = {
+                min: Number.MAX_SAFE_INTEGER,
+                max: Number.MIN_SAFE_INTEGER,
+                sum: 0,
+                mean: -1,
+                max_ts: '',
+                min_ts: ''
+            }
+        });
+
+        //collect stats
+        points.forEach(p => {
+
+            fields.forEach(field => {
+
+                //min
+                if (stats['stats'][field]['min'] === undefined || p[field] < stats['stats'][field]['min']) {
+                    stats['stats'][field]['min'] = p[field];
+                    stats['stats'][field]['min_ts'] = Date.parse(p['time']);
+                }
+
+                //max
+                if (stats['stats'][field]['max'] === undefined || p[field] > stats['stats'][field]['max']) {
+                    stats['stats'][field]['max'] = p[field];
+                    stats['stats'][field]['max_ts'] = Date.parse(p['time']);
+                }
+
+                //sum
+                stats['stats'][field]['sum'] += p[field];
+                
+                //collect points per timestamp                
+                let timestamp = p['time'].getTime();  //convert in unix epoch
+                mean_points_per_timestamp[timestamp][field].push(p[field]);
+            });
+        });
+
+        //mean
+        fields.forEach(field => {
+
+            stats['stats'][field]['mean'] = stats['stats'][field]['sum'] / points.length;
+        });
+        measurements_stats.push(stats);
+    }
+
+    //global dataset stats
+    let dataset_stats = {};
+    fields.forEach(field => {
+
+        //initialize
+        dataset_stats[field] = {
+            min: Number.MAX_SAFE_INTEGER,
+            max: Number.MIN_SAFE_INTEGER,
+            sum: 0,
+            mean: -1,
+            std: -1,
+            population: 0
+        };
+
+        measurements_stats.forEach(stat => {
+
+            //sum
+            dataset_stats[field]['sum'] += stat['stats'][field]['sum'];
+
+            //min - max
+            if (stat['stats'][field]['min'] < dataset_stats[field]['min'])
+                dataset_stats[field]['min'] = stat['stats'][field]['min'];
+
+            if (stat['stats'][field]['max'] > dataset_stats[field]['max'])
+                dataset_stats[field]['max'] = stat['stats'][field]['max'];
+
+        });
+
+        //global mean
+        dataset_stats[field]['mean'] = dataset_stats[field]['sum'] / (measurements.length * sample_points_length);
+    });
+
+    //standard deviation (std)
+    // sqrt ( 1/N * sum from 1 to N of (xi - dataset_mean)^2 ) , with N the entire population
+    let tmp_data = {};
+    fields.forEach(field => {
+        tmp_data[field] = 0
+    });
+
+    for (let i = 0; i < measurements.length; ++i) {
+
+        let points = await fetchPointsFromHttpApi(
+            dbname,
+            policy,
+            measurements[i],
+            start_interval,
+            end_interval,
+            period,
+            fields
+        ).catch(err => { throw new Error(err.message); });
+
+        points.forEach(point => {
+
+            fields.forEach(field => {
+
+                dataset_stats[field]['population'] += 1;
+                tmp_data[field] += Math.pow((point[field] - dataset_stats[field]['mean']), 2);
+            });
+        });
+    }
+
+    fields.forEach(field => {
+
+        dataset_stats[field]['std'] = Math.sqrt(tmp_data[field] / dataset_stats[field]['population']);
+    });
+    
+    //mean per timestamp
+    //{
+    //  ts1: { timestamp: ts1, field1: [...], field2: [...], .. }  ==> ts1: { timestamp: ts1, field1: mean(points), .. }
+    //  ts2: ...
+    //  ...
+    //}
+    for (let key in mean_points_per_timestamp) {
+        if (mean_points_per_timestamp.hasOwnProperty(key)) {
+
+            fields.forEach(field => {
+
+                let sum = mean_points_per_timestamp[key][field].reduce((acc, curr) => acc + curr, 0);
+                mean_points_per_timestamp[key][field] = sum / mean_points_per_timestamp[key][field].length;
+            });
+        }
+    }
+
+    console.log(mean_points_per_timestamp);
+
+    return {
+        datasetStats: dataset_stats,
+        meanPointsPerTimestamp: mean_points_per_timestamp,
+        //measurementStats: measurements_stats,
+
+    };
+};
+
+exports.heatMapAnalysis = async (
+    {
+        database = x`database`,
+        policy = x`policy`,
+        startInterval = x`startInterval`,
+        endInterval = x`endInterval`,
+        fields = x`fields`,
+        nMeasurements = 0,
+        period = 300,
+    }
+) => {
+
+    /* Fetch Measurements from Database */
+    console.log(`Fetching list of measurements from database..`);
+    let measurements = await fetchMeasurementsListFromHttpApi(database);
+
+    //only a sample of machines
+    if (nMeasurements > 0) {
+        console.log(`Selected only a sample of ${nMeasurements} measurements`);
+        measurements = measurements.slice(0, nMeasurements);
+    }
+
+    /* Analyze Measurements */
+    console.log(`Start analyzing ${measurements.length} measurements..`);
+    let analysis = await
+        analyzeMeasurements(
+            database,
+            policy,
+            measurements,
+            startInterval,
+            endInterval,
+            period,
+            fields);
+
+    console.log(`Analysis completed`);
+
+    return analysis;
+};
+
+/* HeatMap Configuration Validation */
+
 const validateDatabaseArgs = async (dbname, policy, fields) => {
 
     const [dbs, policies, measurements] = await Promise.all([
@@ -724,51 +834,36 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         })
 };
 
-/**
- * Manage missing parameters in functions.
- * @param p the missing parameter
- */
-const x = p => { throw new Error(`Missing parameter: ${p}`) };
+exports.heatMapConfigurationValidation = async (
 
-/**
- *
- * @param dbname
- * @param policy
- * @param start_time
- * @param end_time
- * @param fields
- * @param n_measurements
- * @param period
- * @param type
- * @param palette
- * @returns {Promise<void>}
- */
-const entrypoint = async (
-
-        dbname = x`dbname`,
+    {
+        database = x`database`,
         policy = x`policy`,
-        start_time = x`start time`,
-        end_time = x`end time`,
+        startInterval = x`startInterval`,
+        endInterval = x`endInterval`,
         fields = x`fields`,
-        n_measurements = 0,
+        nMeasurements = 0,
         period = 300,
-        type = 'all',
-        palette = _PALETTE_GRAY) => {
+        palette = _PALETTE_GRAY,
+        heatMapType = 'original'
+    }
+
+) => {
 
     //timeseries validation
-    console.log(`Validating DB: ${dbname} \n - policy: ${policy} \n - fields: ${fields}`);
-    await validateDatabaseArgs(dbname, policy, fields);
+    console.log(`Validating DB: ${database} \n - policy: ${policy} \n - fields: ${fields}`);
+    await validateDatabaseArgs(database, policy, fields);
 
     //intervals validation
-    console.log(`Validating time interval [${start_time} - ${end_time}]`);
+    console.log(`Validating time interval [${startInterval} - ${endInterval}]`);
     let start_interval, end_interval;
     try {
 
-        start_interval = Date.parse(start_time);
-        end_interval = Date.parse(end_time);
+        start_interval = Date.parse(startInterval);
+        end_interval = Date.parse(endInterval);
     }
     catch (e) {
-        throw new Error(`invalid interval: [${start_time} - ${end_time}]`);
+        throw new Error(`invalid interval: [${startInterval} - ${endInterval}]`);
     }
 
     //end interval must be equal or greater than start interval
@@ -776,24 +871,23 @@ const entrypoint = async (
     if (diff_time > 0)
         throw new Error('end interval must be greater or equal then start');
 
+    //number of measurements validation
+    console.log(`Validing #measurements [${nMeasurements}]`);
+    if (nMeasurements < 0)
+        throw new Error(`measurements cannot be negative [Default: 0 => all]`);
+
     //period validation
     console.log(`Validating period [${period}]`);
-    if ((period % 300) !== 0) throw new Error('invalid period, must be multiple of 300 (5min)');
+    if ((period % 300) !== 0)
+        throw new Error('invalid period, must be multiple of 300 (5min)');
 
-    //start computation
-    return await buildHeatMaps({
-        dbname,
-        policy,
-        start_time,
-        end_time,
-        fields,
-        n_measurements,
-        period,
-        type,
-        palette});
-};
+    //palette validation
+    if (!palettes.includes(palette))
+        throw new Error(`invalid palette [AVAILABLE: ${palettes}]`);
 
-module.exports = {
-    getPalettesNames: getPalettesNames,
-    entrypoint: entrypoint,
+    //heatmap type validation
+    if (!heatMapTypes.includes(heatMapType))
+        throw new Error(`invalid heatmap type [AVAILABLE: ${heatMapTypes}]`);
+
+    return true;
 };
