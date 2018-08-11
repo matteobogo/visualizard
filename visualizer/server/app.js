@@ -1,7 +1,7 @@
 const config = require('./config/config');
 require('./utils/global_functions');
 
-console.log("Environment: ", config.app);
+console.log("Environment: ", config.APP.mode);
 
 const express           = require('express')
     , logger            = require('morgan')
@@ -32,8 +32,8 @@ app.io = io;
 const api = require('./routes/routes');
 app.use('/api', api);
 
-/** Routes - WebSockets */
-const apiWS = require('./routes/routesWS')(io);
+/** WebSockets */
+const webSocketEvents = require('./ws/WebSocketManager')(io);
 
 // /** Home */
 // app.use('/', function(req, res) {
