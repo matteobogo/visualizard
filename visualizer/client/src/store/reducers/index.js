@@ -2,11 +2,11 @@
 
 import { combineReducers } from 'redux';
 import { datasetInfo } from './datasetInfoReducer';
-import { heatmapConfig } from './heatmapConfigReducer';
 import { notifications } from './notificationsReducer';
+import { heatMapComputation } from './heatMapComputationReducer';
 
 export default combineReducers({
     datasetInfo,
-    heatmapConfig,
-    notifications
+    notifications,
+    heatMapComputation,
 })
