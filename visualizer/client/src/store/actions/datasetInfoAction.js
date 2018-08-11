@@ -39,12 +39,8 @@ export const fetchItems = (itemType, database = "", policy = "", field = "") => 
             _URL = apiFetcher._URL_PERIODS;
             break;
 
-        case types._TYPE_FIRST_INTERVAL:
-            _URL = apiFetcher._URL_FIRST_INTERVAL(database, policy, field);
-            break;
-
-        case types._TYPE_LAST_INTERVAL:
-            _URL = apiFetcher._URL_LAST_INTERVAL(database, policy, field);
+        case types._TYPE_INTERVALS:
+            _URL = apiFetcher._URL_INTERVALS(database, policy, field);
             break;
     }
 
