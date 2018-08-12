@@ -46,7 +46,7 @@ const data = [
     {name: 'G', uv: 3490, mean: 4300, amt: 2100},
 ];
 
-class StaticHeatMapStats extends React.Component {
+class StaticHeatMapDatasetMean extends React.Component {
 
     constructor(props) {
         super(props);
@@ -118,4 +118,4 @@ const mapDispatchToProps = (dispatch) => {
     }
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(StaticHeatMapStats);
+export default connect(mapStateToProps, mapDispatchToProps)(StaticHeatMapDatasetMean);
