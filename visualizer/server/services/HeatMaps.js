@@ -756,8 +756,6 @@ const analyzeMeasurements = async (
         }
     }
 
-    console.log(mean_points_per_timestamp);
-
     return {
         datasetStats: dataset_stats,
         meanPointsPerTimestamp: mean_points_per_timestamp,
