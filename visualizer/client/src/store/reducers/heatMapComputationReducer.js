@@ -18,7 +18,7 @@ const initialState = {
 
     analysis: {
 
-        datasetAnalysis: {},
+        datasetStats: null,
         meanPointsPerTimestamp: [],
     },
 
@@ -29,7 +29,7 @@ const initialState = {
         points: [],
     },
 
-    stage: "",
+    stage: commonTypes.COMPUTATION_STAGE_IDLE,
     error: "",
 };
 
@@ -45,6 +45,10 @@ export const heatMapComputation = (state = initialState, action) => {
                 computationRequest: action.payload,
                 stage: commonTypes.COMPUTATION_STAGE_INIT,
             };
+
+        case actionTypes.HEATMAP_COMPUTATION_RESET:
+
+            return initialState;
 
         case actionTypes.HEATMAP_COMPUTATION_ACCEPTED:
 

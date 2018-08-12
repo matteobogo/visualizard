@@ -9,6 +9,14 @@ export const sendComputationRequest = (request) => {
     }
 };
 
+export const resetPreviousComputationRequest = () => {
+
+    return (dispatch) => {
+
+        dispatch({ type: actionTypes.HEATMAP_COMPUTATION_RESET })
+    }
+};
+
 export const computationRequestAccepted = (request) => {
 
     return (dispatch) => {
