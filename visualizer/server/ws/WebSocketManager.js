@@ -63,6 +63,17 @@ exports = module.exports = (io) => {
             //start processing
             socket.on(wsTypes.HEATMAP_ANALYSIS_START, (request) => {
 
+                console.log(
+                    '------------------------------\n' +
+                    'Analysis Start                \n' +
+                    '------------------------------\n' +
+                    `CLIENT_ID: ${socket.id}       \n` +
+                    '------------------------------\n' +
+                    'HeatMap Configuration:        \n');
+
+                console.log(`${JSON.stringify(request)}`);
+                console.log('------------------------------\n');
+
                 //analysis
                 heatMapService
                     .heatMapAnalysis({
@@ -80,6 +91,11 @@ exports = module.exports = (io) => {
                         socket.emit(wsTypes.HEATMAP_ANALYSIS_SUCCESS, analysis);
                     })
                     .catch(error => {
+
+                        console.log(
+                            `Analysis started by [CLIENT_ID]: ${socket.id} failed\n` +
+                            `Error: \n` +
+                            `${error.message}` );
 
                         socket.emit(wsTypes.HEATMAP_ANALYSIS_FAIL, error.message);
                     })
