@@ -8,13 +8,17 @@ import autoBind from 'react-autobind';
 
 //redux
 import { connect } from 'react-redux';
+
 import * as actionTypes from '../../store/types/actionTypes';
+import * as commonTypes from '../../store/types/commonTypes';
 
 import { fetchItems, resetDatasetItems } from '../../store/actions/datasetInfoAction';
 import { notify } from '../../store/actions/notificationsAction';
-import { sendComputationRequest } from '../../store/actions/heatmapComputationAction';
+import { sendComputationRequest, resetPreviousComputationRequest } from '../../store/actions/heatmapComputationAction';
 
 import { getItems, getHasErrored, getIsLoading } from '../../store/selectors/datasetInfoSelector';
+import { getComputationStage } from '../../store/selectors/heatMapComputationSelector';
+
 
 //react-bootstrap
 import {
@@ -90,9 +94,17 @@ class StaticHeatMapConfigurator extends React.Component {
         super(props);
 
         this.state = initialState;
+
+        //binding to make this work in the callback
+        this.computeButtonClick = this.computeButtonClick.bind(this);
     }
 
     componentDidMount() {
+
+        this.fetchDatabases();
+    }
+
+    fetchDatabases() {
 
         this.props.fetchData(actionTypes._TYPE_DATABASE);
     }
@@ -196,7 +208,7 @@ class StaticHeatMapConfigurator extends React.Component {
 
     computeButtonClick() {
 
-        const { sendComputationRequest } = this.props;
+        const { sendComputationRequest, stages } = this.props;
 
         //check if user deletes DateTime Pickers
         // if (this.props.currentTimeStart === "") {
@@ -210,8 +222,10 @@ class StaticHeatMapConfigurator extends React.Component {
 
         //check start interval not greater than end interval?
 
-        //TEST
-        sendComputationRequest(
+        if (stages === commonTypes.COMPUTATION_STAGE_IDLE) {
+
+            //TEST
+            sendComputationRequest(
                 {
                     database: "google_cluster",
                     policy: "autogen",
@@ -223,16 +237,22 @@ class StaticHeatMapConfigurator extends React.Component {
                     palette: "RED",
                     heatMapType: "Sort by machine",
                 });
+
+            this.setState({computationLocked: true});
+        }
     }
 
     resetButtonClick() {
 
-        const { resetDatasetInfo, notify } = this.props;
+        const { resetDatasetInfo, resetPreviousComputationRequest, notify } = this.props;
 
         resetDatasetInfo();
+        resetPreviousComputationRequest();
         this.setState(initialState);
 
         notify('settings reset', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+
+        this.fetchDatabases();
     }
 
     render() {
@@ -470,7 +490,7 @@ class StaticHeatMapConfigurator extends React.Component {
                                 <Button
                                     className="pull-left"
                                     bsStyle="primary"
-                                    onClick={this.computeButtonClick.bind(this)}
+                                    onClick={this.computeButtonClick}
                                     disabled={computationLocked}
                                     style={styles.computeButton}>
                                     Compute
@@ -521,6 +541,8 @@ const mapStateToProps = (state) => {
         palettes: getItems(state, actionTypes._TYPE_PALETTE),
         periods: getItems(state, actionTypes._TYPE_PERIOD),
         intervals: getItems(state, actionTypes._TYPE_INTERVALS),
+
+        stages: getComputationStage(state),
     }
 };
 
@@ -533,6 +555,7 @@ const mapDispatchToProps = (dispatch) => {
         resetDatasetInfo: () => dispatch(resetDatasetItems()),
         notify: (status, msgType) => dispatch(notify(status, msgType)),
         sendComputationRequest: (request) => dispatch(sendComputationRequest(request)),
+        resetPreviousComputationRequest: () => dispatch(resetPreviousComputationRequest()),
     }
 };
 
