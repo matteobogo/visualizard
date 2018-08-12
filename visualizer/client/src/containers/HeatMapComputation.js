@@ -3,9 +3,9 @@
  */
 import React, { Component } from 'react';
 import StaticHeatMapConfigurator from "../components/StaticAnalysis/StaticHeatMapConfigurator";
-import DatabaseStats from "../components/StaticAnalysis/DatabaseStats";
+import StaticHeatMapAnalysis from "../components/StaticAnalysis/StaticHeatMapAnalysis";
 import StaticHeatMap from "../components/StaticAnalysis/StaticHeatMap";
-import StaticHeatMapStats from "../components/StaticAnalysis/StaticHeatMapStats";
+import StaticHeatMapStats from "../components/StaticAnalysis/StaticHeatMapDatasetMean";
 import StaticHeatMapRowStats from "../components/StaticAnalysis/StaticHeatMapRowStats";
 import StaticHeatMapColumnStats from "../components/StaticAnalysis/StaticHeatMapColumnStats";
 import StaticHeatMapPointStats from "../components/StaticAnalysis/StaticHeatMapPointStats";
@@ -28,7 +28,12 @@ import {
     datasetAnalysisCompleted,
     datasetAnalysisErrored,
 } from '../store/actions/heatmapComputationAction';
-import { getComputationRequest, getComputationStage } from '../store/selectors/heatMapComputationSelector';
+
+import {
+    getComputationRequest,
+    getComputationStage,
+    getDatasetStats,
+} from '../store/selectors/heatMapComputationSelector';
 
 //websockets - socket.io
 import io from 'socket.io-client';
@@ -46,16 +51,26 @@ class HeatMapComputation extends Component {
 
     componentDidMount() {
 
-        const { notify } = this.props;
+        const {
+            notify,
+            computationRequestAccepted,
+            computationRequestRejected,
+            datasetAnalysisCompleted,
+            datasetAnalysisErrored,
+        } = this.props;
 
+        /* Register Socket Events Handlers */
+
+        //initialize socket
         this.socket = io
             .connect('http://localhost:3000/ws/heatmap',   //endpoint
                 {
                     transports: ['websocket'],  //options
                     //secure: true,             //https
                 });
-        //.of('/ws/heatmap');           //namespace
+                //.of('/ws/heatmap');           //namespace
 
+        //connection/disconnection
         this.socket
             .on('connect', () => {
                 if (!this.state.connected) {
@@ -78,19 +93,61 @@ class HeatMapComputation extends Component {
                         'disconnected', actionTypes.NOTIFICATION_TYPE_ERROR);
                 }
             });
+
+        //validation
+        this.socket
+            .on(wsTypes.HEATMAP_VALIDATION_SUCCESS, (request, validated) => {
+
+                if (validated) {
+
+                    notify('Computation request validated', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+                    computationRequestAccepted(request);
+                }
+
+            })
+            .on(wsTypes.HEATMAP_VALIDATION_FAIL, (request, error) => {
+
+                notify('Computation request not validated', actionTypes.NOTIFICATION_TYPE_ERROR);
+                computationRequestRejected(request, error);
+            });
+
+        //analysis
+        this.socket
+            .on(wsTypes.HEATMAP_ANALYSIS_SUCCESS, (analysis) => {
+
+                //transform {} to [] for easy parsing in charts (meanPointsPerTimestamp)
+                let betterMeanPointsPerTimestamp = [];
+                Object.keys(analysis.meanPointsPerTimestamp).forEach(key => {
+                    betterMeanPointsPerTimestamp.push(analysis.meanPointsPerTimestamp[key]);
+                });
+
+                analysis.meanPointsPerTimestamp = betterMeanPointsPerTimestamp;
+
+                //transform { field1 : { .. stats .. }, field2: { .. stats .. }, .. }
+                //into { .. stats .. } using the field selected by the user during config
+                let field = Object.keys(analysis.datasetStats).pop();
+                analysis.datasetStats = analysis.datasetStats[field];
+
+                notify('Dataset analysis completed', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+                datasetAnalysisCompleted(analysis);
+            });
+
+        this.socket
+            .on(wsTypes.HEATMAP_ANALYSIS_FAIL, (error) => {
+
+                notify('Dataset analysis failed', actionTypes.NOTIFICATION_TYPE_ERROR);
+                datasetAnalysisErrored(error);
+            });
     }
 
     componentDidUpdate() {
 
         const {
-            notify,
             computationRequest,
-            computationRequestAccepted,
-            computationRequestRejected,
-            datasetAnalysisCompleted,
-            datasetAnalysisErrored,
             computationStage,
         } = this.props;
+
+        /* Trigger Socket Events */
 
         switch (computationStage) {
 
@@ -99,50 +156,12 @@ class HeatMapComputation extends Component {
                 this.socket
                     .emit(wsTypes.HEATMAP_VALIDATION_START, computationRequest);
 
-                this.socket
-                    .on(wsTypes.HEATMAP_VALIDATION_SUCCESS, (request, validated) => {
-
-                        if (validated) {
-
-                            notify('Computation request validated', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                            computationRequestAccepted(computationRequest);
-                        }
-
-                    })
-                    .on(wsTypes.HEATMAP_VALIDATION_FAIL, (request, error) => {
-
-                        notify('Computation request not validated', actionTypes.NOTIFICATION_TYPE_ERROR);
-                        computationRequestRejected(computationRequest, error);
-                    });
-
                 break;
 
             case commonTypes.COMPUTATION_STAGE_ACCEPTED:
 
                 this.socket
                     .emit(wsTypes.HEATMAP_ANALYSIS_START, computationRequest);
-
-                this.socket
-                    .on(wsTypes.HEATMAP_ANALYSIS_SUCCESS, (analysis) => {
-
-                        //transform {} to [] for easy parsing in charts (mean points per timestamps)
-                        let betterMeanPointsPerTimestamp = [];
-                        Object.keys(analysis.meanPointsPerTimestamp).forEach(key => {
-                            betterMeanPointsPerTimestamp.push(analysis.meanPointsPerTimestamp[key]);
-                        });
-
-                        analysis.meanPointsPerTimestamp = betterMeanPointsPerTimestamp;
-
-                        notify('Dataset analysis completed', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                        datasetAnalysisCompleted(analysis);
-                    });
-
-                this.socket
-                    .on(wsTypes.HEATMAP_ANALYSIS_FAIL, (error) => {
-
-                        notify('Dataset analysis failed', actionTypes.NOTIFICATION_TYPE_ERROR);
-                        datasetAnalysisErrored(error);
-                    });
 
                 break;
 
@@ -152,6 +171,9 @@ class HeatMapComputation extends Component {
     }
 
     render() {
+
+        const { datasetStats } = this.props;
+
         return(
             <Grid fluid>
                 <Row>
@@ -161,7 +183,9 @@ class HeatMapComputation extends Component {
                                 <StaticHeatMapConfigurator/>
                             </Col>
                             <Col xs={12} md={4}>
-                                <DatabaseStats/>
+                                <StaticHeatMapAnalysis
+                                    datasetStats={datasetStats}
+                                />
                             </Col>
                             <Col xs={12} md={4}>
                             </Col>
@@ -199,6 +223,7 @@ const mapStateToProps = state => {
     return {
         computationRequest: getComputationRequest(state),
         computationStage: getComputationStage(state),
+        datasetStats: getDatasetStats(state),
     }
 };
 
