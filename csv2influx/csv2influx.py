@@ -43,7 +43,7 @@ __doc__ = """CSV2Influx v.2.0.0
 
 Usage:
     CSV2Influx <source_path> [--influxdb-url=<http://hostname:port>] [--auth=<USER:PASSWORD>] [--dbname=<dbname>] 
-    [--cpu=<N_CPU>] [--batch-size=<SIZE>] [--skip-first]
+    [--cpu=<N_CPU>] [--batch-size=<SIZE>] [--skip-first] [--replace-strategy=<REPLACE_REMOVE|REPLACE_ONLY|NOTHING>]
 
 Options:
     -h --help                       Show this screen
@@ -54,6 +54,7 @@ Options:
     --cpu=N_CPU                     Set the number of CPU used          [default: 4]
     --batch-size=SIZE               The size of a batch of points       [default: 10000]
     --skip-first                    Skip the first interval
+    --replace-strategy=STRATEGY     Replace strategy of missing values  [default: REPLACE_REMOVE]
 """
 
 max_batch_size = 10000
@@ -71,7 +72,8 @@ class CSV2Influx:
                  password,
                  dbname,
                  n_cpu,
-                 skip_first):
+                 skip_first,
+                 replace_strategy):
 
         self.csv_parser = CSVParser(
             path_csv,
@@ -82,7 +84,8 @@ class CSV2Influx:
             password,
             dbname,
             n_cpu=n_cpu,
-            skip_first=skip_first)
+            skip_first=skip_first,
+            replace_strategy=replace_strategy)
 
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.info(__class__.__name__ + "logger started")
@@ -130,6 +133,7 @@ if __name__ == '__main__':
         auth[1],
         args['--dbname'],
         args['--cpu'],
-        args['--skip-first'])
+        args['--skip-first'],
+        args['--replace-strategy'].upper())
 
     csv2influx.run()

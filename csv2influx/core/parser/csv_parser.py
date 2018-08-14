@@ -45,7 +45,6 @@ measurement period ​ (only in v2.1 and later)
 
 _PATH_TEMP_DATA = 'temp/'
 
-
 class CSVParser(threading.Thread):
 
     def __init__(self,
@@ -57,7 +56,8 @@ class CSVParser(threading.Thread):
                  password,
                  dbname,
                  n_cpu=4,
-                 skip_first=False):
+                 skip_first=False,
+                 replace_strategy='REMOVE'):
 
         super(CSVParser, self).__init__()
 
@@ -72,6 +72,7 @@ class CSVParser(threading.Thread):
         self.n_cpu = int(n_cpu)
 
         self.skip_first = skip_first
+        self.replace_stategy = replace_strategy
 
         self.current_start_time = 600000000
         self.current_end_time = 900000000
@@ -129,18 +130,34 @@ class CSVParser(threading.Thread):
         :return: the dataframe free of missing values
         """
 
-        # replacing NaN of Disk I/O attributes
-        self.logger.info('Replacing NaN of [Mean Disk I/O time] and [Maximum Disk I/O time]')
-        df['mean_disk_io_time'].fillna(0, inplace=True)
-        df['maximum_disk_io_time'].fillna(0, inplace=True)
-        self.logger.info('Replacing NaN of [cycle_per_instruction] and [memory_accesses_per_instruction]')
-        df['cycle_per_instruction'].fillna(0, inplace=True)
-        df['memory_accesses_per_instruction'].fillna(0, inplace=True)
+        self.logger.info('Replace Strategy: [' + self.replace_stategy + ']')
 
-        # remove rows with missing values
-        self.logger.info('Removing missing values')
-        df.dropna(inplace=True)
-        df.reset_index(drop=True, inplace=True)
+        if self.replace_stategy == 'REPLACE_REMOVE':
+
+            # replacing NaN of Disk I/O attributes
+            self.logger.info('Replacing NaN of [Mean Disk I/O time] and [Maximum Disk I/O time]')
+            df['mean_disk_io_time'].fillna(0, inplace=True)
+            df['maximum_disk_io_time'].fillna(0, inplace=True)
+            self.logger.info('Replacing NaN of [cycle_per_instruction] and [memory_accesses_per_instruction]')
+            df['cycle_per_instruction'].fillna(0, inplace=True)
+            df['memory_accesses_per_instruction'].fillna(0, inplace=True)
+
+            # remove rows with missing values
+            self.logger.info('Removing missing values')
+            df.dropna(inplace=True)
+            df.reset_index(drop=True, inplace=True)
+
+        elif self.replace_stategy == 'REPLACE_ONLY':
+
+            self.logger.info('Replacing NaN values with 0 - no lines are removed')
+            df.fillna(0, inplace=True)
+
+        elif self.replace_stategy == 'NOTHING':
+
+            self.logger.info('Missing values not replaced')
+
+        else:
+            raise ValueError('Replace strategy unrecognized: [' + self.replace_stategy + ']')
 
         return df
 
