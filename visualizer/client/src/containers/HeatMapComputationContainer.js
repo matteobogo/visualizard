@@ -1,5 +1,5 @@
 /**
- * HeatMapComputation - Container Component
+ * HeatMapComputationContainer - Container Component
  */
 import React, { Component } from 'react';
 import StaticHeatMapConfigurator from "../components/StaticAnalysis/StaticHeatMapConfigurator";
@@ -39,13 +39,12 @@ import {
 import io from 'socket.io-client';
 import * as wsTypes from '../../../commons/WebSocketsEvents';
 
-class HeatMapComputation extends Component {
+class HeatMapComputationContainer extends Component {
 
     constructor() {
         super();
-
         this.state = {
-            connected: false,
+            hasError: false,
         };
     }
 
@@ -73,25 +72,19 @@ class HeatMapComputation extends Component {
         //connection/disconnection
         this.socket
             .on('connect', () => {
-                if (!this.state.connected) {
-                    this.setState({connected: true});
-                    notify(
-                        'connection established', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                }
+                notify(
+                    'connection established',
+                    actionTypes.NOTIFICATION_TYPE_SUCCESS);
             })
             .on('connect_error', () => {
-                if (this.state.connected) {
-                    this.setState({connected: false});
-                    notify(
-                        'connection error', actionTypes.NOTIFICATION_TYPE_ERROR);
-                }
+                notify(
+                    'connection error',
+                    actionTypes.NOTIFICATION_TYPE_ERROR);
             })
             .on('disconnect', () => {
-                if (this.state.connected) {
-                    this.setState({connected: false});
-                    notify(
-                        'disconnected', actionTypes.NOTIFICATION_TYPE_ERROR);
-                }
+                notify(
+                    'disconnected',
+                    actionTypes.NOTIFICATION_TYPE_ERROR);
             });
 
         //validation
@@ -140,34 +133,42 @@ class HeatMapComputation extends Component {
             });
     }
 
-    componentDidUpdate() {
+    componentDidUpdate(prevProps, prevState) {
 
         const {
             computationRequest,
             computationStage,
         } = this.props;
 
-        /* Trigger Socket Events */
+        if (prevProps !== this.props) {
 
-        switch (computationStage) {
+            /* Trigger Socket Events */
 
-            case commonTypes.COMPUTATION_STAGE_INIT:
+            switch (computationStage) {
 
-                this.socket
-                    .emit(wsTypes.HEATMAP_VALIDATION_START, computationRequest);
+                case commonTypes.COMPUTATION_STAGE_INIT:
 
-                break;
+                    this.socket
+                        .emit(wsTypes.HEATMAP_VALIDATION_START, computationRequest);
 
-            case commonTypes.COMPUTATION_STAGE_ACCEPTED:
+                    break;
 
-                this.socket
-                    .emit(wsTypes.HEATMAP_ANALYSIS_START, computationRequest);
+                case commonTypes.COMPUTATION_STAGE_ACCEPTED:
 
-                break;
+                    this.socket
+                        .emit(wsTypes.HEATMAP_ANALYSIS_START, computationRequest);
 
-            default:
+                    break;
 
+                default:
+                    break;
+            }
         }
+    }
+
+    componentWillUnmount() {
+
+        this.socket.close();
     }
 
     render() {
@@ -238,4 +239,4 @@ const mapDispatchToProps = (dispatch) => {
     }
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(HeatMapComputation);
+export default connect(mapStateToProps, mapDispatchToProps)(HeatMapComputationContainer);
