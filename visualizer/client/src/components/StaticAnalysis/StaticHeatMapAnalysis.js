@@ -29,9 +29,6 @@ export default class StaticHeatMapAnalysis extends Component {
     render() {
 
         const { datasetStats } = this.props;
-        //const {min, max, sum, mean, std, population} = datasetAnalysis;
-
-        console.log(datasetStats);
 
         return(
 
@@ -46,25 +43,32 @@ export default class StaticHeatMapAnalysis extends Component {
                     {
                         Object.keys(datasetStats).map((key, index) =>(
 
-                            <Row>
+                            <Row key={index}>
                                 <Col>
-                                    <AnimatedNumber
-                                        key={index}
-                                        component="text"
-                                        initialValue={0}
-                                        value={datasetStats[key]}
-                                        duration={2000}
-                                        style={{
-                                            transition: '0.8s ease-out',
-                                            fontSize: 20,
-                                            transitionProperty:
-                                                'background-color, color, opacity'
-                                        }}
-                                        frameStyle={perc => (
-                                            perc === 100 ? {} : {backgroundColor: '#ffffff'}
-                                        )}
-                                        //formatValue={}
-                                    />
+                                    <div>
+                                        {key}
+                                    </div>
+                                    <div>
+                                        <AnimatedNumber
+                                            component="span"
+                                            initialValue={0}
+                                            value={Math.round(datasetStats[key] * 100) / 100} //approx. 2 decimals
+                                            stepPrecision={2}
+                                            duration={3000}
+                                            style={{
+                                                transition: '0.8s ease-out',
+                                                fontSize: 20,
+                                                transitionProperty:
+                                                    'background-color, color, opacity'
+                                            }}
+                                            frameStyle={perc => (
+                                                perc === 100 ? {} : {
+                                                    backgroundColor: '#ffffff',
+                                                }
+                                            )}
+                                            //formatValue={}
+                                        />
+                                    </div>
                                 </Col>
                             </Row>
                         ))
