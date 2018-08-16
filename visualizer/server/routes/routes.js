@@ -33,6 +33,8 @@ router.get('/heatmaps/palettes', HeatMapController.getPalettes);
 router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
 router.get('/heatmaps', HeatMapController.buildResourceUsageHeatMaps);
 
+router.post('/admin/store-heatmap', HeatMapController.storeHeatMap);
+
 
 // api_v1.route('/').get(function (req, res) {
 //     res.render('index');
