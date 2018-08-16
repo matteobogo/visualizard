@@ -1,4 +1,7 @@
-import * as types from '../types/actionTypes';
+export const getRequestUUID = (state) => {
+
+    return state.heatMapComputation.uuid;
+};
 
 export const getComputationRequest = (state) => {
 

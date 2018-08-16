@@ -1,5 +1,4 @@
 import * as actionTypes from '../types/actionTypes';
-import * as commonTypes from '../types/commonTypes';
 
 export const sendComputationRequest = (request) => {
 
@@ -17,11 +16,11 @@ export const resetPreviousComputationRequest = () => {
     }
 };
 
-export const computationRequestAccepted = (request) => {
+export const computationRequestAccepted = (request, uuid) => {
 
     return (dispatch) => {
 
-        dispatch({ type: actionTypes.HEATMAP_COMPUTATION_ACCEPTED, payload: request });
+        dispatch({ type: actionTypes.HEATMAP_COMPUTATION_ACCEPTED, payload: request, uuid: uuid});
     }
 };
 

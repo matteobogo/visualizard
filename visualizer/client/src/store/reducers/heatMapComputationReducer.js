@@ -3,17 +3,19 @@ import * as commonTypes from '../types/commonTypes';
 
 const initialState = {
 
+    uuid: null,
+
     computationRequest: {
 
-        database: "",
-        policy: "",
-        startInterval: "",
-        endInterval: "",
-        fields: [],
+        database: null,
+        policy: null,
+        startInterval: null,
+        endInterval: null,
+        field: null,
         nMeasurements: -1,
         period: -1,
-        palette: "",
-        heatMapType: "",
+        palette: null,
+        heatMapType: null,
     },
 
     analysis: {
@@ -55,6 +57,7 @@ export const heatMapComputation = (state = initialState, action) => {
             return {
 
                 ...state,
+                uuid: action.uuid,
                 computationRequest: action.payload,
                 stage: commonTypes.COMPUTATION_STAGE_ACCEPTED,
             };
