@@ -1,4 +1,4 @@
-const heatmaps = require('../services/HeatMaps');
+const heatMapsService = require('../services/HeatMaps');
 
 const mime = {
     png: 'image/png',
@@ -8,7 +8,7 @@ const mime = {
 
 const getPalettes = async (req, res) => {
 
-    let palettes = heatmaps.getPalettes();
+    let palettes = heatMapsService.getPalettes();
 
     if (palettes.length === 0) ReE(res, 'no getPalettes availables');
 
@@ -64,7 +64,7 @@ const buildResourceUsageHeatMaps = async function(req, res) {
     if (interval.length !== 2)
         return ReE(res, {message: 'two timestamps are required'}, 400);
 
-    let body = await heatmaps.entrypoint(
+    let body = await heatMapsService.entrypoint(
 
         dbname,
         policy,
@@ -96,8 +96,35 @@ const buildResourceUsageHeatMaps = async function(req, res) {
         // });
 };
 
+const storeHeatMap = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    const heatMapRequest = {
+        database: req.query.database,
+        policy: req.query.policy,
+        startInterval: req.query.startInterval,
+        endInterval: req.query.endInterval,
+        fields: req.query.fields.split(','),
+        nMeasurements: req.query.nMeasurements,
+        period: req.query.period,
+        palette: req.query.palette,
+        heatMapType: req.query.heatMapType,
+    };
+
+    const imageType = req.query.imageType;
+
+    heatMapsService.heatMapBuildAndStore({
+        heatMapRequest: heatMapRequest,
+        imageType: imageType,
+    });
+
+    return ReS(res, {payload: 'computation started'}, 200);
+};
+
 module.exports = {
     getPalettes: getPalettes,
     getHeatMap: getHeatMap,
-    buildResourceUsageHeatMaps: buildResourceUsageHeatMaps
+    buildResourceUsageHeatMaps: buildResourceUsageHeatMaps,
+    storeHeatMap: storeHeatMap,
 };
