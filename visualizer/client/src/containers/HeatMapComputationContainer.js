@@ -2,6 +2,7 @@
  * HeatMapComputationContainer - Container Component
  */
 import React, { Component } from 'react';
+
 import StaticHeatMapConfigurator from "../components/StaticAnalysis/StaticHeatMapConfigurator";
 import StaticHeatMapAnalysis from "../components/StaticAnalysis/StaticHeatMapAnalysis";
 import StaticHeatMap from "../components/StaticAnalysis/StaticHeatMap";
@@ -9,6 +10,8 @@ import StaticHeatMapStats from "../components/StaticAnalysis/StaticHeatMapDatase
 import StaticHeatMapRowStats from "../components/StaticAnalysis/StaticHeatMapRowStats";
 import StaticHeatMapColumnStats from "../components/StaticAnalysis/StaticHeatMapColumnStats";
 import StaticHeatMapPointStats from "../components/StaticAnalysis/StaticHeatMapPointStats";
+
+import WebSocketErrorHandler from "../components/ErrorHandlers/WebSocketErrorHandler";
 
 import {
     Grid,
@@ -30,6 +33,7 @@ import {
 } from '../store/actions/heatmapComputationAction';
 
 import {
+    getRequestUUID,
     getComputationRequest,
     getComputationStage,
     getDatasetStats,
@@ -89,14 +93,10 @@ class HeatMapComputationContainer extends Component {
 
         //validation
         this.socket
-            .on(wsTypes.HEATMAP_VALIDATION_SUCCESS, (request, validated) => {
+            .on(wsTypes.HEATMAP_VALIDATION_SUCCESS, (request, uuid) => {
 
-                if (validated) {
-
-                    notify('Computation request validated', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                    computationRequestAccepted(request);
-                }
-
+                notify('Computation request validated', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+                computationRequestAccepted(request, uuid);
             })
             .on(wsTypes.HEATMAP_VALIDATION_FAIL, (request, error) => {
 
@@ -136,6 +136,7 @@ class HeatMapComputationContainer extends Component {
     componentDidUpdate(prevProps, prevState) {
 
         const {
+            uuid,
             computationRequest,
             computationStage,
         } = this.props;
@@ -156,7 +157,7 @@ class HeatMapComputationContainer extends Component {
                 case commonTypes.COMPUTATION_STAGE_ACCEPTED:
 
                     this.socket
-                        .emit(wsTypes.HEATMAP_ANALYSIS_START, computationRequest);
+                        .emit(wsTypes.HEATMAP_ANALYSIS_START, uuid);
 
                     break;
 
@@ -173,48 +174,50 @@ class HeatMapComputationContainer extends Component {
 
     render() {
 
-        const { datasetStats } = this.props;
+        const { datasetStats, heatMapImage } = this.props;
 
         return(
-            <Grid fluid>
-                <Row>
-                    <Col xs={12}>
-                        <Row>
-                            <Col xs={12} md={4}>
-                                <StaticHeatMapConfigurator/>
-                            </Col>
-                            <Col xs={12} md={4}>
-                                <StaticHeatMapAnalysis
-                                    datasetStats={datasetStats}
-                                />
-                            </Col>
-                            <Col xs={12} md={4}>
-                            </Col>
-                        </Row>
-                    </Col>
-                </Row>
-                <Row>
-                    <Col xs={12}>
-                        <StaticHeatMap/>
-                    </Col>
-                </Row>
-                <Row>
-                    <Col xs={12}>
-                        <StaticHeatMapStats/>
-                    </Col>
-                </Row>
-                <Row>
-                    <Col xs={12} sm={6} md={4}>
-                        <StaticHeatMapRowStats/>
-                    </Col>
-                    <Col xs={12} sm={6} md={4}>
-                        <StaticHeatMapColumnStats/>
-                    </Col>
-                    <Col xs={12} md={4}>
-                        <StaticHeatMapPointStats/>
-                    </Col>
-                </Row>
-            </Grid>
+            <WebSocketErrorHandler>
+                <Grid fluid>
+                    <Row>
+                        <Col xs={12}>
+                            <Row>
+                                <Col xs={12} md={4}>
+                                    <StaticHeatMapConfigurator/>
+                                </Col>
+                                <Col xs={12} md={4}>
+                                    <StaticHeatMapAnalysis
+                                        datasetStats={datasetStats}
+                                    />
+                                </Col>
+                                <Col xs={12} md={4}>
+                                </Col>
+                            </Row>
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={12}>
+                            <StaticHeatMap heatMapImage={heatMapImage}/>
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={12}>
+                            <StaticHeatMapStats/>
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={12} sm={6} md={4}>
+                            <StaticHeatMapRowStats/>
+                        </Col>
+                        <Col xs={12} sm={6} md={4}>
+                            <StaticHeatMapColumnStats/>
+                        </Col>
+                        <Col xs={12} md={4}>
+                            <StaticHeatMapPointStats/>
+                        </Col>
+                    </Row>
+                </Grid>
+            </WebSocketErrorHandler>
         );
     }
 }
@@ -222,6 +225,7 @@ class HeatMapComputationContainer extends Component {
 const mapStateToProps = state => {
 
     return {
+        uuid: getRequestUUID(state),
         computationRequest: getComputationRequest(state),
         computationStage: getComputationStage(state),
         datasetStats: getDatasetStats(state),
