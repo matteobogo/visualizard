@@ -2,11 +2,11 @@ const config = require("../config/config");
 const InfluxClient = require("influx");
 
 const influx = new InfluxClient.InfluxDB(
-    'http://'+config.DATABASE.db_user+
-    ':'+config.DATABASE.db_password
-    +'@'+config.DATABASE.db_host
-    +':'+config.DATABASE.db_port
-    +'/'+config.DATABASE.db_name);
+    'http://'+config.INFLUX.db_user+
+    ':'+config.INFLUX.db_password
+    +'@'+config.INFLUX.db_host
+    +':'+config.INFLUX.db_port
+    +'/'+config.INFLUX.db_name);
 
 /**
  * Ping the timeseries server.
