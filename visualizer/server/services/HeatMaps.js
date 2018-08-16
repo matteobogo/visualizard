@@ -10,18 +10,14 @@ const csv = require("fast-csv");
 //node-canvas
 let Canvas = require('canvas');
 
-//palette for nodejs (https://github.com/tj/palette)
-//const palette = require('palette');
+/* Images Types */
+const _IMAGE_PNG = 'PNG';
+const _IMAGE_JPEG = 'JPEG';
+const _IMAGE_PDF = 'PDF';
 
-//color gray scale
-// const palette_shades_gray = [  //50 shades of gray.. ;)
-//     "#FFFFFF","#F8F8F8","#F0F0F0","#E8E8E8","#E0E0E0","#D8D8D8","#D0D0D0","#C8C8C8","#C0C0C0","#B8B8B8",
-//     "#B0B0B0","#A8A8A8","#A0A0A0","#989898","#909090","#888888","#808080","#787878","#707070","#686868",
-//     "#606060","#585858","#505050","#484848","#404040","#383838","#303030","#282828","#202020","#181818",
-//     "#101010","#080808","#000000"];
+const _PATH_IMAGES_HEATMAPS = './public/images';
 
 /* Palettes */
-
 const _PALETTE_GRAY     = 'GRAY';
 const _PALETTE_RED      = 'RED';
 
@@ -73,15 +69,15 @@ const getPalettesRGB = (palette) => {
     }
 };
 
-exports.getPalettes = () => {
+const getPalettes = () => {
 
     return palettes;
 };
 
 /* HeatMap Types */
-const _HEATMAP_TYPE_BY_MACHINE              = 'Sort by machine';
-const _HEATMAP_TYPE_BY_SUM                  = 'Sort by sum';
-const _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE      = 'Sort by TimeStamp of Max Value';
+const _HEATMAP_TYPE_BY_MACHINE              = 'sortByMachine';
+const _HEATMAP_TYPE_BY_SUM                  = 'sortBySum';
+const _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE      = 'sortByTsOfMaxValue';
 
 const heatMapTypes = [
     _HEATMAP_TYPE_BY_MACHINE,
@@ -97,89 +93,8 @@ const heatMapTypes = [
 let _MIN_Z_SCORE = -3
 ,   _MAX_Z_SCORE = 3;
 
-const _PATH_IMAGES_HEATMAPS = './public/images';
-
-const computation_stages = {
-    //TODO
-    //TODO each method update a global var with computation stage
-};
-
-/**
- * Manage missing parameters in functions.
- * @param p the missing parameter
- */
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
-
-//Fast, small color manipulation and conversion for JavaScript
-//https://github.com/bgrins/TinyColor
-//const tinycolor = require("tinycolor2");
-
-//8192 intervals
-// const _START_INTERVAL = '2011-02-01T00:15:00.000Z';
-// const _END_INTERVAL = '2011-03-01T10:50:00.000Z';
-// const _POLICY = 'autogen';
-//
-// const domain_min = 0;
-// const domain_max = 13.267759;
-
-/**
- *
- * @param path
- * @param fields
- * @returns {Promise<any>}
- */
-const fetchDataFromCSV = (path, ...fields) => {
-
-    return new Promise(
-        function (resolve, reject) {
-
-            if (!fs.existsSync(path)) {
-                reject('file does not exist');
-            }
-
-            let rows = [];
-            csv.fromPath(path, {headers: true})
-                .on("data", data => {
-
-                    let row = {};
-                    fields.forEach(field => {
-                        row[field] = data[field];
-                    });
-                    rows.push(row);
-                })
-                .on("end", function () {
-                    resolve(rows);
-                });
-        }
-    )
-};
-
-/**
- *
- * @returns {Promise<any>}
- */
-const fetchCSVList = () => {
-
-    return new Promise(
-        function (resolve, reject) {
-
-            if (!fs.existsSync(CONFIG.data_path))
-                reject('no data available');
-
-            fs.readdir(CONFIG.data_path, function (err, files) {
-                if (err || files.length === 0) reject('no data available');
-                else resolve(files);
-            });
-        }
-    )
-};
-
-/**
- *
- * @param dbname
- * @returns {Promise<any>}
- */
 const fetchMeasurementsListFromHttpApi = (dbname) => {
 
     return new Promise(
@@ -199,23 +114,12 @@ const fetchMeasurementsListFromHttpApi = (dbname) => {
     )
 };
 
-/**
- *
- * @param dbname
- * @param policy
- * @param measurement
- * @param start_interval
- * @param end_interval
- * @param period
- * @param fields
- * @returns {Promise<any>}
- */
 const fetchPointsFromHttpApi = (
-    dbname,
+    database,
     policy,
     measurement,
-    start_interval,
-    end_interval,
+    startInterval,
+    endInterval,
     period,
     fields) => {
 
@@ -223,19 +127,19 @@ const fetchPointsFromHttpApi = (
         function (resolve, reject) {
 
             influx.getPointsByPolicyByNameByStartTimeByEndTime(
-                dbname,
+                database,
                 policy,
                 measurement,
-                start_interval,
-                end_interval)
+                startInterval,
+                endInterval)
 
                 .then(p => {
 
                     let points = [];
 
                     //fix missing values (eventually)
-                    let current_timestamp = Date.parse(start_interval)
-                        , end_timestamp = Date.parse(end_interval)
+                    let current_timestamp = Date.parse(startInterval)
+                        , end_timestamp = Date.parse(endInterval)
                         , k = 0;
 
                     while (current_timestamp <= end_timestamp) { //<= ?
@@ -280,6 +184,7 @@ const fetchPointsFromHttpApi = (
                         }
                         points.push(point);
                     }
+
                     resolve(points);
                 })
                 .catch((err) => {
@@ -290,36 +195,67 @@ const fetchPointsFromHttpApi = (
     )
 };
 
+/* HeatMap Construction */
 
+const heatMapCanvasToImage = async (
+    {
+        canvas,
+        heatMapRequest,
+        imageType,
+    }
 
+) => {
 
-/**
- *
- * @param points
- * @param field
- * @param mean
- * @param std
- * @returns {Array}
- */
-const standardization = (points, field, mean, std) => {
+    switch (imageType) {
 
-    let standardizated_points = [];
-    points.forEach(point => {
+        case _IMAGE_PNG:
 
-        standardizated_points.push((point[field] - mean) / std);
-    });
+            canvas
+                .createPNGStream()
+                .pipe(
+                    fs.createWriteStream(
+                        _PATH_IMAGES_HEATMAPS +
+                        `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.fields[0]}_${heatMapRequest.palette}.png`))
+                .on('finish', () =>
+                    console.log(
+                        `Storing ` + _PATH_IMAGES_HEATMAPS +
+                        `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.fields[0]}_${heatMapRequest.palette}.png`));
 
-    return standardizated_points;
+            break;
+
+        case _IMAGE_JPEG:
+
+            canvas
+                .createJPEGStream()
+                .pipe(
+                    fs.createWriteStream(
+                        _PATH_IMAGES_HEATMAPS +
+                        `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.fields[0]}_${heatMapRequest.palette}.jpeg`))
+                .on('finish', () =>
+                    console.log(
+                        `Storing ` + _PATH_IMAGES_HEATMAPS +
+                        `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.fields[0]}_${heatMapRequest.palette}.jpeg`));;
+
+            break;
+
+        case _IMAGE_PDF:
+
+            canvas.createPDFStream().pipe(
+                fs.createWriteStream(
+                    _PATH_IMAGES_HEATMAPS +
+                    `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.field}_${heatMapRequest.palette}.pdf`))
+                .on('finish', () =>
+                    console.log(
+                        `Storing ` + _PATH_IMAGES_HEATMAPS +
+                        `/heatmap_${heatMapRequest.heatMapType}_${heatMapRequest.fields[0]}_${heatMapRequest.palette}.pdf`));
+
+            break;
+
+        default:
+            throw new Error(`media type not supported: ${imageType}`);
+    }
 };
 
-/**
- *
- * @param value
- * @param min
- * @param max
- * @param palette
- * @returns {*}
- */
 const colorize = (value, min, max, palette) => {    //value must be standardized first
 
     let range = Math.abs(max - min);
@@ -338,98 +274,145 @@ const colorize = (value, min, max, palette) => {    //value must be standardized
     }
 };
 
-/**
- *
- * @param width
- * @param height
- * @param dataset_stats
- * @param measurement_stats
- * @param palette
- * @param heatmap_type
- * @returns {Promise<string>}
- */
-const drawHeatMap = async (
-    { width, height },
-    {dataset_stats, measurement_stats},
-    { palette },
-    heatmap_type) => {
+const standardize = (point, field, mean, std) => {
 
-    let current_palette = getPalettesRGB(palette);
+    return (point[field] - mean) / std;
+};
 
-    //one heatmap for each field
-    let fields = measurement_stats[0]['fields'];
-    for(let k = 0; k < fields.length; ++k) {
+const drawHeatMap = async ({
 
-        console.log(`Start building HeatMap ${heatmap_type} for ${fields[k]}`);
+    heatMapRequest,
+    heatMapAnalysis,
 
-        //init canvas
-        console.log(`Generating Canvas [${width}x${height}]..`);
-        let canvas = Canvas.createCanvas(width, height)
-        ,   ctx = canvas.getContext('2d')
-        ,   imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+}) => {
 
-        //paint pixels
-        console.log(`Start drawing ${imageData.data.length} pixels..`);
-        for (let i = 0, l = 0; i < height; ++i) {
+    const startInterval = Date.parse(heatMapRequest.startInterval);
+    const endInterval = Date.parse(heatMapRequest.endInterval);
+    const period = heatMapRequest.period * 1000;
 
-            let points = await fetchPointsFromHttpApi(
-                measurement_stats[i]['dbname'],
-                measurement_stats[i]['policy'],
-                measurement_stats[i]['measurement'],
-                measurement_stats[i]['start_interval'],
-                measurement_stats[i]['end_interval'],
-                measurement_stats[i]['period'],
-                [fields[k]]) //f needs an array of fields, just pass 1 field within an array
+    const width = (endInterval - startInterval) / (period) + 1;
+    const height = heatMapAnalysis.measurementStats.length;
 
-                .catch(err => {
+    console.log(`Start building ${heatMapRequest.heatMapType} HeatMap for ${heatMapRequest.fields[0]}`);
 
-                    console.log(err);
-                    throw new Error('error fetching points from timeseries');
-                });
+    //palette RGBs
+    const palette = getPalettesRGB(heatMapRequest.palette);
 
-            if (points.length === 0) throw new Error(`no points available for ${measurement_stats[i]['measurement']}`);
+    //canvas
+    console.log(`Generating Canvas [${width}x${height}]`);
+    const canvas = Canvas.createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
 
-            //standardize points with feature scaling
-            let standardizated_points = standardization(
-                points,
-                fields[k],
-                dataset_stats[fields[k]]['mean'],
-                dataset_stats[fields[k]]['std']
+    for (let i = 0, l = 0; i < height; ++i) {
+
+        let err, points;
+        [err, points] = await to(fetchPointsFromHttpApi(
+            heatMapRequest.database,
+            heatMapRequest.policy,
+            heatMapAnalysis.measurementStats[i].measurement, //decide the order
+            heatMapRequest.startInterval,
+            heatMapRequest.endInterval,
+            heatMapRequest.period,
+            heatMapRequest.fields
+        ));
+
+        if (err) {
+
+            console.log(err);
+            throw new Error('error fetching points from timeseries');
+        }
+
+        if (points.length === 0) {
+
+            throw new Error(`no points available for ${measurements[i]}`);
+        }
+
+        //drawing pixels
+        points.forEach((point, index) => {
+
+            let standardizedPoint = standardize(
+                point,
+                heatMapRequest.fields[0],
+                heatMapAnalysis.datasetStats[heatMapRequest.fields[0]].mean,
+                heatMapAnalysis.datasetStats[heatMapRequest.fields[0]].std
             );
 
-            //console.log(`Drawing line #${i+1} with ${standardizated_points.length} points`);
-            for (let j = 0; j < standardizated_points.length; ++j, l += 4) {
+            let colorizedPoint = colorize(standardizedPoint, _MIN_Z_SCORE, _MAX_Z_SCORE, palette);
 
-                let c = colorize(standardizated_points[j], _MIN_Z_SCORE, _MAX_Z_SCORE, current_palette);
-
-                imageData.data[l + 0] = c.r;
-                imageData.data[l + 1] = c.g;
-                imageData.data[l + 2] = c.b;
-                imageData.data[l + 3] = 255;
-            }
-        }
-        ctx.putImageData(imageData, 0, 0);
-
-        console.log(`HeatMap ${heatmap_type} built`);
-
-        console.log(`Saving HeatMap for ${fields[k]}..`);
-
-        // //write .PNG
-        // canvas
-        //     .createPNGStream()
-        //     .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.png`))
-        //     .on('finish', () => console.log(`HeatMap .PNG for ${fields[k]} saved`));
-		//
-        // //write .JPEG
-        // canvas
-        //     .createJPEGStream()
-        //     .pipe(fs.createWriteStream(_PATH_IMAGES_HEATMAPS + `/heatmap_${heatmap_type}_${fields[k]}.jpeg`))
-        //     .on('finish', () => console.log(`HeatMap .JPEG for ${fields[k]} saved`));
-
-        return canvas.toDataURL('image/png');
+            ctx.fillStyle = `rgb(${colorizedPoint.r},${colorizedPoint.g},${colorizedPoint.b})`;
+            ctx.fillRect(index, i, 1, 1);
+        });
     }
-    //check png saved true/false
-    //TODO
+
+    return canvas;
+};
+
+const heatMapBuildAndStore = async (
+
+    {
+        heatMapRequest,
+        imageType, //TODO maybe insert it to request?
+    }
+
+) => {
+
+    console.log(`Start Validation for ${JSON.stringify(heatMapRequest)}`);
+
+    //validation
+    const validate = await heatMapConfigurationValidation(
+        {
+            heatMapRequest: heatMapRequest,
+        })
+        .then(data => { return data; })
+        .catch(error => {
+            console.log(error);
+            throw new Error(`Validation fails: ${error.message}`);
+        });
+
+    console.log(`Start Analysis`);
+
+    //analysis
+    const analysis = await heatMapAnalysis(
+        {
+            heatMapRequest: heatMapRequest,
+        })
+        .then(data => { return data; })
+        .catch(error => {
+            console.log(error);
+            throw new Error(`Analysis fails: ${error.message}`);
+        });
+
+    console.log(`Start Construction`);
+
+    //construction
+    const canvas = await heatMapConstruction(
+        {
+            heatMapRequest: heatMapRequest,
+            heatMapAnalysis: analysis,
+
+        })
+        .then(data => { return data; })
+        .catch(error => {
+            console.log(error);
+            throw new Error(`Construction fails: ${error.message}`);
+        });
+
+    console.log(`Start images storing`);
+
+    //storing
+    const stored = await heatMapCanvasToImage(
+        {
+            canvas: canvas,
+            heatMapRequest: heatMapRequest,
+            imageType: imageType,
+        })
+        .then(data => { return data; })
+        .catch(error => {
+            console.log(error);
+            throw new Error(`Storing fails: ${error.message}`);
+        });
+
+    console.log(`BuildNStore process completed`);
 };
 
 const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
@@ -440,133 +423,57 @@ const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
     });
 };
 
-/**
- * Building a set of HeatMaps.
- * @param {string} dbname - the timeseries name
- * @param {string} policy - the retention policy
- * @param {Object} interval - the interval of time
- * @param {string} interval.start_time - the start interval (UTC)
- * @param {string} interval.end_time - the end interval (UTC)
- * @param {string[]} fields - the fields of the points which will be fetched
- * @param {number} [n_measurements=0] - the number of measurements sampled, 0 means all measurements
- * @param {number} [period=300] - the interval of time between interval's timestamps, 300 means 300 seconds
- * @param {string} [type=all] - the type of heatmaps that will be generated
- * @param {string} [palette=gray] - the color palette used to paint pixels
- * @returns {Promise<void>}
- */
-
-/**
- *
- * @param options
- * @returns {Promise<void>}
- */
-const buildHeatMaps = async (options) => {
-
-    // /* Fetch Measurements from Database */
-    // console.log(`Fetching list of measurements from database..`);
-    // let measurements = await fetchMeasurementsListFromHttpApi(options.dbname);
-    //
-    // //only a sample of machines
-    // if (options.n_measurements > 0) {
-    //     console.log(`Selected only a sample of ${options.n_measurements} measurements`);
-    //     measurements = measurements.slice(0, options.n_measurements);
-    // }
-    //
-    // /* Analyze Measurements */
-    // console.log(`Start analyzing ${measurements.length} measurements..`);
-    // let dataset_stats, measurement_stats;
-    // [dataset_stats, measurement_stats] = await
-    //     analyzeMeasurements(
-    //         options.dbname,
-    //         options.policy,
-    //         measurements,
-    //         options.start_time,
-    //         options.end_time,
-    //         options.period,
-    //         options.fields);
-    //
-    // if (measurement_stats.length === 0) throw new Error('measurements analysis fails');
-
-    let width = (Date.parse(options.end_time) - Date.parse(options.start_time)) / (options.period * 1000) + 1
-    ,   height = measurements.length;
-    console.log(`Computed HeatMaps dimensions (W x H): [${width} x ${height}]`);
-
-    switch(options.type) {
-
-        case "sortByMachine":
-
-            console.log(`Building ${options.type} HeatMaps..`);
-
-            for(let i = 0; i < options.fields.length; ++i) {
-                return await drawHeatMap(
-                    {width: width, height: height},
-                    {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
-                    {palette: options.palette}, options.type);
-            }
-            break;
-
-        case "sortBySum":
-
-            console.log(`Building ${options.type} HeatMaps..`);
-            break;
-
-        case "sortByTsOfMaxValue":
-
-            console.log(`Building ${options.type} HeatMaps..`);
-            break;
-
-        default:
-
-            console.log(`Building ${options.type} HeatMaps..`);
-            for(let i = 0; i < options.fields.length; ++i) {
-
-                await Promise.all([
-
-                    //sorted by machine id
-                    drawHeatMap(
-                        {width: width, height: height},
-                        {dataset_stats: dataset_stats, measurement_stats: measurement_stats},
-                        {palette: options.palette},
-                        'original'
-                    ),
-
-                    //sorted by sum (integral)
-                    drawHeatMap(
-                        {width: width, height: height},
-                        {
-                            dataset_stats: dataset_stats,
-                            measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, options.fields[i], 'sum')
-                        },
-                        {palette: options.palette},
-                        'sum'
-                    ),
-
-                    //sorted by timestamp of max value
-                    drawHeatMap(
-                        {width: width, height: height},
-                        {
-                            dataset_stats: dataset_stats,
-                            measurement_stats: sortMeasurementsByFieldByStatsType(measurement_stats, options.fields[i], 'sum')
-                        },
-                        {palette: options.palette},
-                        'max_ts'
-                    )
-                ]);
-            }
+const heatMapConstruction = async (
+    {
+        heatMapRequest = x`HeatMap Request`,
+        heatMapAnalysis = x`HeatMap Analysis`,
     }
+
+    ) => {
+
+    let measurementStats = heatMapAnalysis.measurementStats;
+    switch (heatMapRequest.heatMapType) {
+
+        case _HEATMAP_TYPE_BY_MACHINE:
+
+            break;
+
+        case _HEATMAP_TYPE_BY_SUM:
+
+            measurementStats =
+                sortMeasurementsByFieldByStatsType(
+                    measurementStats,
+                    heatMapRequest.fields[0],
+                    'sum');
+
+            break;
+
+        case _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE:
+
+            measurementStats =
+                sortMeasurementsByFieldByStatsType(
+                    measurementStats,
+                    heatMapRequest.fields[0],
+                    'max_ts');
+
+            break;
+    }
+
+    heatMapAnalysis.measurementStats = measurementStats;
+
+    return drawHeatMap(
+        {
+            heatMapRequest: heatMapRequest,
+            heatMapAnalysis: heatMapAnalysis,
+        })
+        .then(data => {
+            return data;
+        })
+        .catch(error => {
+            console.log(error);
+            throw new Error(`Drawing HeatMap fails: ${error.message}`);
+        });
 };
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* HeatMap Analysis */
 
@@ -589,7 +496,7 @@ const initializeMeanPointsPerTS = (startInterval, endInterval, period, fields) =
 };
 
 const analyzeMeasurements = async (
-    dbname,
+    database,
     policy,
     measurements,
     start_interval,
@@ -598,15 +505,15 @@ const analyzeMeasurements = async (
     fields) => {
 
     //init mean points per ts
-    let mean_points_per_timestamp = initializeMeanPointsPerTS(start_interval, end_interval, period, fields);
+    let meanPointsPerTimestamp = initializeMeanPointsPerTS(start_interval, end_interval, period, fields);
 
     let sample_points_length = -1;
-    let measurements_stats = [];
+    let measurementStats = [];
     for (let i = 0; i < measurements.length; ++i) {
 
         let stats = {};
         let points = await fetchPointsFromHttpApi(
-            dbname,
+            database,
             policy,
             measurements[i],
             start_interval,
@@ -619,11 +526,11 @@ const analyzeMeasurements = async (
         sample_points_length = points.length;
 
         //initialize
-        stats['dbname'] = dbname;
+        stats['database'] = database;
         stats['policy'] = policy;
         stats['measurement'] = measurements[i];
-        stats['start_interval'] = start_interval;
-        stats['end_interval'] = end_interval;
+        stats['startInterval'] = start_interval;
+        stats['endInterval'] = end_interval;
         stats['period'] = period;
         stats['intervals'] = (Date.parse(end_interval) - Date.parse(start_interval)) / (period * 1000) + 1;
         stats['fields'] = fields;
@@ -661,7 +568,7 @@ const analyzeMeasurements = async (
                 
                 //collect points per timestamp                
                 let timestamp = p['time'].getTime();  //convert in unix epoch
-                mean_points_per_timestamp[timestamp][field].push(p[field]);
+                meanPointsPerTimestamp[timestamp][field].push(p[field]);
             });
         });
 
@@ -670,15 +577,15 @@ const analyzeMeasurements = async (
 
             stats['stats'][field]['mean'] = stats['stats'][field]['sum'] / points.length;
         });
-        measurements_stats.push(stats);
+        measurementStats.push(stats);
     }
 
     //global dataset stats
-    let dataset_stats = {};
+    let datasetStats = {};
     fields.forEach(field => {
 
         //initialize
-        dataset_stats[field] = {
+        datasetStats[field] = {
             min: Number.MAX_SAFE_INTEGER,
             max: Number.MIN_SAFE_INTEGER,
             sum: 0,
@@ -687,22 +594,22 @@ const analyzeMeasurements = async (
             population: 0
         };
 
-        measurements_stats.forEach(stat => {
+        measurementStats.forEach(stat => {
 
             //sum
-            dataset_stats[field]['sum'] += stat['stats'][field]['sum'];
+            datasetStats[field]['sum'] += stat['stats'][field]['sum'];
 
             //min - max
-            if (stat['stats'][field]['min'] < dataset_stats[field]['min'])
-                dataset_stats[field]['min'] = stat['stats'][field]['min'];
+            if (stat['stats'][field]['min'] < datasetStats[field]['min'])
+                datasetStats[field]['min'] = stat['stats'][field]['min'];
 
-            if (stat['stats'][field]['max'] > dataset_stats[field]['max'])
-                dataset_stats[field]['max'] = stat['stats'][field]['max'];
+            if (stat['stats'][field]['max'] > datasetStats[field]['max'])
+                datasetStats[field]['max'] = stat['stats'][field]['max'];
 
         });
 
         //global mean
-        dataset_stats[field]['mean'] = dataset_stats[field]['sum'] / (measurements.length * sample_points_length);
+        datasetStats[field]['mean'] = datasetStats[field]['sum'] / (measurements.length * sample_points_length);
     });
 
     //standard deviation (std)
@@ -715,7 +622,7 @@ const analyzeMeasurements = async (
     for (let i = 0; i < measurements.length; ++i) {
 
         let points = await fetchPointsFromHttpApi(
-            dbname,
+            database,
             policy,
             measurements[i],
             start_interval,
@@ -728,15 +635,15 @@ const analyzeMeasurements = async (
 
             fields.forEach(field => {
 
-                dataset_stats[field]['population'] += 1;
-                tmp_data[field] += Math.pow((point[field] - dataset_stats[field]['mean']), 2);
+                datasetStats[field]['population'] += 1;
+                tmp_data[field] += Math.pow((point[field] - datasetStats[field]['mean']), 2);
             });
         });
     }
 
     fields.forEach(field => {
 
-        dataset_stats[field]['std'] = Math.sqrt(tmp_data[field] / dataset_stats[field]['population']);
+        datasetStats[field]['std'] = Math.sqrt(tmp_data[field] / datasetStats[field]['population']);
     });
     
     //mean per timestamp
@@ -745,62 +652,48 @@ const analyzeMeasurements = async (
     //  ts2: ...
     //  ...
     //}
-    for (let key in mean_points_per_timestamp) {
-        if (mean_points_per_timestamp.hasOwnProperty(key)) {
+    for (let key in meanPointsPerTimestamp) {
+        if (meanPointsPerTimestamp.hasOwnProperty(key)) {
 
             fields.forEach(field => {
 
-                let sum = mean_points_per_timestamp[key][field].reduce((acc, curr) => acc + curr, 0);
-                mean_points_per_timestamp[key][field] = sum / mean_points_per_timestamp[key][field].length;
+                let sum = meanPointsPerTimestamp[key][field].reduce((acc, curr) => acc + curr, 0);
+                meanPointsPerTimestamp[key][field] = sum / meanPointsPerTimestamp[key][field].length;
             });
         }
     }
 
     return {
-        datasetStats: dataset_stats,
-        meanPointsPerTimestamp: mean_points_per_timestamp,
-        //measurementStats: measurements_stats,
-
+        datasetStats: datasetStats,
+        measurementStats: measurementStats,
+        meanPointsPerTimestamp: meanPointsPerTimestamp,
     };
 };
 
-exports.heatMapAnalysis = async (
+const heatMapAnalysis = async (
     {
-        database = x`database`,
-        policy = x`policy`,
-        startInterval = x`startInterval`,
-        endInterval = x`endInterval`,
-        fields = x`fields`,
-        nMeasurements = 0,
-        period = 300,
+        heatMapRequest,
     }
 ) => {
 
     /* Fetch Measurements from Database */
-    console.log(`Fetching list of measurements from database..`);
-    let measurements = await fetchMeasurementsListFromHttpApi(database);
+    let measurements = await fetchMeasurementsListFromHttpApi(heatMapRequest.database);
 
     //only a sample of machines
-    if (nMeasurements > 0) {
-        console.log(`Selected only a sample of ${nMeasurements} measurements`);
-        measurements = measurements.slice(0, nMeasurements);
+    if (heatMapRequest.nMeasurements > 0) { // 0 means all measurements
+        measurements = measurements.slice(0, heatMapRequest.nMeasurements);
     }
 
     /* Analyze Measurements */
-    console.log(`Start analyzing ${measurements.length} measurements..`);
-    let analysis = await
+    return await
         analyzeMeasurements(
-            database,
-            policy,
+            heatMapRequest.database,
+            heatMapRequest.policy,
             measurements,
-            startInterval,
-            endInterval,
-            period,
-            fields);
-
-    console.log(`Analysis completed`);
-
-    return analysis;
+            heatMapRequest.startInterval,
+            heatMapRequest.endInterval,
+            heatMapRequest.period,
+            heatMapRequest.fields);
 };
 
 /* HeatMap Configuration Validation */
@@ -832,36 +725,28 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         })
 };
 
-exports.heatMapConfigurationValidation = async (
+const heatMapConfigurationValidation = async (
 
     {
-        database = x`database`,
-        policy = x`policy`,
-        startInterval = x`startInterval`,
-        endInterval = x`endInterval`,
-        fields = x`fields`,
-        nMeasurements = 0,
-        period = 300,
-        palette = _PALETTE_GRAY,
-        heatMapType = 'original'
+        heatMapRequest = x`HeatMap Request`,
     }
 
 ) => {
 
     //timeseries validation
-    console.log(`Validating DB: ${database} \n - policy: ${policy} \n - fields: ${fields}`);
-    await validateDatabaseArgs(database, policy, fields);
+    //console.log(`Validating DB: ${database} \n - policy: ${policy} \n - fields: ${fields}`);
+    await validateDatabaseArgs(heatMapRequest.database, heatMapRequest.policy, heatMapRequest.fields);
 
     //intervals validation
-    console.log(`Validating time interval [${startInterval} - ${endInterval}]`);
+    //console.log(`Validating time interval [${startInterval} - ${endInterval}]`);
     let start_interval, end_interval;
     try {
 
-        start_interval = Date.parse(startInterval);
-        end_interval = Date.parse(endInterval);
+        start_interval = Date.parse(heatMapRequest.startInterval);
+        end_interval = Date.parse(heatMapRequest.endInterval);
     }
     catch (e) {
-        throw new Error(`invalid interval: [${startInterval} - ${endInterval}]`);
+        throw new Error(`invalid interval: [${heatMapRequest.startInterval} - ${heatMapRequest.endInterval}]`);
     }
 
     //end interval must be equal or greater than start interval
@@ -870,22 +755,31 @@ exports.heatMapConfigurationValidation = async (
         throw new Error('end interval must be greater or equal then start');
 
     //number of measurements validation
-    console.log(`Validing #measurements [${nMeasurements}]`);
-    if (nMeasurements < 0)
+    //console.log(`Validing #measurements [${nMeasurements}]`);
+    if (heatMapRequest.nMeasurements < 0)
         throw new Error(`measurements cannot be negative [Default: 0 => all]`);
 
     //period validation
-    console.log(`Validating period [${period}]`);
-    if ((period % 300) !== 0)
+    //console.log(`Validating period [${period}]`);
+    if ((heatMapRequest.period % 300) !== 0)
         throw new Error('invalid period, must be multiple of 300 (5min)');
 
     //palette validation
-    if (!palettes.includes(palette))
+    if (!palettes.includes(heatMapRequest.palette))
         throw new Error(`invalid palette [AVAILABLE: ${palettes}]`);
 
     //heatmap type validation
-    if (!heatMapTypes.includes(heatMapType))
+    if (!heatMapTypes.includes(heatMapRequest.heatMapType))
         throw new Error(`invalid heatmap type [AVAILABLE: ${heatMapTypes}]`);
 
     return true;
+};
+
+module.exports = {
+    heatMapConfigurationValidation: heatMapConfigurationValidation,
+    heatMapAnalysis: heatMapAnalysis,
+    heatMapConstruction: heatMapConstruction,
+    heatMapBuildAndStore: heatMapBuildAndStore,
+    heatMapCanvasToImage: heatMapCanvasToImage,
+    getPalettes: getPalettes,
 };
