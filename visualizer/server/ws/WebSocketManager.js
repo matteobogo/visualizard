@@ -1,14 +1,16 @@
 const wsTypes = require('../../commons/WebSocketsEvents');
 const heatMapService = require('../services/HeatMaps');
 const uuidv4 = require('uuid/v4');
+const _ = require('lodash');
 
 exports = module.exports = (io) => {
 
     const clientsMap = new Map();
-    const clientDataInitialStatus = {
+    const clientDataInitialStatus = { //TODO may be cached (redis?)
         uuid: null,
         heatMapRequest: null,
         heatMapAnalysis: null,
+        heatMap: null,
         isProcessing: false,
     };
 
@@ -31,13 +33,21 @@ exports = module.exports = (io) => {
             /* HeatMap Computation */
 
             //initialization + validation
-            socket.on(wsTypes.HEATMAP_VALIDATION_START, (request) => {
+            socket.on(wsTypes.HEATMAP_VALIDATION_START, (heatMapRequest) => {
 
                 let clientData = clientsMap.get(socket);
 
                 //check request processing in progress
-                if (checkInProgressProcessing(clientData, wsTypes.HEATMAP_VALIDATION_START))
+                if (clientDataCheckers(socket, null, 'progress', wsTypes.HEATMAP_VALIDATION_START))
                     return;
+
+                //is there a previous request? is the same?
+                if (clientData.uuid != null && clientData.heatMapRequest !== null) { //TODO cached?
+                    if (_.isEqual(heatMapRequest, clientData.heatMapRequest)) { //obj equality with lodash
+                        socket.emit(wsTypes.HEATMAP_VALIDATION_SUCCESS, heatMapRequest, clientData.uuid);
+                        return;
+                    }
+                }
 
                 //reset previous configurations
                 clientData = clientDataInitialStatus;
@@ -46,35 +56,27 @@ exports = module.exports = (io) => {
                 clientsMap.set(socket, clientData);
 
                 requestLogger(wsTypes.HEATMAP_VALIDATION_START, socket.id);
-                console.log(`\nHeatMap Configuration:\n ${JSON.stringify(request)}`);
+                console.log(`\nHeatMap Configuration:\n ${JSON.stringify(heatMapRequest)}`);
 
                 //validation
                 heatMapService
                     .heatMapConfigurationValidation({
-                        database: request.database,
-                        policy: request.policy,
-                        startInterval: request.startInterval,
-                        endInterval: request.endInterval,
-                        fields: request.fields,
-                        nMeasurements: request.nMeasurements,
-                        period: request.period,
-                        palette: request.palette,
-                        heatMapType: request.heatMapType,
+                        heatMapRequest: heatMapRequest,
                     })
                     .then(() => {
 
                         let uuid = uuidv4();
 
                         clientData.uuid = uuid;
-                        clientData.heatMapRequest = request;
+                        clientData.heatMapRequest = heatMapRequest;
                         clientsMap.set(socket, clientData);
 
-                        socket.emit(wsTypes.HEATMAP_VALIDATION_SUCCESS, request, uuid);
+                        socket.emit(wsTypes.HEATMAP_VALIDATION_SUCCESS, heatMapRequest, uuid);
                         console.log(`HeatMap request fetched by [${socket.id}] validated\n UUID assigned [${uuid}]`);
                     })
                     .catch(error => {
 
-                        socket.emit(wsTypes.HEATMAP_VALIDATION_FAIL, request, error.message);
+                        socket.emit(wsTypes.HEATMAP_VALIDATION_FAIL, heatMapRequest, error.message);
                         console.log(`HeatMap request fetched by [${socket.id}] not valid\n ${error.message}`);
                     })
                     .then(() => {  //finally in ES6 proposal
@@ -89,12 +91,18 @@ exports = module.exports = (io) => {
                 let clientData = clientsMap.get(socket);
 
                 //check request processing in progress
-                if (checkInProgressProcessing(clientData, wsTypes.HEATMAP_ANALYSIS_START))
+                if (clientDataCheckers(socket, null, 'progress', wsTypes.HEATMAP_ANALYSIS_START))
                     return;
 
                 //check uuid (assigned during validation)
-                if (!checkUUID(uuid, clientData.uuid, socket, wsTypes.HEATMAP_ANALYSIS_START))
+                if (clientDataCheckers(socket, uuid, 'uuid', wsTypes.HEATMAP_ANALYSIS_START))
                     return;
+
+                //is there a previous analysis?
+                if (clientData.heatMapAnalysis !== null) { //TODO cached?
+                    socket.emit(wsTypes.HEATMAP_ANALYSIS_SUCCESS, clientData.heatMapAnalysis);
+                    return;
+                }
 
                 clientData.isProcessing = true;
                 clientsMap.set(socket, clientData);
@@ -104,14 +112,7 @@ exports = module.exports = (io) => {
                 //analysis
                 heatMapService
                     .heatMapAnalysis({
-                        database: clientData.heatMapRequest.database,
-                        policy: clientData.heatMapRequest.policy,
-                        startInterval: clientData.heatMapRequest.startInterval,
-                        endInterval: clientData.heatMapRequest.endInterval,
-                        fields: clientData.heatMapRequest.fields,
-                        nMeasurements: clientData.heatMapRequest.nMeasurements,
-                        period: clientData.heatMapRequest.period,
-                        palette: clientData.heatMapRequest.palette,
+                        heatMapRequest: clientData.heatMapRequest
                     })
                     .then(analysis => {
 
@@ -141,16 +142,21 @@ exports = module.exports = (io) => {
                 let clientData = clientsMap.get(socket);
 
                 //check request processing in progress
-                if (checkInProgressProcessing(clientData, wsTypes.HEATMAP_CONSTRUCTION_START))
+                if (clientDataCheckers(socket, null, 'progress', wsTypes.HEATMAP_CONSTRUCTION_START))
                     return;
 
                 //check uuid (assigned during validation)
-                if (!checkUUID(uuid, clientData.uuid, socket, wsTypes.HEATMAP_CONSTRUCTION_START))
+                if (clientDataCheckers(socket, uuid, 'uuid', wsTypes.HEATMAP_CONSTRUCTION_START))
                     return;
 
                 //check if analysis has been made
-                if (clientData.heatMapAnalysis == null) {
+                if (clientDataCheckers(socket, uuid, 'analysis', wsTypes.HEATMAP_CONSTRUCTION_START))
+                    return;
 
+                //is there a previous heatmap?
+                if (clientData.heatMap !== null) { //TODO cached?
+                    //TODO emit
+                    return;
                 }
 
                 clientData.isProcessing = true;
@@ -158,45 +164,83 @@ exports = module.exports = (io) => {
 
                 requestLogger(wsTypes.HEATMAP_ANALYSIS_START, socket.id, uuid);
 
+                //construction
+                heatMapService
+                    .heatMapConstruction({
+                        uuid: uuid,
+                        heatMapRequest: clientData.heatMapRequest,
+                        heatMapAnalysis: clientData.heatMapAnalysis,
+                    })
+                    .then(() => {
 
+
+                    })
+                    .catch(error => {
+
+
+                    })
+                    .then(() => {  //finally in ES6 proposal
+                        clientData.isProcessing = false;
+                        clientsMap.set(socket, clientData);
+                    });
             });
     });
+
+    const emitError = (socket, message, stage) => {
+
+        socket.emit(wsTypes.HEATMAP_PROCESS_ERROR, message);
+        console.log(`[${socket.id}] makes a ${stage} request, but another one is in progress`);
+    };
+
+    const clientDataCheckers = (socket, parameter, flag, stage) => {
+
+        let clientData = clientsMap.get(socket);
+
+        switch (flag) {
+
+            case 'uuid':
+
+                if (parameter !== clientData.uuid) {
+
+                    emitError(socket, 'invalid uuid', stage);
+                    console.log(`[${socket.id}] has provided an invalid UUID during a ${stage} request`);
+                    return true;
+                }
+                return false;
+
+            case 'progress':
+
+                if (clientData.isProcessing) {
+
+                    emitError(socket, 'request processing in progress', stage);
+                    return true;
+                }
+                return false;
+
+            case 'analysis':
+
+                if (clientData.heatMapAnalysis === null)  {
+
+                    emitError(socket, 'analysis is required', stage);
+                    return true;
+                }
+                return false;
+
+            default:
+                break;
+        }
+    };
+
+    const requestLogger = (stage, clientId, uuid = 'None') => {
+
+        console.log(
+            '\n------------------------------\n' +
+            `Received an ${stage} request    \n` +
+            '------------------------------  \n' +
+            `CLIENT_ID: ${clientId}          \n` +
+            '------------------------------  \n' +
+            `UUID: ${uuid}                   \n` +
+            '------------------------------  \n' );
+    };
 };
 
-const checkUUID = (uuidRequest, uuidStored, socket, stage) => {
-
-    if (uuidRequest !== uuidStored) {
-
-        console.log(`[${socket.id}] has provided an invalid UUID during a ${stage} request`);
-        socket.emit(wsTypes.HEATMAP_PROCESS_ERROR, 'UUID request mismatch');
-        return false;
-    }
-    else return true;
-};
-
-const handleInProgressProcessing = (socket, stage) => {
-
-    console.log(`[${socket.id}] makes a ${stage} request, but another one is in progress`);
-    socket.emit(wsTypes.HEATMAP_PROCESS_ERROR, 'HeatMap request processing in progress');
-};
-
-const checkInProgressProcessing = (clientData, type) => {
-
-    if (clientData.isProcessing) {
-        handleInProgressProcessing(socket, type);
-        return true;
-    }
-    else return false;
-};
-
-const requestLogger = (stage, clientId, uuid = 'None') => {
-
-    console.log(
-        '\n------------------------------\n' +
-        `Received an ${stage} request    \n` +
-        '------------------------------  \n' +
-        `CLIENT_ID: ${clientId}          \n` +
-        '------------------------------  \n' +
-        `UUID: ${uuid}                   \n` +
-        '------------------------------  \n' );
-};
