@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { BrowserRouter as Router, Route, Link } from 'react-router-dom';
 
-import HeatMapComputation from './containers/HeatMapComputation';
+import HeatMapComputation from './containers/HeatMapComputationContainer';
 import NavBar from './components/NavBar';
 
 export default class App extends Component {

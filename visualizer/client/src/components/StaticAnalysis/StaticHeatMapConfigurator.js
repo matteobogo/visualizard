@@ -235,7 +235,7 @@ class StaticHeatMapConfigurator extends React.Component {
                     nMeasurements: 10,
                     period: 300,
                     palette: "RED",
-                    heatMapType: "Sort by machine",
+                    heatMapType: "sortByMachine",
                 });
 
             this.setState({computationLocked: true});
