@@ -11,15 +11,22 @@ export default class StaticHeatMap extends React.Component {
 
     render() {
 
+        const { heatMapImage } = this.props;
+
         return(
-              <Panel>
-                  <Panel.Heading>
-                      <Panel.Title componentClass="h3">HeatMap</Panel.Title>
-                  </Panel.Heading>
-                  <Panel.Body>
-                      <img/>
-                  </Panel.Body>
-              </Panel>
+
+            heatMapImage !== null ?
+
+            <Panel>
+              <Panel.Heading>
+                  <Panel.Title componentClass="h3">HeatMap</Panel.Title>
+              </Panel.Heading>
+              <Panel.Body>
+                  <img/>
+              </Panel.Body>
+            </Panel>
+                :
+                null
         );
     }
 }
