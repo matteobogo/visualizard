@@ -9,23 +9,7 @@ const express           = require('express')
     , socketIo          = require('socket.io');
 
 /* MongoDB - Moongose */
-const mongoose = require('mongoose');
-if (config.APP.mode === 'development') {
-
-    const mongodbURL = `mongodb://${config.MONGO.db_host}/${config.MONGO.db_name}`;
-    mongoose.connect(mongodbURL)
-        .then(() => {
-            console.log(`${mongodbURL} connected`);
-        })
-        .catch((err) => {
-            console.log(`Failed to connect: ${err.message}`);
-        });
-    mongoose.set('debug', true);
-}
-
-/* Moongose - Schema registration */
-require('./models/DatasetAnalysis');
-require('./models/PointsStatsPerTimestamp');
+require('./database/mongodb').moongoseConfig();
 
 const app = express();
 
