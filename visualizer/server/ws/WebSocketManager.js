@@ -1,5 +1,6 @@
 const wsTypes = require('../../commons/WebSocketsEvents');
-const heatMapService = require('../services/HeatMaps');
+const heatMapService = require('../services/HeatMapsService');
+const datasetAnalysisService = require('../services/DatasetAnalysisService');
 const uuidv4 = require('uuid/v4');
 const _ = require('lodash');
 
@@ -86,7 +87,7 @@ exports = module.exports = (io) => {
             });
 
             //analysis
-            socket.on(wsTypes.HEATMAP_ANALYSIS_START, (uuid) => {
+            socket.on(wsTypes.HEATMAP_ANALYSIS_START, async (uuid) => {
 
                 let clientData = clientsMap.get(socket);
 
@@ -109,31 +110,73 @@ exports = module.exports = (io) => {
 
                 requestLogger(wsTypes.HEATMAP_ANALYSIS_START, socket.id, uuid);
 
-                //analysis
-                heatMapService
-                    .heatMapAnalysis({
-                        heatMapRequest: clientData.heatMapRequest
-                    })
-                    .then(analysis => {
+                //dataset analysis
+                const datasetAnalysis = datasetAnalysisService._ANALYSIS_TYPES.DATASET_ANALYSIS;
+                datasetAnalysisService
+                    .getAnalysisCached(
+                        {
+                            database: clientData.heatMapRequest.database,
+                            policy: clientData.heatMapRequest.policy,
+                            startInterval: clientData.heatMapRequest.startInterval,
+                            endInterval: clientData.heatMapRequest.endInterval,
+                            analysisType: datasetAnalysis,
+                        },
+                        (error, analysis) => { //error first callback pattern
+                            if (error) {
 
-                        //save analysis
-                        clientData.heatMapAnalysis = analysis;
+                                socket.emit(wsTypes.HEATMAP_ANALYSIS_FAIL, error.message);
+                                console.log(
+                                    `${datasetAnalysis} Analysis started by [${socket.id}] of request [${uuid}] failed\n` +
+                                    `Error: \n` +
+                                    `${error.message}` );
+                            }
+                            else {
 
-                        socket.emit(wsTypes.HEATMAP_ANALYSIS_SUCCESS, analysis);
-                        console.log(`Analysis started by [${socket.id}] of request [${uuid}] completed`);
-                    })
-                    .catch(error => {
+                                //save analysis
+                                clientData.heatMapAnalysis = analysis;
 
-                        socket.emit(wsTypes.HEATMAP_ANALYSIS_FAIL, error.message);
-                        console.log(
-                            `Analysis started by [${socket.id}] of request [${uuid}] failed\n` +
-                            `Error: \n` +
-                            `${error.message}` );
-                    })
-                    .then(() => {  //finally in ES6 proposal
-                        clientData.isProcessing = false;
-                        clientsMap.set(socket, clientData);
-                    });
+                                socket.emit(wsTypes.HEATMAP_ANALYSIS_SUCCESS, analysis);
+                                console.log(`${datasetAnalysis} Analysis started by [${socket.id}] of request [${uuid}] completed`);
+                            }
+
+                            clientData.isProcessing = false;
+                            clientsMap.set(socket, clientData);
+                        }
+                    );
+
+                //points stats per timestamp analysis
+                const psptAnalysis = datasetAnalysisService._ANALYSIS_TYPES.POINTS_STATS_PER_TIMESTAMP_ANALYSIS;
+                datasetAnalysisService
+                    .getAnalysisCached(
+                        {
+                            database: clientData.heatMapRequest.database,
+                            policy: clientData.heatMapRequest.policy,
+                            startInterval: clientData.heatMapRequest.startInterval,
+                            endInterval: clientData.heatMapRequest.endInterval,
+                            analysisType: psptAnalysis,
+                        },
+                        (error, analysis) => { //error first callback pattern
+                            if (error) {
+
+                                socket.emit(wsTypes.HEATMAP_ANALYSIS_FAIL, error.message);
+                                console.log(
+                                    `${psptAnalysis} Analysis started by [${socket.id}] of request [${uuid}] failed\n` +
+                                    `Error: \n` +
+                                    `${error.message}` );
+                            }
+                            else {
+
+                                //save analysis
+                                clientData.heatMapAnalysis = analysis;
+
+                                socket.emit(wsTypes.HEATMAP_ANALYSIS_SUCCESS, analysis);
+                                console.log(`${psptAnalysis} Analysis started by [${socket.id}] of request [${uuid}] completed`);
+                            }
+
+                            clientData.isProcessing = false;
+                            clientsMap.set(socket, clientData);
+                        }
+                    );
             });
 
             //construction

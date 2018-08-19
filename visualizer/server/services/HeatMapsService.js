@@ -499,13 +499,13 @@ const analyzeMeasurements = async (
     database,
     policy,
     measurements,
-    start_interval,
-    end_interval,
+    startInterval,
+    endInterval,
     period,
     fields) => {
 
     //init mean points per ts
-    let meanPointsPerTimestamp = initializeMeanPointsPerTS(start_interval, end_interval, period, fields);
+    let meanPointsPerTimestamp = initializeMeanPointsPerTS(startInterval, endInterval, period, fields);
 
     let sample_points_length = -1;
     let measurementStats = [];
@@ -516,8 +516,8 @@ const analyzeMeasurements = async (
             database,
             policy,
             measurements[i],
-            start_interval,
-            end_interval,
+            startInterval,
+            endInterval,
             period,
             fields
         ).then(points => { return points; }); //non serve
@@ -529,10 +529,10 @@ const analyzeMeasurements = async (
         stats['database'] = database;
         stats['policy'] = policy;
         stats['measurement'] = measurements[i];
-        stats['startInterval'] = start_interval;
-        stats['endInterval'] = end_interval;
+        stats['startInterval'] = startInterval;
+        stats['endInterval'] = endInterval;
         stats['period'] = period;
-        stats['intervals'] = (Date.parse(end_interval) - Date.parse(start_interval)) / (period * 1000) + 1;
+        stats['intervals'] = (Date.parse(endInterval) - Date.parse(startInterval)) / (period * 1000) + 1;
         stats['fields'] = fields;
         stats['stats'] = {};
         fields.forEach(field => {
@@ -625,8 +625,8 @@ const analyzeMeasurements = async (
             database,
             policy,
             measurements[i],
-            start_interval,
-            end_interval,
+            startInterval,
+            endInterval,
             period,
             fields
         ).catch(err => { throw new Error(err.message); });
