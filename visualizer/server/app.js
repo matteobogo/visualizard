@@ -4,18 +4,41 @@ require('./utils/global_functions');
 console.log("Environment: ", config.APP.mode);
 
 const express           = require('express')
-    , logger            = require('morgan')
     , bodyParser        = require('body-parser')
     , path              = require('path')
     , socketIo          = require('socket.io');
 
+/* MongoDB - Moongose */
+const mongoose = require('mongoose');
+if (config.APP.mode === 'development') {
+
+    const mongodbURL = `mongodb://${config.MONGO.db_host}/${config.MONGO.db_name}`;
+    mongoose.connect(mongodbURL)
+        .then(() => {
+            console.log(`${mongodbURL} connected`);
+        })
+        .catch((err) => {
+            console.log(`Failed to connect: ${err.message}`);
+        });
+    mongoose.set('debug', true);
+}
+
+/* Moongose - Schema registration */
+require('./models/DatasetAnalysis');
+require('./models/PointsStatsPerTimestamp');
+
 const app = express();
 
-app.use(logger('dev'));
+/* Winston - Logging */
+const winston = require('./config/winston');
+const morgan = require('morgan');
+
+app.use(morgan('combined', { stream: winston.stream }));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 
-/** CORS Filter */
+/* CORS Filter */
 app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
