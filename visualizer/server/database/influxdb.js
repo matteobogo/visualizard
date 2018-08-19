@@ -200,6 +200,106 @@ const getAllFieldsKeyByDatabaseByName = (dbname, name) => {
     );
 };
 
+const fetchMeasurementsListFromHttpApi = (dbname) => {
+
+    return new Promise(
+        function(resolve, reject) {
+
+            getMeasurements(dbname)
+                .then(data => {
+
+                    let measurements = [];
+                    data.forEach(m => {
+                        measurements.push(m.name);
+                    });
+                    resolve(measurements);
+                })
+                .catch(() => { reject('server unavailable'); });
+        }
+    )
+};
+
+const fetchPointsFromHttpApi = (
+    database,
+    policy,
+    measurement,
+    startInterval,
+    endInterval,
+    period,
+    fields) => {
+
+    return new Promise(
+        function (resolve, reject) {
+
+            getPointsByPolicyByNameByStartTimeByEndTime(
+                database,
+                policy,
+                measurement,
+                startInterval,
+                endInterval)
+
+                .then(p => {
+
+                    let points = [];
+
+                    //fix missing values (eventually)
+                    let current_timestamp = Date.parse(startInterval)
+                        , end_timestamp = Date.parse(endInterval)
+                        , k = 0;
+
+                    while (current_timestamp <= end_timestamp) { //<= ?
+
+                        //init point's time and fields
+                        let point = {time: Date.parse(current_timestamp)};
+                        fields.forEach(field => {
+
+                            point[field] = 0.0;
+                        });
+
+                        //there are points to process
+                        if (k < p.length) {
+
+                            let timestamp = Date.parse(p[k].time);
+                            const diff = timestamp - current_timestamp;
+
+                            //timestamps mismatch: i'm ahead, so the current ts is missing
+                            if (diff > 0) {
+                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
+                            }
+                            //timestamp match
+                            else if (diff === 0) {
+
+                                //update fields with real value
+                                fields.forEach(field => {
+
+                                    point[field] = p[k][field];
+                                });
+
+                                ++k;
+                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
+                            }
+                            //timestamp mismatch: i'm back, so the start interval was ahead.
+                            else if (diff < 0) {
+                                ++k;
+                                continue;
+                            }
+                        }
+                        else { //no more points
+                            current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
+                        }
+                        points.push(point);
+                    }
+
+                    resolve(points);
+                })
+                .catch((err) => {
+                    console.log(err);
+                    reject('server unavailable');
+                });
+        }
+    )
+};
+
 module.exports = {
     ping: ping,
     getDatabases: getDatabases,
@@ -215,5 +315,7 @@ module.exports = {
     getAllTagKeys: getAllTagKeys,
     getAllTagKeysByName: getAllTagKeysByName,
     getAllFieldsKeyByDatabase: getAllFieldsKeyByDatabase,
-    getAllFieldsKeyByDatabaseByName: getAllFieldsKeyByDatabaseByName
+    getAllFieldsKeyByDatabaseByName: getAllFieldsKeyByDatabaseByName,
+    fetchMeasurementsListFromHttpApi: fetchMeasurementsListFromHttpApi,
+    fetchPointsFromHttpApi: fetchPointsFromHttpApi,
 };
