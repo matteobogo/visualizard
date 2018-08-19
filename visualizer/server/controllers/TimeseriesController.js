@@ -1,7 +1,7 @@
 const config = require('../config/config');
 
 const influx = require('../database/influxdb');
-const heatmaps = require('../services/HeatMaps');
+const heatmaps = require('../services/HeatMapsService');
 
 const ping = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');

@@ -1,4 +1,4 @@
-const heatMapsService = require('../services/HeatMaps');
+const heatMapsService = require('../services/HeatMapsService');
 
 const mime = {
     png: 'image/png',
