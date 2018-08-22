@@ -6,11 +6,21 @@ const mime = {
     json: 'application/json',
 };
 
+const getHeatMapTypes = async (req, res) => {
+
+    let heatMapTypes = heatMapsService.getHeatMapTypes();
+
+    if (heatMapTypes.length === 0) ReE(res, 'no heatmap types available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: heatMapTypes}, 200);
+};
+
 const getPalettes = async (req, res) => {
 
     let palettes = heatMapsService.getPalettes();
 
-    if (palettes.length === 0) ReE(res, 'no getPalettes availables');
+    if (palettes.length === 0) ReE(res, 'no palettes available');
 
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: palettes}, 200);
@@ -115,7 +125,7 @@ const storeHeatMap = async (req, res) => {
     const imageType = req.query.imageType;
 
     heatMapsService.heatMapBuildAndStore({
-        heatMapRequest: heatMapRequest,
+        request: heatMapRequest,
         imageType: imageType,
     });
 
@@ -123,6 +133,7 @@ const storeHeatMap = async (req, res) => {
 };
 
 module.exports = {
+    getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
     getHeatMap: getHeatMap,
     buildResourceUsageHeatMaps: buildResourceUsageHeatMaps,

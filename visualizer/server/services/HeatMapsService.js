@@ -85,6 +85,11 @@ const heatMapTypes = [
     _HEATMAP_TYPE_BY_TS_OF_MAX_VALUE,
 ];
 
+const getHeatMapTypes = () => {
+
+    return heatMapTypes;
+};
+
 /*
  * Feature Scaling: Standardization
  * https://en.wikipedia.org/wiki/Standard_score
@@ -94,106 +99,6 @@ let _MIN_Z_SCORE = -3
 ,   _MAX_Z_SCORE = 3;
 
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
-
-const fetchMeasurementsListFromHttpApi = (dbname) => {
-
-    return new Promise(
-        function(resolve, reject) {
-
-            influx.getMeasurements(dbname)
-                .then(data => {
-
-                    let measurements = [];
-                    data.forEach(m => {
-                        measurements.push(m.name);
-                    });
-                    resolve(measurements);
-                })
-                .catch(() => { reject('server unavailable'); });
-        }
-    )
-};
-
-const fetchPointsFromHttpApi = (
-    database,
-    policy,
-    measurement,
-    startInterval,
-    endInterval,
-    period,
-    fields) => {
-
-    return new Promise(
-        function (resolve, reject) {
-
-            influx.getPointsByPolicyByNameByStartTimeByEndTime(
-                database,
-                policy,
-                measurement,
-                startInterval,
-                endInterval)
-
-                .then(p => {
-
-                    let points = [];
-
-                    //fix missing values (eventually)
-                    let current_timestamp = Date.parse(startInterval)
-                        , end_timestamp = Date.parse(endInterval)
-                        , k = 0;
-
-                    while (current_timestamp <= end_timestamp) { //<= ?
-
-                        //init point's time and fields
-                        let point = {time: Date.parse(current_timestamp)};
-                        fields.forEach(field => {
-
-                            point[field] = 0.0;
-                        });
-
-                        //there are points to process
-                        if (k < p.length) {
-
-                            let timestamp = Date.parse(p[k].time);
-                            const diff = timestamp - current_timestamp;
-
-                            //timestamps mismatch: i'm ahead, so the current ts is missing
-                            if (diff > 0) {
-                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                            }
-                            //timestamp match
-                            else if (diff === 0) {
-
-                                //update fields with real value
-                                fields.forEach(field => {
-
-                                    point[field] = p[k][field];
-                                });
-
-                                ++k;
-                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                            }
-                            //timestamp mismatch: i'm back, so the start interval was ahead.
-                            else if (diff < 0) {
-                                ++k;
-                                continue;
-                            }
-                        }
-                        else { //no more points
-                            current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                        }
-                        points.push(point);
-                    }
-
-                    resolve(points);
-                })
-                .catch((err) => {
-                    console.log(err);
-                    reject('server unavailable');
-                });
-        }
-    )
-};
 
 /* HeatMap Construction */
 
@@ -361,7 +266,7 @@ const heatMapBuildAndStore = async (
     //validation
     const validate = await heatMapConfigurationValidation(
         {
-            heatMapRequest: heatMapRequest,
+            request: heatMapRequest,
         })
         .then(data => { return data; })
         .catch(error => {
@@ -374,7 +279,7 @@ const heatMapBuildAndStore = async (
     //analysis
     const analysis = await heatMapAnalysis(
         {
-            heatMapRequest: heatMapRequest,
+            request: heatMapRequest,
         })
         .then(data => { return data; })
         .catch(error => {
@@ -387,8 +292,8 @@ const heatMapBuildAndStore = async (
     //construction
     const canvas = await heatMapConstruction(
         {
-            heatMapRequest: heatMapRequest,
-            heatMapAnalysis: analysis,
+            request: heatMapRequest,
+            analysis: analysis,
 
         })
         .then(data => { return data; })
@@ -403,7 +308,7 @@ const heatMapBuildAndStore = async (
     const stored = await heatMapCanvasToImage(
         {
             canvas: canvas,
-            heatMapRequest: heatMapRequest,
+            request: heatMapRequest,
             imageType: imageType,
         })
         .then(data => { return data; })
@@ -463,8 +368,8 @@ const heatMapConstruction = async (
 
     return drawHeatMap(
         {
-            heatMapRequest: heatMapRequest,
-            heatMapAnalysis: heatMapAnalysis,
+            request: heatMapRequest,
+            analysis: heatMapAnalysis,
         })
         .then(data => {
             return data;
@@ -677,7 +582,7 @@ const heatMapAnalysis = async (
 ) => {
 
     /* Fetch Measurements from Database */
-    let measurements = await fetchMeasurementsListFromHttpApi(heatMapRequest.database);
+    let measurements = await influx.fetchMeasurementsListFromHttpApi(heatMapRequest.database);
 
     //only a sample of machines
     if (heatMapRequest.nMeasurements > 0) { // 0 means all measurements
@@ -698,12 +603,12 @@ const heatMapAnalysis = async (
 
 /* HeatMap Configuration Validation */
 
-const validateDatabaseArgs = async (dbname, policy, fields) => {
+const validateDatabaseArgs = async (dbname, policy, field) => {
 
     const [dbs, policies, measurements] = await Promise.all([
         influx.getDatabases(),
         influx.getRetentionPolicies(dbname),
-        fetchMeasurementsListFromHttpApi(dbname)
+        influx.fetchMeasurementsListFromHttpApi(dbname)
     ]).catch(err => { throw new Error('timeseries unavailable');});
 
     if (dbs.filter(d => (d.name === dbname)).length === 0)
@@ -713,7 +618,7 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         throw new Error(`invalid policy ${policy}`);
 
     if (measurements.length === 0) throw new Error('no measurements available');
-    if (fields.length === 0) throw new Error('missing fields');
+    if (field === undefined || field === null) throw new Error('missing field');
 
     let measurement = measurements[0];
     await influx.getAllFieldsKeyByDatabaseByName(dbname, measurement)
@@ -721,32 +626,32 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         .then(res => {
 
             let fieldKeys = res.map(k => k.fieldKey);
-            if (!fieldKeys.some(r => fields.includes(r))) throw new Error('wrong fields');
-        })
+            if (!fieldKeys.includes(field)) throw new Error('wrong fields');
+        });
 };
 
 const heatMapConfigurationValidation = async (
 
     {
-        heatMapRequest = x`HeatMap Request`,
+        computationRequest = x`Computation Request`,
     }
 
 ) => {
 
     //timeseries validation
     //console.log(`Validating DB: ${database} \n - policy: ${policy} \n - fields: ${fields}`);
-    await validateDatabaseArgs(heatMapRequest.database, heatMapRequest.policy, heatMapRequest.fields);
+    await validateDatabaseArgs(computationRequest.database, computationRequest.policy, computationRequest.field);
 
     //intervals validation
     //console.log(`Validating time interval [${startInterval} - ${endInterval}]`);
     let start_interval, end_interval;
     try {
 
-        start_interval = Date.parse(heatMapRequest.startInterval);
-        end_interval = Date.parse(heatMapRequest.endInterval);
+        start_interval = Date.parse(computationRequest.startInterval);
+        end_interval = Date.parse(computationRequest.endInterval);
     }
     catch (e) {
-        throw new Error(`invalid interval: [${heatMapRequest.startInterval} - ${heatMapRequest.endInterval}]`);
+        throw new Error(`invalid interval: [${computationRequest.startInterval} - ${computationRequest.endInterval}]`);
     }
 
     //end interval must be equal or greater than start interval
@@ -756,20 +661,20 @@ const heatMapConfigurationValidation = async (
 
     //number of measurements validation
     //console.log(`Validing #measurements [${nMeasurements}]`);
-    if (heatMapRequest.nMeasurements < 0)
+    if (computationRequest.nMeasurements < 0)
         throw new Error(`measurements cannot be negative [Default: 0 => all]`);
 
     //period validation
     //console.log(`Validating period [${period}]`);
-    if ((heatMapRequest.period % 300) !== 0)
+    if ((computationRequest.period % 300) !== 0)
         throw new Error('invalid period, must be multiple of 300 (5min)');
 
     //palette validation
-    if (!palettes.includes(heatMapRequest.palette))
+    if (!palettes.includes(computationRequest.palette))
         throw new Error(`invalid palette [AVAILABLE: ${palettes}]`);
 
     //heatmap type validation
-    if (!heatMapTypes.includes(heatMapRequest.heatMapType))
+    if (!heatMapTypes.includes(computationRequest.heatMapType))
         throw new Error(`invalid heatmap type [AVAILABLE: ${heatMapTypes}]`);
 
     return true;
@@ -777,9 +682,10 @@ const heatMapConfigurationValidation = async (
 
 module.exports = {
     heatMapConfigurationValidation: heatMapConfigurationValidation,
-    heatMapAnalysis: heatMapAnalysis,
+    analysis: heatMapAnalysis,
     heatMapConstruction: heatMapConstruction,
     heatMapBuildAndStore: heatMapBuildAndStore,
     heatMapCanvasToImage: heatMapCanvasToImage,
+    getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
 };
