@@ -15,6 +15,8 @@ const _ANALYSIS_TYPES = {
 
 const _COMPUTATION_PERCENTAGES = ['10','20','30','40','50','60','70','80','90','100'];
 
+const x = p => { throw new Error(`Missing parameter: ${p}`) };
+
 const initializePointsStatsPerTS = (
     startInterval,
     endInterval,
@@ -331,89 +333,135 @@ const analyzeDataset = async (
     return true;
 };
 
-const getAnalysisCached = (
-    {
-        database,
-        policy,
-        startInterval,
-        endInterval,
-        analysisType,
-    },
-    callback
-) => {
+const getAnalysisCached = async (request) => {
+
+    request.database = request.database || x`Database is missing`;
+    request.policy = request.policy || x`Policy is missing`;
+    request.startInterval = request.startInterval || x`Start Interval is missing`;
+    request.endInterval = request.endInterval || x`End Interval is missing`;
+    request.analysisType = request.analysisType || x`Analysis Type is missing`;
+
+    logger.log('debug', request);
 
     //search in cache
-    redis.get(`${analysisType}_${database}_${policy}_${startInterval}_${endInterval}`, (err, reply) => {
+    let result = await redis.get(
+        `${request.analysisType}_${request.database}_${request.policy}_${request.startInterval}_${request.endInterval}`)
+        .catch(err => {
 
-        if (err) {
-            logger.log('error', 'error during redis cache search');
-        }
-        else if (reply) { //exists in cache
+            logger.log('error', `error during redis cache search: ${err.message}`);
+        })
+        .then(result => {
 
-            callback(null, JSON.parse(reply));
-        }
-        else { //not in cache -> search in persistent storage
+            return JSON.parse(result); //exists in cache
+        });
 
-            switch (analysisType) {
+    if (!result) { //search in db
 
-                case _ANALYSIS_TYPES.DATASET_ANALYSIS:
+        switch (request.analysisType) {
 
-                    DatasetAnalysis.find(
-                        {
-                            database: database,
-                            policy: policy,
-                        },
-                        (err, datasetAnalysis) => {
+            case _ANALYSIS_TYPES.DATASET_ANALYSIS:
 
-                        if (err || !datasetAnalysis) {
-                            logger.log('error', `Failed to retrieve dataset analysis from database: ${err.message}`);
-                            callback(err, null);
-                        }
-                        else {
+                result = await DatasetAnalysis
+                    .find({database: request.database, policy: request.policy})
+                    .exec()
+                    .then(result => {
 
-                            redis.set(database, JSON.stringify(datasetAnalysis), () => {
-
-                                callback(null, datasetAnalysis);
-                            });
-                        }
+                        return result;
+                    })
+                    .catch(err => {
+                        logger.log('error', `Failed to retrieve dataset analysis from database: ${err.message}`);
                     });
 
-                    break;
+                break;
 
-                case _ANALYSIS_TYPES.POINTS_STATS_PER_TIMESTAMP_ANALYSIS:
+            case _ANALYSIS_TYPES.POINTS_STATS_PER_TIMESTAMP_ANALYSIS:
 
-                    PointsStatsPerTimestamp.find(
-                        {
-                            database: database,
-                            policy: policy,
+                result = await PointsStatsPerTimestamp
+                    .find({database: request.database, policy: request.policy,
                             timestamp: {
-                                $gte: (new Date(startInterval)).getTime(),
-                                $lte: (new Date(endInterval)).getTime()
+                                $gte: (new Date(request.startInterval)).getTime(),
+                                $lte: (new Date(request.endInterval)).getTime()
                             }
-                        },
-                        (err, psptAnalysis) => {
+                    })
+                    .exec()
+                    .then(result => {
 
-                        if (err || !psptAnalysis) {
-                            logger.log('error', `Failed to retrieve pspt analysis from database: ${err.message}`);
-                            callback(err, null);
-                        }
-                        else {
-
-                            redis.set(database, JSON.stringify(psptAnalysis), () => {
-
-                                callback(null, psptAnalysis);
-
-                            });
-                        }
+                        return result;
+                    })
+                    .catch(err => {
+                        logger.log('error', `Failed to retrieve pspt analysis from database: ${err.message}`);
                     });
 
-                    break;
+                //better visualization for clients //TODO may be done with Moongose?
+                //using with react-timeseries-charts
+                const transformPsptAnalysis = () => {
 
-                default:
-                    break;
-            }
+                    //obj = {
+                    //  field1 = [ ["timestamp", min, max, sum, mean], .. ]
+                    //  ..
+                    //}
+
+                    let obj = {};
+                    result[0].fields.forEach(field => {
+
+                        obj[field] = [];
+                    });
+
+                    result.forEach(value => {
+
+                        value.fieldsStats.forEach(fieldStat => {
+
+                            let entry = [value.timestamp];
+                            entry.push(fieldStat.min);
+                            entry.push(fieldStat.max);
+                            entry.push(fieldStat.sum);
+                            entry.push(fieldStat.mean);
+
+                            obj[fieldStat.field].push(entry);
+                        });
+                    });
+
+                    return obj;
+
+                    // let psptAnalysisTranformed = [];
+                    // result.forEach(value => {
+                    //
+                    //     let entry = {
+                    //         timestamp: new Date(value.timestamp),
+                    //     };
+                    //
+                    //     value.fieldsStats.forEach(stat => {
+                    //
+                    //         entry[stat.field] = stat.mean;
+                    //     });
+                    //
+                    //     psptAnalysisTranformed.push(entry);
+                    // });
+                    //
+                    // return psptAnalysisTranformed;
+                };
+
+                result = transformPsptAnalysis();
+
+                break;
         }
-    });
+
+        if (!result) throw Error(`${request.analysisType} not found`);
+        else {
+
+            //set result in redis cache
+            const redisCheck = await redis.set(
+                `${request.analysisType}_${request.database}_${request.policy}_${request.startInterval}_${request.endInterval}`,
+                JSON.stringify(result)
+            );
+
+            //redis check
+            if (redisCheck !== 'OK')
+                logger.log('warning', `Failed to set ${request.analysisType} in cache, with request: ${request}`);
+        }
+    }
+
+    return result;
 };
 
 module.exports = {
