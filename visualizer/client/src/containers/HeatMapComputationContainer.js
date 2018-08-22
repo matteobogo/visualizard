@@ -4,9 +4,9 @@
 import React, { Component } from 'react';
 
 import StaticHeatMapConfigurator from "../components/StaticAnalysis/StaticHeatMapConfigurator";
-import StaticHeatMapAnalysis from "../components/StaticAnalysis/StaticHeatMapAnalysis";
+import StaticHeatMapDatasetAnalysis from "../components/StaticAnalysis/StaticHeatMapDatasetAnalysis";
 import StaticHeatMap from "../components/StaticAnalysis/StaticHeatMap";
-import StaticHeatMapStats from "../components/StaticAnalysis/StaticHeatMapDatasetMean";
+import StaticHeatMapPsptAnalysis from "../components/StaticAnalysis/StaticHeatMapPsptAnalysis";
 import StaticHeatMapRowStats from "../components/StaticAnalysis/StaticHeatMapRowStats";
 import StaticHeatMapColumnStats from "../components/StaticAnalysis/StaticHeatMapColumnStats";
 import StaticHeatMapPointStats from "../components/StaticAnalysis/StaticHeatMapPointStats";
@@ -21,46 +21,77 @@ import {
 
 //redux
 import { connect } from 'react-redux';
+
 import * as actionTypes from '../store/types/actionTypes';
 import * as commonTypes from '../store/types/commonTypes';
+
 import { notify } from '../store/actions/notificationsAction';
 
 import {
-    computationRequestAccepted,
-    computationRequestRejected,
-    datasetAnalysisCompleted,
-    datasetAnalysisErrored,
-} from '../store/actions/heatmapComputationAction';
+    fetchItems,
+    resetDatasetItems
+} from '../store/actions/datasetInfoAction';
+
+import {
+    setComputationRequestItem,
+    startComputation,
+    setCurrentComputationStage,
+    consumeComputationStage,
+    setComputationInProgress,
+    computationReceived,
+    computationFailed,
+    resetPreviousComputationRequest,
+} from '../store/actions/computationAction';
 
 import {
     getRequestUUID,
     getComputationRequest,
-    getComputationStage,
-    getDatasetStats,
-} from '../store/selectors/heatMapComputationSelector';
+    getCurrentComputationStage,
+    getPendingComputationStages,
+    getComputationInProgress,
+    getDatasetAnalysis,
+    getPointsStatsPerTimestampAnalysis,
+} from '../store/selectors/computationSelector';
 
 //websockets - socket.io
 import io from 'socket.io-client';
 import * as wsTypes from '../../../commons/WebSocketsEvents';
+import {getHasErrored, getIsLoading, getItems} from "../store/selectors/datasetInfoSelector";
+
+const _COMPUTATION_OPTIONS = [
+
+    {type: 'VALIDATION', name: 'Validation', stage: commonTypes.COMPUTATION_STAGE_VALIDATION_REQUEST},
+    {type: 'ANALYSIS', name: 'Analysis', stage: commonTypes.COMPUTATION_STAGE_ANALYSIS_REQUEST},
+    {type: 'HEATMAP', name: 'HeatMap', stage: commonTypes.COMPUTATION_STAGE_HEATMAP_REQUEST},
+];
 
 class HeatMapComputationContainer extends Component {
 
     constructor() {
         super();
         this.state = {
-            hasError: false,
+
         };
+
+        this.fetchDataFromApi = this.fetchDataFromApi.bind(this);
+        this.setComputationRequestItem = this.setComputationRequestItem.bind(this);
+        this.startComputation = this.startComputation.bind(this);
     }
 
     componentDidMount() {
 
         const {
             notify,
-            computationRequestAccepted,
-            computationRequestRejected,
-            datasetAnalysisCompleted,
-            datasetAnalysisErrored,
+            computationReceived,
+            computationFailed,
+            setComputationInProgress,
         } = this.props;
+
+        /* Fetch Databases List from API */
+        this.fetchDataFromApi(actionTypes._TYPE_DATABASE);
+
+        /* Initialize Computation Options */
+        this.setComputationRequestItem(_COMPUTATION_OPTIONS.map(v => v.stage), actionTypes._TYPE_COMPUTATION_OPTIONS);
 
         /* Register Socket Events Handlers */
 
@@ -91,73 +122,120 @@ class HeatMapComputationContainer extends Component {
                     actionTypes.NOTIFICATION_TYPE_ERROR);
             });
 
-        //validation
+        //errors
         this.socket
-            .on(wsTypes.HEATMAP_VALIDATION_SUCCESS, (request, uuid) => {
+            .on(wsTypes.COMPUTATION_ERROR, (error, stage) => {
+
+                notify(`ERROR: ${error}`, actionTypes.NOTIFICATION_TYPE_ERROR);
+                computationFailed(error, actionTypes.COMPUTATION_ERRORED);
+                setComputationInProgress(false);
+            })
+
+        //validation
+            .on(wsTypes.COMPUTATION_VALIDATION_SUCCESS, (uuid) => {
 
                 notify('Computation request validated', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                computationRequestAccepted(request, uuid);
+                computationReceived({uuid: uuid}, actionTypes.COMPUTATION_VALIDATION_RECEIVED);
+                setComputationInProgress(false);
             })
-            .on(wsTypes.HEATMAP_VALIDATION_FAIL, (request, error) => {
+            .on(wsTypes.COMPUTATION_VALIDATION_FAIL, (error) => {
 
-                notify('Computation request not validated', actionTypes.NOTIFICATION_TYPE_ERROR);
-                computationRequestRejected(request, error);
-            });
+                notify('Computation request not valid', actionTypes.NOTIFICATION_TYPE_ERROR);
+                computationFailed(error, actionTypes.COMPUTATION_VALIDATION_FAILED);
+                setComputationInProgress(false);
+            })
 
-        //analysis
-        this.socket
-            .on(wsTypes.HEATMAP_ANALYSIS_SUCCESS, (analysis) => {
-
-                //transform {} to [] for easy parsing in charts (meanPointsPerTimestamp)
-                let betterMeanPointsPerTimestamp = [];
-                Object.keys(analysis.meanPointsPerTimestamp).forEach(key => {
-                    betterMeanPointsPerTimestamp.push(analysis.meanPointsPerTimestamp[key]);
-                });
-
-                analysis.meanPointsPerTimestamp = betterMeanPointsPerTimestamp;
+        //dataset analysis
+            .on(wsTypes.COMPUTATION_ANALYSIS_SUCCESS, (analysis, uuid) => {
 
                 //transform { field1 : { .. stats .. }, field2: { .. stats .. }, .. }
                 //into { .. stats .. } using the field selected by the user during config
-                let field = Object.keys(analysis.datasetStats).pop();
-                analysis.datasetStats = analysis.datasetStats[field];
+                let field = Object.keys(analysis.datasetAnalysis).pop();
+                analysis.datasetAnalysis = analysis.datasetAnalysis[field];
 
-                notify('Dataset analysis completed', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-                datasetAnalysisCompleted(analysis);
-            });
+                notify('Analysis completed', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+                computationReceived({response: analysis, uuid: uuid}, actionTypes.COMPUTATION_ANALYSIS_RECEIVED);
+                setComputationInProgress(false);
+            })
+            .on(wsTypes.COMPUTATION_ANALYSIS_FAILED, (error, uuid) => {
 
-        this.socket
-            .on(wsTypes.HEATMAP_ANALYSIS_FAIL, (error) => {
-
-                notify('Dataset analysis failed', actionTypes.NOTIFICATION_TYPE_ERROR);
-                datasetAnalysisErrored(error);
+                notify('Analysis failed', actionTypes.NOTIFICATION_TYPE_ERROR);
+                computationFailed(error, actionTypes.COMPUTATION_ANALYSIS_FAILED, {uuid: uuid});
+                setComputationInProgress(false);
             });
     }
 
     componentDidUpdate(prevProps, prevState) {
 
-        const {
-            uuid,
-            computationRequest,
-            computationStage,
+        const { notify, uuid, computationRequest, currentComputationStage, setCurrentComputationStage,
+                pendingComputationStages, consumeComputationStage, computationInProgress, setComputationInProgress,
         } = this.props;
 
-        if (prevProps !== this.props) {
+        if (prevProps !== this.props && !computationInProgress) {
 
             /* Trigger Socket Events */
 
-            switch (computationStage) {
+            switch (currentComputationStage) {
 
-                case commonTypes.COMPUTATION_STAGE_INIT:
+                case commonTypes.COMPUTATION_STAGE_START:
 
-                    this.socket
-                        .emit(wsTypes.HEATMAP_VALIDATION_START, computationRequest);
+                    //notify('Computation started', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+
+                    //TODO validation?
+
+                    setCurrentComputationStage(commonTypes.COMPUTATION_STAGE_IDLE);
 
                     break;
 
-                case commonTypes.COMPUTATION_STAGE_ACCEPTED:
+                case commonTypes.COMPUTATION_STAGE_IDLE:
+
+                    if (pendingComputationStages.length > 0) {
+
+                        const nextStage = pendingComputationStages[0];
+                        setCurrentComputationStage(nextStage);
+                    }
+
+                    break;
+
+                case commonTypes.COMPUTATION_STAGE_VALIDATION_REQUEST:
+
+                    setComputationInProgress(true);
 
                     this.socket
-                        .emit(wsTypes.HEATMAP_ANALYSIS_START, uuid);
+                        .emit(wsTypes.COMPUTATION_VALIDATION_START, computationRequest);
+
+                    //notify('Request Validation in progress', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+
+                    //consume stage
+                    consumeComputationStage(commonTypes.COMPUTATION_STAGE_VALIDATION_REQUEST);
+
+                    break;
+
+                case commonTypes.COMPUTATION_STAGE_ANALYSIS_REQUEST:
+
+                    setComputationInProgress(true);
+
+                    this.socket
+                        .emit(wsTypes.COMPUTATION_ANALYSIS_START, uuid);
+
+                    //notify('Analysis in progress', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+
+                    //consume stage
+                    consumeComputationStage(commonTypes.COMPUTATION_STAGE_ANALYSIS_REQUEST);
+
+                    break;
+
+                case commonTypes.COMPUTATION_STAGE_HEATMAP_REQUEST:
+
+                    setComputationInProgress(true);
+
+                    this.socket
+                        .emit(wsTypes.COMPUTATION_HEATMAP_START, uuid);
+
+                    notify('HeatMap generation in progress', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+
+                    //consume stage
+                    consumeComputationStage(commonTypes.COMPUTATION_STAGE_HEATMAP_REQUEST);
 
                     break;
 
@@ -172,9 +250,63 @@ class HeatMapComputationContainer extends Component {
         this.socket.close();
     }
 
+    fetchDataFromApi(itemType, {database, policy, field} = {}) {
+
+        const { fetchItems } = this.props;
+
+        fetchItems(
+            itemType,
+            {
+                database: database,
+                policy: policy,
+                field: field,
+            });
+    }
+
+    setComputationRequestItem(item, itemType) {
+
+        const { setComputationRequestItem } = this.props;
+
+        setComputationRequestItem(item, itemType);
+    }
+
+    startComputation() {
+
+        const { startComputation } = this.props;
+
+        startComputation();
+    }
+
     render() {
 
-        const { datasetStats, heatMapImage } = this.props;
+        const {
+            notify,
+            isLoading,
+            hasErrored,
+            databases,
+            policies,
+            fields,
+            periods,
+            heatMapTypes,
+            palettes,
+            firstInterval,
+            lastInterval,
+            computationRequest,
+            datasetAnalysis,
+            psptAnalysis,
+            heatMapImage,
+        } = this.props;
+
+        if (hasErrored !== null) {
+
+            notify(hasErrored, actionTypes.NOTIFICATION_TYPE_ERROR);
+
+            return(
+              <div>
+                  <img src='../../public/images/connection-error.png'/>  //TODO Test with influx down
+              </div>
+            );
+        }
 
         return(
             <WebSocketErrorHandler>
@@ -183,12 +315,31 @@ class HeatMapComputationContainer extends Component {
                         <Col xs={12}>
                             <Row>
                                 <Col xs={12} md={4}>
-                                    <StaticHeatMapConfigurator/>
+                                    <StaticHeatMapConfigurator
+                                        isLoading={isLoading}
+                                        databases={databases}
+                                        policies={policies}
+                                        fields={fields}
+                                        periods={periods}
+                                        heatMapTypes={heatMapTypes}
+                                        palettes={palettes}
+                                        firstInterval={firstInterval}
+                                        lastInterval={lastInterval}
+                                        computationOptions={_COMPUTATION_OPTIONS}
+                                        fetchDataFromApi={this.fetchDataFromApi}
+                                        setComputationRequestItem={this.setComputationRequestItem}
+                                        computationRequest={computationRequest}
+                                        startComputation={this.startComputation}
+                                    />
                                 </Col>
                                 <Col xs={12} md={4}>
-                                    <StaticHeatMapAnalysis
-                                        datasetStats={datasetStats}
-                                    />
+                                    {
+                                        datasetAnalysis ?
+                                            <StaticHeatMapDatasetAnalysis
+                                                datasetAnalysis={datasetAnalysis}
+                                            />
+                                            : null
+                                    }
                                 </Col>
                                 <Col xs={12} md={4}>
                                 </Col>
@@ -197,12 +348,21 @@ class HeatMapComputationContainer extends Component {
                     </Row>
                     <Row>
                         <Col xs={12}>
-                            <StaticHeatMap heatMapImage={heatMapImage}/>
+                            <StaticHeatMap
+                                heatMapImage={heatMapImage}
+                            />
                         </Col>
                     </Row>
                     <Row>
                         <Col xs={12}>
-                            <StaticHeatMapStats/>
+                            {
+                                psptAnalysis && datasetAnalysis ?
+                                    <StaticHeatMapPsptAnalysis
+                                        datasetAnalysis={datasetAnalysis}
+                                        psptAnalysis={psptAnalysis}
+                                    />
+                                    : null
+                            }
                         </Col>
                     </Row>
                     <Row>
@@ -225,10 +385,23 @@ class HeatMapComputationContainer extends Component {
 const mapStateToProps = state => {
 
     return {
+        hasErrored: getHasErrored(state),
+        isLoading: getIsLoading(state),
+        databases: getItems(state, actionTypes._TYPE_DATABASE),
+        policies: getItems(state, actionTypes._TYPE_POLICY),
+        fields: getItems(state, actionTypes._TYPE_FIELD),
+        periods: getItems(state, actionTypes._TYPE_PERIOD),
+        heatMapTypes: getItems(state, actionTypes._TYPE_HEATMAP_TYPE),
+        palettes: getItems(state, actionTypes._TYPE_PALETTE),
+        firstInterval: getItems(state, actionTypes._TYPE_FIRST_INTERVAL),
+        lastInterval: getItems(state, actionTypes._TYPE_LAST_INTERVAL),
         uuid: getRequestUUID(state),
         computationRequest: getComputationRequest(state),
-        computationStage: getComputationStage(state),
-        datasetStats: getDatasetStats(state),
+        currentComputationStage: getCurrentComputationStage(state),
+        pendingComputationStages: getPendingComputationStages(state),
+        computationInProgress: getComputationInProgress(state),
+        datasetAnalysis: getDatasetAnalysis(state),
+        psptAnalysis: getPointsStatsPerTimestampAnalysis(state),
     }
 };
 
@@ -236,10 +409,14 @@ const mapDispatchToProps = (dispatch) => {
 
     return {
         notify: (status, msgType) => dispatch(notify(status, msgType)),
-        computationRequestAccepted: (request) => dispatch(computationRequestAccepted(request)),
-        computationRequestRejected: (request, error) => dispatch(computationRequestRejected(request, error)),
-        datasetAnalysisCompleted: (analysis) => dispatch(datasetAnalysisCompleted(analysis)),
-        datasetAnalysisErrored: (error) => dispatch(datasetAnalysisErrored(error)),
+        fetchItems: (itemType, ...options) => dispatch(fetchItems(itemType, ...options)),
+        setComputationRequestItem: (item, itemType) => dispatch(setComputationRequestItem(item, itemType)),
+        startComputation: (type) => dispatch(startComputation(type)),
+        setCurrentComputationStage: (stage) => dispatch(setCurrentComputationStage(stage)),
+        consumeComputationStage: (stage) => dispatch(consumeComputationStage(stage)),
+        setComputationInProgress: (bool) => dispatch(setComputationInProgress(bool)),
+        computationReceived: (type, ...options) => dispatch(computationReceived(type, ...options)),
+        computationFailed: (error, type, ...options) => dispatch(computationFailed(error, type, ...options)),
     }
 };
 
