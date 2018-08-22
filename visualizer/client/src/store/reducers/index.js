@@ -3,10 +3,10 @@
 import { combineReducers } from 'redux';
 import { datasetInfo } from './datasetInfoReducer';
 import { notifications } from './notificationsReducer';
-import { heatMapComputation } from './heatMapComputationReducer';
+import { computation } from './computationReducer';
 
 export default combineReducers({
     datasetInfo,
     notifications,
-    heatMapComputation,
+    computation,
 })
