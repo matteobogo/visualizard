@@ -8,11 +8,12 @@ const initialState = {
     databases: [],
     policies: [],
     fields: [],
-    palettes: [],
     periods: [],
-    firstInterval: "",
-    lastInterval: "",
-    hasErrored: "",
+    heatMapTypes: [],
+    palettes: [],
+    firstInterval: new Date(),
+    lastInterval: new Date(),
+    hasErrored: null,
     isLoading: false,
 };
 
@@ -57,13 +58,6 @@ export const datasetInfo = (state = initialState, action) => {
                     fields: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_PALETTE) {
-
-                return {
-                    ...state,
-                    palettes: action.payload,
-                };
-            }
             else if (action.itemType === types._TYPE_PERIOD) {
 
                 return {
@@ -71,13 +65,33 @@ export const datasetInfo = (state = initialState, action) => {
                     periods: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_INTERVALS) {
+            else if (action.itemType === types._TYPE_HEATMAP_TYPE) {
 
                 return {
                     ...state,
-                    firstInterval: action.payload.firstInterval,
-                    lastInterval: action.payload.lastInterval,
+                    heatMapTypes: action.payload,
+                }
+            }
+            else if (action.itemType === types._TYPE_PALETTE) {
+
+                return {
+                    ...state,
+                    palettes: action.payload,
                 };
+            }
+            else if (action.itemType === types._TYPE_FIRST_INTERVAL) {
+
+                return {
+                    ...state,
+                    firstInterval: new Date(action.payload),
+                }
+            }
+            else if (action.itemType === types._TYPE_LAST_INTERVAL) {
+
+                return {
+                    ...state,
+                    lastInterval: new Date(action.payload),
+                }
             }
 
             break;

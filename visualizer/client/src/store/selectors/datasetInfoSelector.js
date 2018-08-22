@@ -33,21 +33,25 @@ export const getItems = (state, itemType) => {
 
             return state.datasetInfo.fields;
 
-        case types._TYPE_PALETTE:
-
-            return state.datasetInfo.palettes;
-
         case types._TYPE_PERIOD:
 
             return state.datasetInfo.periods;
 
-        case types._TYPE_INTERVALS:
+        case types._TYPE_HEATMAP_TYPE:
 
-            return {
+            return state.datasetInfo.heatMapTypes;
 
-                firstInterval: state.datasetInfo.firstInterval,
-                lastInterval: state.datasetInfo.lastInterval,
-            }
+        case types._TYPE_PALETTE:
+
+            return state.datasetInfo.palettes;
+
+        case types._TYPE_FIRST_INTERVAL:
+
+            return state.datasetInfo.firstInterval;
+
+        case types._TYPE_LAST_INTERVAL:
+
+            return state.datasetInfo.lastInterval;
     }
 };
 

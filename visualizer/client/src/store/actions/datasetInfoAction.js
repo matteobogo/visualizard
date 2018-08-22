@@ -14,7 +14,7 @@ export const itemsFetchDataSuccess = (items, itemType) =>
 export const resetItems = () =>
     ({ type: types.FETCH_ITEMS_RESET });
 
-export const fetchItems = (itemType, database = "", policy = "", field = "") => {
+export const fetchItems = (itemType, {database, policy, field} = {}) => {
 
     let _URL;
     switch (itemType) {
@@ -31,16 +31,24 @@ export const fetchItems = (itemType, database = "", policy = "", field = "") => 
             _URL = apiFetcher._URL_FIELDS(database);
             break;
 
-        case types._TYPE_PALETTE:
-            _URL = apiFetcher._URL_PALETTES;
-            break;
-
         case types._TYPE_PERIOD:
             _URL = apiFetcher._URL_PERIODS;
             break;
 
-        case types._TYPE_INTERVALS:
-            _URL = apiFetcher._URL_INTERVALS(database, policy, field);
+        case types._TYPE_HEATMAP_TYPE:
+            _URL = apiFetcher._URL_HEATMAP_TYPES;
+            break;
+
+        case types._TYPE_PALETTE:
+            _URL = apiFetcher._URL_PALETTES;
+            break;
+
+        case types._TYPE_FIRST_INTERVAL:
+            _URL = apiFetcher._URL_FIRST_INTERVAL(database, policy, field);
+            break;
+
+        case types._TYPE_LAST_INTERVAL:
+            _URL = apiFetcher._URL_LAST_INTERVAL(database, policy, field);
             break;
     }
 
