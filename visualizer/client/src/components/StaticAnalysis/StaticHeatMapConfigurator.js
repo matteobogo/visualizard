@@ -1,10 +1,9 @@
 import React from 'react';
-import config from '../../config/config';
 
 //automatically binds methods defined within a component's Class to
 //the current object's lexical this instance
 //use autobind(this) in constructor
-import autoBind from 'react-autobind';
+//import autoBind from 'react-autobind';
 
 //redux
 import { connect } from 'react-redux';
@@ -14,10 +13,10 @@ import * as commonTypes from '../../store/types/commonTypes';
 
 import { fetchItems, resetDatasetItems } from '../../store/actions/datasetInfoAction';
 import { notify } from '../../store/actions/notificationsAction';
-import { sendComputationRequest, resetPreviousComputationRequest } from '../../store/actions/heatmapComputationAction';
+import { startComputation, resetPreviousComputationRequest } from '../../store/actions/computationAction';
 
 import { getItems, getHasErrored, getIsLoading } from '../../store/selectors/datasetInfoSelector';
-import { getComputationStage } from '../../store/selectors/heatMapComputationSelector';
+import { getCurrentComputationStage } from '../../store/selectors/computationSelector';
 
 
 //react-bootstrap
@@ -39,9 +38,9 @@ import {
     FormControl
 } from 'react-bootstrap';
 
-//react-widgets - datetimepicker
+//react-widgets
 import 'react-widgets/dist/css/react-widgets.css';
-import { DateTimePicker } from 'react-widgets';
+import { DateTimePicker, SelectList } from 'react-widgets';
 
 //custom spinner
 import PacmanSpinner from '../PacmanSpinner';
@@ -57,6 +56,10 @@ const styles = {
         marginBottom: "10px",
         width: "100%",
     },
+    computationOptionsSelectList: {
+        marginBottom: "10px",
+        width: "100%",
+    },
     optionsSelectionRow: {
         marginTop: "5px",
     },
@@ -64,7 +67,7 @@ const styles = {
         marginTop: "10px"
     },
     buttonsComputationRow: {
-
+        marginTop: "10px",
     },
     computeButton: {
 
@@ -74,18 +77,26 @@ const styles = {
     },
 };
 
+const tooltips = {
+    startTimeIntervalMissing:
+        <Tooltip id="startIntervalMissingTooltip">
+            missing start time!
+        </Tooltip>,
+    endTimeIntervalMissing:
+        <Tooltip id="endIntervalMissingTooltip">
+            missing end time!
+        </Tooltip>,
+};
+
 const initialState = {
 
-    databaseSelected: "",
-    policySelected: "",
-    fieldSelected: "",
-    paletteSelected: "",
-    periodSelected: "",
-    startIntervalSelected: new Date(),
-    endIntervalSelected: new Date(),
+    computationOptions: [],
 
     computationLocked: true,
     showComputationSpinner: false,
+
+    showStartIntervalMissingTooltip: false,
+    showEndIntervalMissingTooltip: false,
 };
 
 class StaticHeatMapConfigurator extends React.Component {
@@ -95,173 +106,213 @@ class StaticHeatMapConfigurator extends React.Component {
 
         this.state = initialState;
 
-        //binding to make this work in the callback
+        //bindings
+        this.onDatabaseSelected = this.onDatabaseSelected.bind(this);
+        this.onPolicySelected = this.onPolicySelected.bind(this);
+        this.onFieldSelected = this.onFieldSelected.bind(this);
+        this.onPeriodSelected = this.onPeriodSelected.bind(this);
+        this.onHeatMapTypeSelected = this.onHeatMapTypeSelected.bind(this);
+        this.onPaletteSelected = this.onPaletteSelected.bind(this);
+        this.onStartIntervalSelected = this.onStartIntervalSelected.bind(this);
+        this.onEndIntervalSelected = this.onEndIntervalSelected.bind(this);
+        this.onComputationOptionsSelected = this.onComputationOptionsSelected.bind(this);
+
         this.computeButtonClick = this.computeButtonClick.bind(this);
-    }
-
-    componentDidMount() {
-
-        this.fetchDatabases();
-    }
-
-    fetchDatabases() {
-
-        this.props.fetchData(actionTypes._TYPE_DATABASE);
-    }
-
-    componentWillReceiveProps() {
-
-        const { intervals } = this.props;
-
-        if (intervals.firstInterval !== "" && intervals.lastInterval !== "") {
-
-            this.setState({
-                startIntervalSelected: new Date(intervals.firstInterval),
-                endIntervalSelected: new Date(intervals.lastInterval),
-            });
-        }
+        this.resetButtonClick = this.resetButtonClick.bind(this);
     }
 
     onDatabaseSelected() {
 
-        const { fetchData } = this.props;
+        const { fetchDataFromApi, setComputationRequestItem } = this.props;
         const databaseSelected = this.databaseSelected.value;
 
         if (databaseSelected !== "") {
 
-            this.setState({databaseSelected: databaseSelected});
+            setComputationRequestItem(databaseSelected, actionTypes._TYPE_DATABASE);
 
             //fetch policies list
-            fetchData(actionTypes._TYPE_POLICY, databaseSelected);
+            fetchDataFromApi(
+                actionTypes._TYPE_POLICY,
+                {database: databaseSelected});
         }
     }
 
     onPolicySelected() {
 
-        const { fetchData } = this.props;
-        const { databaseSelected } = this.state;
+        const { fetchDataFromApi, setComputationRequestItem, computationRequest } = this.props;
         const  policySelected = this.policySelected.value;
 
         if (policySelected !== "") {
 
-            this.setState({policySelected: policySelected});
+            setComputationRequestItem(policySelected, actionTypes._TYPE_POLICY);
 
             //fetch fields list
-            fetchData(actionTypes._TYPE_FIELD, databaseSelected);
+            fetchDataFromApi(
+                actionTypes._TYPE_FIELD,
+                {database: computationRequest.database});
         }
     }
 
     onFieldSelected() {
 
-        const { fetchData } = this.props;
+        const { fetchDataFromApi, setComputationRequestItem, computationRequest } = this.props;
         const fieldSelected = this.fieldSelected.value;
 
         if (fieldSelected !== "") {
 
-            this.setState({fieldSelected: fieldSelected});
-
-            //fetch palettes list
-            fetchData(actionTypes._TYPE_PALETTE);
-        }
-    }
-
-    onPaletteSelected() {
-
-        const { fetchData } = this.props;
-        const paletteSelected = this.paletteSelected.value;
-
-        if (paletteSelected !== "") {
-
-            this.setState({paletteSelected: paletteSelected});
+            setComputationRequestItem(fieldSelected, actionTypes._TYPE_FIELD);
 
             //fetch periods list
-            fetchData(actionTypes._TYPE_PERIOD);
+            fetchDataFromApi(actionTypes._TYPE_PERIOD);
+
+            //fetch first and last intervals
+            fetchDataFromApi(
+                actionTypes._TYPE_FIRST_INTERVAL,
+                {
+                    database: computationRequest.database,
+                    policy: computationRequest.policy,
+                    field: fieldSelected,
+                });
+
+            fetchDataFromApi(
+                actionTypes._TYPE_LAST_INTERVAL,
+                {
+                    database: computationRequest.database,
+                    policy: computationRequest.policy,
+                    field: fieldSelected,
+                });
         }
     }
 
     onPeriodSelected() {
 
-        const { fetchData } = this.props;
-        const { databaseSelected, policySelected, fieldSelected } = this.state;
+        const { fetchDataFromApi, setComputationRequestItem } = this.props;
         const periodSelected = this.periodSelected.value;
 
         if (periodSelected !== "") {
 
-            this.setState({
-                periodSelected: periodSelected,
-                computationLocked: false,
-            });
+            setComputationRequestItem(periodSelected, actionTypes._TYPE_PERIOD);
 
-            //fetch first and last intervals
-            fetchData(
-                actionTypes._TYPE_INTERVALS,
-                databaseSelected,
-                policySelected,
-                fieldSelected);
+            //fetch heatmap types list
+            fetchDataFromApi(actionTypes._TYPE_HEATMAP_TYPE);
         }
     }
 
-    static inputValidation(value) {
+    onHeatMapTypeSelected() {
 
-        return value !== "" ? "success" : "error";
+        const { fetchDataFromApi, setComputationRequestItem } = this.props;
+        const heatMapTypeSelected = this.heatMapTypeSelected.value;
+
+        if (heatMapTypeSelected !== "") {
+
+            setComputationRequestItem(heatMapTypeSelected, actionTypes._TYPE_HEATMAP_TYPE);
+
+            //fetch palettes list
+            fetchDataFromApi(actionTypes._TYPE_PALETTE);
+        }
+    }
+
+    onPaletteSelected() {
+
+        const { setComputationRequestItem } = this.props;
+        const paletteSelected = this.paletteSelected.value;
+
+        if (paletteSelected !== "") {
+
+            setComputationRequestItem(paletteSelected, actionTypes._TYPE_PALETTE);
+
+            this.setState({computationLocked: false,});
+        }
+    }
+
+    onStartIntervalSelected(value) {
+
+        const { setComputationRequestItem } = this.props;
+
+        setComputationRequestItem(value, actionTypes._TYPE_START_INTERVAL);
+    }
+
+    onEndIntervalSelected(value) {
+
+        const { setComputationRequestItem } = this.props;
+
+        setComputationRequestItem(value, actionTypes._TYPE_END_INTERVAL);
+    }
+
+    onComputationOptionsSelected(value) {
+
+        const { setComputationRequestItem } = this.props;
+
+        setComputationRequestItem(value.map(v => v.stage), actionTypes._TYPE_COMPUTATION_OPTIONS);
+    }
+
+    inputValidation(value) {
+
+        return value !== null ? "success" : "error";
     }
 
     computeButtonClick() {
 
-        const { sendComputationRequest, stages } = this.props;
+        const { startComputation } = this.props;
+        const {  } = this.state;
 
-        //check if user deletes DateTime Pickers
-        // if (this.props.currentTimeStart === "") {
-        //     this.props.notify('Invalid Start Interval', actionTypes.NOTIFICATION_TYPE_WARNING);
-        //     return;
-        // }
-        // if (this.props.currentTimeEnd === "") {
-        //     this.props.notify('Invalid End Interval', actionTypes.NOTIFICATION_TYPE_WARNING);
-        //     return;
-        // }
+        startComputation();
 
-        //check start interval not greater than end interval?
+        // //TEST
+        // startComputation(
+        //     {
+        //         database: "google_cluster",
+        //         policy: "autogen",
+        //         startInterval: "2011-02-01T00:15:00.000Z",
+        //         endInterval: "2011-02-04T13:30:00.000Z",
+        //         fields: ["mean_cpu_usage_rate"],
+        //         nMeasurements: 10,
+        //         period: 300,
+        //         palette: "RED",
+        //         heatMapType: "sortByMachine",
+        //     });
 
-        if (stages === commonTypes.COMPUTATION_STAGE_IDLE) {
-
-            //TEST
-            sendComputationRequest(
-                {
-                    database: "google_cluster",
-                    policy: "autogen",
-                    startInterval: "2011-02-01T00:15:00.000Z",
-                    endInterval: "2011-02-04T13:30:00.000Z",
-                    fields: ["mean_cpu_usage_rate"],
-                    nMeasurements: 10,
-                    period: 300,
-                    palette: "RED",
-                    heatMapType: "sortByMachine",
-                });
-
-            this.setState({computationLocked: true});
-        }
+        this.setState({computationLocked: true});
     }
 
     resetButtonClick() {
 
-        const { resetDatasetInfo, resetPreviousComputationRequest, notify } = this.props;
-
-        resetDatasetInfo();
-        resetPreviousComputationRequest();
-        this.setState(initialState);
-
-        notify('settings reset', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-
-        this.fetchDatabases();
+        // const {
+        //     resetDatasetInfo,
+        //     resetPreviousComputationRequest,
+        //     notify
+        // } = this.props;
+        //
+        // resetDatasetInfo();
+        // resetPreviousComputationRequest();
+        // this.setState(initialState);
+        //
+        // notify('settings reset', actionTypes.NOTIFICATION_TYPE_SUCCESS);
+        //
+        // this.fetchDatabases();
     }
 
     render() {
 
-        const { databaseSelected, policySelected, fieldSelected, paletteSelected, periodSelected,
-                startIntervalSelected, endIntervalSelected, computationLocked, showComputationSpinner
+        const {
+            computationLocked,
+            showComputationSpinner,
+            showStartIntervalMissingTooltip,
+            showEndIntervalMissingTooltip
         } = this.state;
 
-        const { isLoading, hasErrored, notify, databases, policies, fields, palettes, periods, intervals,
+        const {
+            isLoading,
+            databases,
+            policies,
+            fields,
+            periods,
+            heatMapTypes,
+            palettes,
+            firstInterval,
+            lastInterval,
+            computationOptions,
+            computationRequest,
         } = this.props;
 
         //panel loading
@@ -278,30 +329,28 @@ class StaticHeatMapConfigurator extends React.Component {
                     </Grid>
         }
 
-        //panel error
-        else if (hasErrored !== "") {
-
-            notify(hasErrored, actionTypes.NOTIFICATION_TYPE_ERROR);
-        }
-
         else {
 
             //Dropdowns unlocking chain
             let unlockPoliciesDropdown = false
             ,   unlockFieldsDropdown = false
-            ,   unlockPalettesDropdown = false
             ,   unlockPeriodDropdown = false
+            ,   unlockHeatMapTypeDropdown = false
+            ,   unlockPalettesDropdown = false
             ,   unlockDateTimePicker = false;
-            if (databaseSelected !== "") {
+            if (computationRequest.database !== null) {
                 unlockPoliciesDropdown = true;
-                if (policySelected !== "") {
+                if (computationRequest.policy !== null) {
                     unlockFieldsDropdown = true;
-                    if (fieldSelected !== "") {
-                        unlockPalettesDropdown = true;
-                        if (paletteSelected !== "") {
-                            unlockPeriodDropdown = true;
-                            if (periodSelected !== "") {
-                                unlockDateTimePicker = true;
+                    if (computationRequest.field !== null) {
+                        unlockPeriodDropdown = true;
+                        if (computationRequest.period !== null) {
+                            unlockHeatMapTypeDropdown = true;
+                            if (computationRequest.heatMapType !== null) {
+                                unlockPalettesDropdown = true;
+                                if (computationRequest.palette != null) {
+                                    unlockDateTimePicker = true;
+                                }
                             }
                         }
                     }
@@ -312,18 +361,21 @@ class StaticHeatMapConfigurator extends React.Component {
                 <Grid fluid>
                     <Row style={styles.optionsSelectionRow}>
                         <Col xs={12}>
-                            <FormGroup validationState={StaticHeatMapConfigurator.inputValidation(databaseSelected)}>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.database)}>
+
                                 <FormControl
-                                    onChange={this.onDatabaseSelected.bind(this)}
+                                    onChange={this.onDatabaseSelected}
                                     inputRef={selected => this.databaseSelected = selected}
                                     componentClass="select"
                                     placeholder="select database"
                                 >
 
                                     {
-                                        databaseSelected !== "" ?
-                                            <option value={databaseSelected}>
-                                                {databaseSelected}
+                                        computationRequest.database !== null ?
+                                            <option value={computationRequest.database}>
+                                                {computationRequest.database}
                                             </option>
                                             :
                                             <option value="select database">select database</option>
@@ -331,27 +383,28 @@ class StaticHeatMapConfigurator extends React.Component {
 
                                     {
                                         databases !== undefined &&
-                                        databaseSelected === "" &&
+                                        computationRequest.database === null &&
                                             databases.map(
                                                 db => <option key={db} value={db}>{db}</option>)
                                     }
 
                                 </FormControl>
                             </FormGroup>
-
-                            <FormGroup validationState={StaticHeatMapConfigurator.inputValidation(policySelected)}>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.policy)}>
 
                                 <FormControl
-                                    onChange={this.onPolicySelected.bind(this)}
+                                    onChange={this.onPolicySelected}
                                     inputRef={selected => this.policySelected = selected}
                                     componentClass="select"
                                     placeholder="select policy"
                                     disabled={!unlockPoliciesDropdown}
                                 >
                                     {
-                                        policySelected !== "" ?
-                                            <option value={policySelected}>
-                                                {policySelected}
+                                        computationRequest.policy !== null ?
+                                            <option value={computationRequest.policy}>
+                                                {computationRequest.policy}
                                             </option>
                                             :
                                             <option value="select policy">select policy</option>
@@ -359,26 +412,28 @@ class StaticHeatMapConfigurator extends React.Component {
 
                                     {
                                         policies !== undefined &&
-                                        policySelected === "" &&
+                                        computationRequest.policy === null &&
                                         policies.map(
                                             policy => <option key={policy} value={policy}>{policy}</option>)
                                     }
 
                                 </FormControl>
                             </FormGroup>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.field)}>
 
-                            <FormGroup validationState={StaticHeatMapConfigurator.inputValidation(fieldSelected)}>
                                 <FormControl
-                                    onChange={this.onFieldSelected.bind(this)}
+                                    onChange={this.onFieldSelected}
                                     inputRef={selected => this.fieldSelected = selected}
                                     componentClass="select"
                                     placeholder="select field"
                                     disabled={!unlockFieldsDropdown}
                                 >
                                     {
-                                        fieldSelected !== "" ?
-                                            <option value={fieldSelected}>
-                                                {fieldSelected}
+                                        computationRequest.field !== null ?
+                                            <option value={computationRequest.field}>
+                                                {computationRequest.field}
                                             </option>
                                             :
                                             <option value="select field">select field</option>
@@ -386,52 +441,28 @@ class StaticHeatMapConfigurator extends React.Component {
 
                                     {
                                         fields !== undefined &&
-                                        fieldSelected === "" &&
+                                        computationRequest.field === null &&
                                         fields.map(
                                             field => <option key={field} value={field}>{field}</option>)
                                     }
 
                                 </FormControl>
                             </FormGroup>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.period)}>
 
-                            <FormGroup validationState={StaticHeatMapConfigurator.inputValidation(paletteSelected)}>
                                 <FormControl
-                                    onChange={this.onPaletteSelected.bind(this)}
-                                    inputRef={selected => this.paletteSelected = selected}
-                                    componentClass="select"
-                                    placeholder="select palette"
-                                    disabled={!unlockPalettesDropdown}
-                                >
-                                    {
-                                        paletteSelected !== "" ?
-                                            <option value={paletteSelected}>
-                                                {paletteSelected}
-                                            </option>
-                                            :
-                                            <option value="select palette">select palette</option>
-                                    }
-
-                                    {
-                                        palettes !== undefined &&
-                                        paletteSelected === "" &&
-                                        palettes.map(
-                                            palette => <option key={palette} value={palette}>{palette}</option>)
-                                    }
-
-                                </FormControl>
-                            </FormGroup>
-                            <FormGroup validationState={StaticHeatMapConfigurator.inputValidation(periodSelected)}>
-                                <FormControl
-                                    onChange={this.onPeriodSelected.bind(this)}
+                                    onChange={this.onPeriodSelected}
                                     inputRef={selected => this.periodSelected = selected}
                                     componentClass="select"
                                     placeholder="select period"
                                     disabled={!unlockPeriodDropdown}
                                 >
                                     {
-                                        periodSelected !== "" ?
-                                            <option value={periodSelected}>
-                                                {periodSelected}
+                                        computationRequest.period !== null ?
+                                            <option value={computationRequest.period}>
+                                                {computationRequest.period}
                                             </option>
                                             :
                                             <option value="select period">select period</option>
@@ -439,9 +470,67 @@ class StaticHeatMapConfigurator extends React.Component {
 
                                     {
                                         periods !== undefined &&
-                                        periodSelected === "" &&
+                                        computationRequest.period === null &&
                                         periods.map(
                                             period => <option key={period} value={period}>{period}</option>)
+                                    }
+
+                                </FormControl>
+                            </FormGroup>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.heatMapType)}>
+
+                                <FormControl
+                                    onChange={this.onHeatMapTypeSelected}
+                                    inputRef={selected => this.heatMapTypeSelected = selected}
+                                    componentClass="select"
+                                    placeholder="select heatmap type"
+                                    disabled={!unlockHeatMapTypeDropdown}
+                                >
+                                    {
+                                        computationRequest.heatMapType !== null ?
+                                            <option value={computationRequest.heatMapType}>
+                                                {computationRequest.heatMapType}
+                                            </option>
+                                            :
+                                            <option value="select heatmap type">select heatmap type</option>
+                                    }
+
+                                    {
+                                        heatMapTypes !== undefined &&
+                                        computationRequest.heatMapType === null &&
+                                        heatMapTypes.map(
+                                            heatMapType => <option key={heatMapType} value={heatMapType}>{heatMapType}</option>)
+                                    }
+
+                                </FormControl>
+                            </FormGroup>
+                            <FormGroup
+                                validationState={
+                                    this.inputValidation(computationRequest.palette)}>
+
+                                <FormControl
+                                    onChange={this.onPaletteSelected}
+                                    inputRef={selected => this.paletteSelected = selected}
+                                    componentClass="select"
+                                    placeholder="select palette"
+                                    disabled={!unlockPalettesDropdown}
+                                >
+                                    {
+                                        computationRequest.palette !== null ?
+                                            <option value={computationRequest.palette}>
+                                                {computationRequest.palette}
+                                            </option>
+                                            :
+                                            <option value="select palette">select palette</option>
+                                    }
+
+                                    {
+                                        palettes !== undefined &&
+                                        computationRequest.palette === null &&
+                                        palettes.map(
+                                            palette => <option key={palette} value={palette}>{palette}</option>)
                                     }
 
                                 </FormControl>
@@ -452,25 +541,45 @@ class StaticHeatMapConfigurator extends React.Component {
                         <Col xs={12}>
                             <DateTimePicker
                                 id="datetime-start"
-                                autoFocus
                                 placeholder={"select start interval"}
-                                min={new Date(intervals.firstInterval)}
-                                max={new Date(intervals.lastInterval)}
-                                value={startIntervalSelected}
-                                onChange={value => this.setState({startIntervalSelected: value})}
+                                min={firstInterval}
+                                max={lastInterval}
+                                defaultCurrentDate={firstInterval}
+                                step={(computationRequest.period / 60)}
+                                value={computationRequest.startInterval}
+                                onChange={value => this.onStartIntervalSelected(value)}
                                 disabled={!unlockDateTimePicker}
-                                style={styles.dateTimePicker}/>
+                                style={styles.dateTimePicker}>
+                            </DateTimePicker>
                         </Col>
                         <Col xs={12}>
                             <DateTimePicker
                                 id="datetime-end"
                                 placeholder={"select end interval"}
-                                min={new Date(intervals.firstInterval)}
-                                max={new Date(intervals.lastInterval)}
-                                value={endIntervalSelected}
-                                onChange={value => this.setState({endIntervalSelected: value})}
+                                min={computationRequest.startInterval}
+                                max={lastInterval}
+                                defaultCurrentDate={lastInterval}
+                                step={(computationRequest.period / 60)}
+                                value={computationRequest.endInterval}
+                                onChange={value => this.onEndIntervalSelected(value)}
                                 disabled={!unlockDateTimePicker}
-                                style={styles.dateTimePicker}/>
+                                style={styles.dateTimePicker}>
+                            </DateTimePicker>
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={12}>
+                            <SelectList
+                                data={computationOptions}
+                                valueField='type'
+                                textField='name'
+                                defaultValue={['VALIDATION', 'ANALYSIS', 'HEATMAP']}
+                                disabled={["VALIDATION"]}
+                                multiple
+                                name="computation options"
+                                onChange={(value) => this.onComputationOptionsSelected(value)}
+                                style={styles.computationOptionsSelectList}
+                            />
                         </Col>
                     </Row>
                     <Row>
@@ -498,7 +607,7 @@ class StaticHeatMapConfigurator extends React.Component {
                                 <Button
                                     className="pull-left"
                                     bsStyle="warning"
-                                    onClick={this.resetButtonClick.bind(this)}
+                                    onClick={this.resetButtonClick}
                                     style={styles.resetButton}>
                                     Reset
                                 </Button>
@@ -529,34 +638,16 @@ class StaticHeatMapConfigurator extends React.Component {
 //     isLoading: PropTypes.bool.isRequired
 // };
 
-const mapStateToProps = (state) => {
-
-    return {
-
-        hasErrored: getHasErrored(state),
-        isLoading: getIsLoading(state),
-        databases: getItems(state, actionTypes._TYPE_DATABASE),
-        policies: getItems(state, actionTypes._TYPE_POLICY),
-        fields: getItems(state, actionTypes._TYPE_FIELD),
-        palettes: getItems(state, actionTypes._TYPE_PALETTE),
-        periods: getItems(state, actionTypes._TYPE_PERIOD),
-        intervals: getItems(state, actionTypes._TYPE_INTERVALS),
-
-        stages: getComputationStage(state),
-    }
-};
-
 const mapDispatchToProps = (dispatch) => {
 
     return {
 
-        fetchData: (itemType, database = "", policy = "", field = "") => dispatch(fetchItems(itemType, database, policy, field)),
         resetHeatMapConfiguration: () => dispatch(resetHeatMapConfiguration()),
         resetDatasetInfo: () => dispatch(resetDatasetItems()),
         notify: (status, msgType) => dispatch(notify(status, msgType)),
-        sendComputationRequest: (request) => dispatch(sendComputationRequest(request)),
+        startComputation: (request) => dispatch(startComputation(request)),
         resetPreviousComputationRequest: () => dispatch(resetPreviousComputationRequest()),
     }
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(StaticHeatMapConfigurator);
+export default connect(null, mapDispatchToProps)(StaticHeatMapConfigurator);
