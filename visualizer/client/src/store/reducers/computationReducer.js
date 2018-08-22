@@ -40,6 +40,9 @@ const initialState = {
 
 export const computation = (state = initialState, action) => {
 
+    let currentStage = commonTypes.COMPUTATION_STAGE_IDLE;
+    let stageQueue = [];
+
     switch(action.type) {
 
         case actionTypes.SET_COMPUTATION_REQUEST_ITEM:
@@ -148,20 +151,40 @@ export const computation = (state = initialState, action) => {
 
         case actionTypes.COMPUTATION_START:
 
+            if (state.computationStages.length > 0) {
+
+                //copies user's chosen stages to processing queue
+                stageQueue = state.computationStages;
+
+                //picks the first stage to be processed (and sets as current)
+                currentStage = stageQueue[0];
+            }
+
             return {
 
                 ...state,
-                currentStage: commonTypes.COMPUTATION_STAGE_START,
-                stagesQueue: state.computationStages,
+                currentStage: currentStage,
+                stagesQueue: stageQueue,
             };
 
         case actionTypes.COMPUTATION_CONSUME_STAGE:
 
+            if (state.stagesQueue.length > 0) {
+
+                //removes the consumed stage
+                stageQueue = state.stagesQueue.filter(item => item !== action.payload);
+
+                //pops the new current stage (if there is one)
+                if (stageQueue.length > 0) {
+                    currentStage = stageQueue[0];
+                }
+            }
+
             return {
 
                 ...state,
-                currentStage: commonTypes.COMPUTATION_STAGE_IDLE,
-                stagesQueue: state.stagesQueue.filter(item => item !== action.payload),
+                currentStage: currentStage,
+                stagesQueue: stageQueue,
             };
 
         case actionTypes.COMPUTATION_SET_STAGE:

@@ -35,7 +35,6 @@ import {
 import {
     setComputationRequestItem,
     startComputation,
-    setCurrentComputationStage,
     consumeComputationStage,
     setComputationInProgress,
     computationReceived,
@@ -167,7 +166,7 @@ class HeatMapComputationContainer extends Component {
 
     componentDidUpdate(prevProps, prevState) {
 
-        const { notify, uuid, computationRequest, currentComputationStage, setCurrentComputationStage,
+        const { notify, uuid, computationRequest, currentComputationStage,
                 pendingComputationStages, consumeComputationStage, computationInProgress, setComputationInProgress,
         } = this.props;
 
@@ -176,26 +175,6 @@ class HeatMapComputationContainer extends Component {
             /* Trigger Socket Events */
 
             switch (currentComputationStage) {
-
-                case commonTypes.COMPUTATION_STAGE_START:
-
-                    //notify('Computation started', actionTypes.NOTIFICATION_TYPE_SUCCESS);
-
-                    //TODO validation?
-
-                    setCurrentComputationStage(commonTypes.COMPUTATION_STAGE_IDLE);
-
-                    break;
-
-                case commonTypes.COMPUTATION_STAGE_IDLE:
-
-                    if (pendingComputationStages.length > 0) {
-
-                        const nextStage = pendingComputationStages[0];
-                        setCurrentComputationStage(nextStage);
-                    }
-
-                    break;
 
                 case commonTypes.COMPUTATION_STAGE_VALIDATION_REQUEST:
 
@@ -412,7 +391,6 @@ const mapDispatchToProps = (dispatch) => {
         fetchItems: (itemType, ...options) => dispatch(fetchItems(itemType, ...options)),
         setComputationRequestItem: (item, itemType) => dispatch(setComputationRequestItem(item, itemType)),
         startComputation: (type) => dispatch(startComputation(type)),
-        setCurrentComputationStage: (stage) => dispatch(setCurrentComputationStage(stage)),
         consumeComputationStage: (stage) => dispatch(consumeComputationStage(stage)),
         setComputationInProgress: (bool) => dispatch(setComputationInProgress(bool)),
         computationReceived: (type, ...options) => dispatch(computationReceived(type, ...options)),
