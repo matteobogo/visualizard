@@ -1,0 +1,42 @@
+version "3.4"
+services:
+
+  visualizard-client:
+      build:
+        context: visualizer/client/
+        dockerfile: Dockerfile
+        args:
+          APP_VERSION: ${CLIENT_APP_VERSION}
+          NODE_VERSION: ${CLIENT_NODE_VERSION}  #9.11.2
+      image: visualizard-client:${CLIENT_APP_VERSION}
+      command: ["npm", "run", "dev"]
+      container_name: visualizard-client
+      restart: always
+      ports:
+        - "4800:4800"
+      networks:
+        - visualizard-frontend
+        - visualizard-backend
+      environment:
+
+      depends_on:
+        - visualizard-server
+
+
+  visualizard-server:
+      build:
+        context: visualizer/server/
+      command: ["npm", "run", "dev"]
+      container_name: visualizard-server
+      restart: always
+      ports:
+        - "3000"
+      networks:
+        - visualizard-backend
+      environment:
+
+volumes:
+
+networks:
+  visualizard-frontend:
+  visualizard-backend:
