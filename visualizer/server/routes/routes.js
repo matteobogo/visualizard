@@ -33,6 +33,7 @@ router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
 router.get('/heatmaps/palettes', HeatMapController.getPalettes);
 router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
 router.get('/heatmaps', HeatMapController.buildResourceUsageHeatMaps);
+router.post('/heatmaps/zscores', HeatMapController.setHeatMapZscores);
 
 router.post('/admin/store-heatmap', HeatMapController.storeHeatMap);
 

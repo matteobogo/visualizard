@@ -26,8 +26,12 @@ const config = {
         db_port:        process.env.REDIS_DB_PORT        || '6379'
     },
     TIMESERIES: {
-        period:         process.env.TS_PERIOD        || 300,
+        period:         process.env.TS_PERIOD            || 300,
     },
+    HEATMAPS: {
+        MIN_Z_SCORE:    process.env.MIN_Z_SCORE          || -3,
+        MAX_Z_SCORE:    process.env.MAX_Z_SCORE          || 3,
+    }
 };
 
 module.exports = config;

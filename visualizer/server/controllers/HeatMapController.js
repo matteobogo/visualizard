@@ -26,6 +26,17 @@ const getPalettes = async (req, res) => {
     return ReS(res, {payload: palettes}, 200);
 };
 
+const setHeatMapZscores = async (req, res) => {
+
+    const minZscore = req.query.min;
+    const maxZscore = req.query.max;
+
+    heatMapsService.setZscores(minZscore, maxZscore);
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: true}, 200);
+};
+
 const getHeatMap = async (req, res) => {
 
     let img_type = req.params.img_type
@@ -135,6 +146,7 @@ const storeHeatMap = async (req, res) => {
 module.exports = {
     getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
+    setHeatMapZscores: setHeatMapZscores,
     getHeatMap: getHeatMap,
     buildResourceUsageHeatMaps: buildResourceUsageHeatMaps,
     storeHeatMap: storeHeatMap,
