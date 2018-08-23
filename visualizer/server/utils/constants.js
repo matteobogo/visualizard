@@ -1,12 +1,12 @@
 const constants = {
 
     IMAGE_EXTENSIONS: {
-        IMAGE_PNG_EXT: Symbol('png'),
-        IMAGE_JPEG_EXT: Symbol('jpeg'),
-        IMAGE_PDF_EXT: Symbol('pdf'),
+        IMAGE_PNG_EXT: 'png',
+        IMAGE_JPEG_EXT: 'jpeg',
+        IMAGE_PDF_EXT: 'pdf',
     },
 
-    PATH_HEATMAPS_IMAGES: Symbol('./public/images'),
+    PATH_HEATMAPS_IMAGES: './public/images',
 
     PALETTES: {
         GRAY: {
@@ -41,11 +41,22 @@ const constants = {
 
     HEATMAPS: {
         TYPES: {
-            BY_MACHINE: Symbol('sort by machine'),
-            BY_SUM: Symbol('sort by sum'),
-            BY_TS_OF_MAX_VALUE: Symbol('sort by ts of max value'),
+            SORT_BY_MACHINE: 'SORT_BY_MACHINE',
+            SORT_BY_SUM: 'SORT_BY_SUM',
+            SORT_BY_TS_OF_MAX_VALUE: 'SORT_BY_TS_OF_MAX_VALUE',
         },
     },
+
+    ANALYSIS: {
+        TYPES: {
+            DATASET: 'Dataset Analysis',
+            MEASUREMENTS: 'Measurements Analysis',
+            POINTS_PER_TIMESTAMP: 'Points per Timestamp Analysis',
+        },
+    },
+
+    COMPUTATION_PERCENTAGES_INIT: '0',
+    COMPUTATION_PERCENTAGES: ['10','20','30','40','50','60','70','80','90','100']
 };
 
-exports.constants = Object.freeze(constants);
+module.exports = Object.freeze(constants);
