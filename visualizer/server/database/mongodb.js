@@ -13,7 +13,11 @@ exports.moongoseConfig = () => {
         });
     mongoose.set('debug', true);
 
+    //using promises instead of callbacks
+    mongoose.Promise = Promise;
+
     /* Moongose - Schema registration */
     require('../models/DatasetAnalysis');
+    require('../models/MeasurementsStats');
     require('../models/PointsStatsPerTimestamp')
 };

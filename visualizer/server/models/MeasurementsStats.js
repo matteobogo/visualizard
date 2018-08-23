@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Float = require('mongoose-float').loadType(mongoose, 6);  //number of decimals
 
-const datasetAnalysisSchema = new mongoose.Schema({
+const measurementsStatsAnalysisSchema = new mongoose.Schema({
 
     database: {
         type: String
@@ -21,15 +21,18 @@ const datasetAnalysisSchema = new mongoose.Schema({
     intervals: {
         type: Number
     },
-    timeseries: {
-        type: Number
-    },
     fields: [{
         type: String
     }],
+    measurement: {
+        type: String
+    },
     fieldsStats: [{
         field: {
             type: String
+        },
+        fieldIndex: {
+            type: Number
         },
         min: {
             type: Float
@@ -56,23 +59,20 @@ const datasetAnalysisSchema = new mongoose.Schema({
             type: Float
         }
     }],
-    timeCompleted: {
-        type: Number
-    },
     createdAt: {
         type: Date,
         default: Date.now
     },
 },{ //options
-    collection: 'DatasetsStats'
+    collection: 'MeasurementsStats'
 });
 
-datasetAnalysisSchema.set('toJSON', { getters: true, virtuals: false});
-datasetAnalysisSchema.set('toObject', { getters: true, virtuals: false});
+measurementsStatsAnalysisSchema.set('toJSON', { getters: true, virtuals: false});
+measurementsStatsAnalysisSchema.set('toObject', { getters: true, virtuals: false});
 
 /* Validations */
 //TODO
 
 /* Methods */
 
-module.exports = mongoose.model('DatasetAnalysis', datasetAnalysisSchema);
+module.exports = mongoose.model('MeasurementsStatsAnalysis', measurementsStatsAnalysisSchema);
