@@ -2,26 +2,25 @@ require('datejs');
 
 const logger = require('../config/winston');
 
+const config = require('../config/config');
+const constants = require('../utils/constants');
+
 const redis = require('../cache/redis');
-
 const influxdb = require('../database/influxdb');
-const DatasetAnalysis = require('../models/DatasetAnalysis');
-const PointsStatsPerTimestamp = require('../models/PointsStatsPerTimestamp');
 
-const _ANALYSIS_TYPES = {
-    DATASET_ANALYSIS: 'DATASET_ANALYSIS',
-    POINTS_STATS_PER_TIMESTAMP_ANALYSIS: 'POINTS_STATS_PER_TIMESTAMP_ANALYSIS',
-};
-
-const _COMPUTATION_PERCENTAGES = ['10','20','30','40','50','60','70','80','90','100'];
+const DatasetAnalysisModel = require('../models/DatasetAnalysis');
+const MeasurementStatsModel = require('../models/MeasurementsStats');
+const PointsStatsPerTimestampModel = require('../models/PointsStatsPerTimestamp');
 
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
 const initializePointsStatsPerTS = (
-    startInterval,
-    endInterval,
-    period,
-    fields
+    {
+        startInterval,
+        endInterval,
+        period,
+        fields
+    }
 
 ) => {
 
@@ -68,30 +67,39 @@ const analyzeDataset = async (
     logger.log('info', 'Remove previous analysis');
 
     //remove previous analysis
-    await DatasetAnalysis.deleteMany({}, (err) => {
+    await DatasetAnalysisModel.deleteMany({}, (err) => {
         if (err) throw Error(`Failed to delete previous dataset analysis: ${err}`);
     });
 
-    await PointsStatsPerTimestamp.deleteMany({}, (err) => {
+    await MeasurementStatsModel.deleteMany({}, (err) => {
+       if (err) throw Error(`Failed to delete previous measurement stats analysis: ${err}`);
+    });
+
+    await PointsStatsPerTimestampModel.deleteMany({}, (err) => {
         if (err) throw Error(`Failed to delete previous points stats per timestamp analysis ${err}`);
     });
 
     /* Start Analysis */
     const timeStart = new Date();
 
+    //get measurements names list
     let measurements = await influxdb.fetchMeasurementsListFromHttpApi(database);
     if (measurements === 0) throw Error('no measurements in the dataset');
 
+    //get first measurement (used for obtaining the list of field)
     const firstMeasurement = await
         influxdb.getFirstMeasurement(database)
             .then(data => data.pop().name);
 
+    //get the list of field
     let fields = await
         influxdb.getAllFieldsKeyByDatabaseByName(database, firstMeasurement)
             .then(data => data.map(f => f['fieldKey']));
 
+    //compute the number of intervals (using start/end interval and the period)
     const intervals = (Date.parse(endInterval) - Date.parse(startInterval)) / (period * 1000) + 1;
 
+    //if nMeasurement is specified, takes a sub-array of measurements
     if (nMeasurements > 0) {
         measurements = measurements.slice(0, nMeasurements);
     }
@@ -107,20 +115,25 @@ const analyzeDataset = async (
         `- Fields: ${fields}`
     );
 
-    //init
-    logger.log('info', 'Start Initialization');
-    let fieldsStats = [];
-    let pointsStatsPerTimestamp =
-        initializePointsStatsPerTS(
-            startInterval,
-            endInterval,
-            period,
-            fields
-        );
+    //analysis initialization
+    logger.log('info', 'Start Analysis Initialization');
 
+    let datasetFieldsStats = [];                //dataset analysis
+    let pointsStatsPerTimestamp =               //pspt analysis
+        initializePointsStatsPerTS({
+            startInterval: startInterval,
+            endInterval: endInterval,
+            period: period,
+            fields: fields,
+        });
+
+    //for each field in the dataset (assuming all the time series have the same set of fields)
+    //adds an object containing the field name and the statistics (min/max/min_ts/max_ts/sum/population/mean/std)
+    //we will use the order of the list of field to access the array (index)
+    //Note: max_ts and min_ts means the timestamp of the max(min) value (of a field) in the dataset
     fields.forEach(field => {
 
-        fieldsStats.push({
+        datasetFieldsStats.push({
 
             field: field,
             min: Number.MAX_SAFE_INTEGER,
@@ -134,13 +147,52 @@ const analyzeDataset = async (
         });
     });
 
+    //used to measure the computation time of the analysis
+    //the ratio between the number of measurements and the fixed time percentages
     const computationTimeIntervals =
-        Math.floor(measurements.length / _COMPUTATION_PERCENTAGES.length);
+        Math.floor(measurements.length / constants.COMPUTATION_PERCENTAGES.length);
 
     let currentStageTime = new Date();
+
+    //for each measurement (time serie) in the dataset, we fetch its points (a batch of values, one for each field)
+    //for each field of each point fetched we compute the statistics and we update the statistics objects
     logger.log('info', 'Start fetching points and computing statistics');
     for (let i = 0; i < measurements.length; ++i) {
 
+        //measurement stats initialization
+        let measurementStat = {
+
+            database: database,
+            policy: policy,
+            startInterval: (new Date(startInterval)).getTime(),
+            endInterval: (new Date(endInterval)).getTime(),
+            period: period,
+            intervals: intervals,
+            fields: fields,
+            measurement: measurements[i],
+            fieldsStats: [],
+        };
+
+        //init fields stats (of measurement stats of measurements stats analysis)
+        //array position (index) is used for the order of fields
+        fields.forEach((field, index) => {
+
+            measurementStat.fieldsStats.push({
+
+                field: field,
+                fieldIndex: index,
+                min: Number.MAX_SAFE_INTEGER,
+                max: Number.MIN_SAFE_INTEGER,
+                min_ts: null,
+                max_ts: null,
+                sum: 0,
+                population: 0,
+                mean: 0,
+                std: 0,
+            });
+        });
+
+        //fetches measurement's points
         const points = await influxdb.fetchPointsFromHttpApi(
             database,
             policy,
@@ -156,23 +208,41 @@ const analyzeDataset = async (
 
             fields.forEach((field, index) => {
 
-                //min
-                if (point[field] < fieldsStats[index].min) {
-                    fieldsStats[index].min = point[field];
-                    fieldsStats[index].min_ts = point.time.getTime();
+                //min (dataset analysis)
+                if (point[field] < datasetFieldsStats[index].min) {
+                    datasetFieldsStats[index].min = point[field];
+                    datasetFieldsStats[index].min_ts = point.time.getTime();
                 }
 
-                //max
-                if (point[field] > fieldsStats[index].max) {
-                    fieldsStats[index].max = point[field];
-                    fieldsStats[index].max_ts = point.time.getTime();
+                //min (measurement analysis)
+                if (point[field] < measurementStat.fieldsStats[index].min) {
+                    measurementStat.fieldsStats[index].min = point[field];
+                    measurementStat.fieldsStats[index].min_ts = point.time.getTime();
                 }
 
-                //sum
-                fieldsStats[index].sum += point[field];
+                //max (dataset analysis)
+                if (point[field] > datasetFieldsStats[index].max) {
+                    datasetFieldsStats[index].max = point[field];
+                    datasetFieldsStats[index].max_ts = point.time.getTime();
+                }
 
-                //population
-                fieldsStats[index].population += 1;
+                //max (measurement analysis)
+                if (point[field] > measurementStat.fieldsStats[index].max) {
+                    measurementStat.fieldsStats[index].max = point[field];
+                    measurementStat.fieldsStats[index].max_ts = point.time.getTime();
+                }
+
+                //sum (dataset analysis)
+                datasetFieldsStats[index].sum += point[field];
+
+                //sum (measurement analysis)
+                measurementStat.fieldsStats[index].sum += point[field];
+
+                //population (dataset analysis)
+                datasetFieldsStats[index].population += 1;
+
+                //population (measurement analysis)
+                measurementStat.fieldsStats[index].population += 1;
 
                 /* points stats per timestamp */
                 const timestamp = point.time.getTime(); //convert in unix epoch
@@ -195,35 +265,49 @@ const analyzeDataset = async (
             });
         });
 
+        //mean for each field (measurement analysis)
+        fields.forEach((field, index) => {
+
+            measurementStat.fieldsStats[index].mean =
+                measurementStat.fieldsStats[index].sum / measurementStat.fieldsStats[index].population;
+        });
+
+        //store measurement stats on database
+        const measurementStatsObj = new MeasurementStatsModel(measurementStat);
+        await measurementStatsObj.save();
+
         if (i > 0 && i % computationTimeIntervals === 0)
         logger.log('info',
-            `${_COMPUTATION_PERCENTAGES[(i / computationTimeIntervals) - 1]}% of measurements analyzed`);
+            `${constants.COMPUTATION_PERCENTAGES[(i / computationTimeIntervals) - 1]}% of measurements analyzed`);
     }
 
     let timeEnd = new Date();
     let timeDiff = (timeEnd.getTime() - currentStageTime.getTime());
     logger.log('info', `Points fetched and analyzed in ${((timeDiff / 1000) / 60).toFixed(2)} minutes`);
 
-    //mean (dataset)
+    //mean for each field (dataset analysis)
     logger.log('info', 'Computing the mean of the dataset');
     fields.forEach((field, index) => {
 
-        fieldsStats[index].mean = fieldsStats[index].sum / fieldsStats[index].population;
+        datasetFieldsStats[index].mean = datasetFieldsStats[index].sum / datasetFieldsStats[index].population;
     });
 
-    //std (dataset)
+    //std (dataset + measurements analysis)
     //sqrt ( 1/N * sum from 1 to N of (xi - dataset_mean)^2 )
     //with N the entire population
     logger.log('info', 'Computing the standard deviation of the dataset');
-    let tmpData = {};
-    fields.forEach(field => {
-        tmpData[field] = 0;
-    });
 
     currentStageTime = new Date();
 
+    //second pass to compute the standard deviation
+    //in the first pass we have obtained the mean, both for each measurement and the entire dataset
+    //(necessary to compute the std)
+    let datasetTmpData = {};
     for (let i = 0; i < measurements.length; ++i) {
 
+        let measurementTmpData = {};
+
+        //fetches measurement's points
         const points = await influxdb.fetchPointsFromHttpApi(
             database,
             policy,
@@ -234,23 +318,59 @@ const analyzeDataset = async (
             fields
         );
 
+        //fetches measurement stats from the database (we need to take the mean)
+        const measurementStatFieldsStats = await MeasurementStatsModel
+            .findOne({measurement: measurements[i]})
+            .select({fieldsStats: 1})   //0 excludes, 1 includes
+            .then(result => result.fieldsStats)
+            .catch(err => {
+                logger.log('error', `Failed to retrieve measurement stats of ${measurements[i]}: ${err.message}`);
+            });
+
+        //std computation (first part): sums (xi - mean)^2 for each measurement's point xi
         points.forEach(point => {
 
             fields.forEach((field, index) => {
 
-                const datasetMean = fieldsStats[index].mean;
-                tmpData[field] += Math.pow((point[field] - datasetMean), 2);
+                //dataset std
+                const datasetMean = datasetFieldsStats[index].mean;
+                datasetTmpData[field] = datasetTmpData[field] === undefined ? 0 : //init to 0 the first time
+                    datasetTmpData[field] += Math.pow((point[field] - datasetMean), 2);
+
+                //measurement std
+                const measurementMean = measurementStatFieldsStats[index].mean;
+                measurementTmpData[field] = measurementTmpData[field] === undefined ? 0 :
+                    measurementTmpData[field] += Math.pow((point[field] - measurementMean), 2);
             });
         });
 
+        //std computation (second part): divides the sum with the number of points and applies the sqrt
+        fields.forEach((field, index) => {
+
+            const measurementPopulation = measurementStatFieldsStats[index].population;
+            measurementStatFieldsStats[index].std = Math.sqrt((measurementTmpData[field] / measurementPopulation));
+        });
+
+        //update the std on the measurement's stats (previously stored during first pass)
+        await MeasurementStatsModel
+            .update(
+                { measurement: measurements[i] },
+                { $set: { fieldsStats: measurementStatFieldsStats } }
+            )
+            .catch(err => {
+                logger.log('error', `Failed to update measurement std of ${measurements[i]}: ${err.message}`);
+            });
+
         if (i > 0 && i % computationTimeIntervals === 0)
             logger.log('info',
-                `${_COMPUTATION_PERCENTAGES[(i / computationTimeIntervals) - 1]}% of measurements analyzed (standard deviation)`);
+                `${constants.COMPUTATION_PERCENTAGES[(i / computationTimeIntervals) - 1]}% of measurements analyzed (standard deviation)`);
     }
 
+    //computes the dataset's std (for each field)
     fields.forEach((field, index) => {
 
-        fieldsStats[index].std = Math.sqrt(tmpData[field]);
+        const datasetPopulation = datasetFieldsStats[index].population;
+        datasetFieldsStats[index].std = Math.sqrt(datasetTmpData[field] / datasetPopulation);
     });
 
     timeEnd = new Date();
@@ -261,26 +381,28 @@ const analyzeDataset = async (
     timeDiff = (timeEnd.getTime() - timeStart.getTime());
     logger.log('info', `Dataset Analysis completed in ${((timeDiff / 1000) / 60).toFixed(2)} minutes`);
 
-    let datasetAnalysis = {};
-    datasetAnalysis['database'] = database;
-    datasetAnalysis['policy'] = policy;
-    datasetAnalysis['startInterval'] = (new Date(startInterval)).getTime(); //unix epoch time
-    datasetAnalysis['endInterval'] = (new Date(endInterval)).getTime();
-    datasetAnalysis['period'] = period;
-    datasetAnalysis['intervals'] = intervals;
-    datasetAnalysis['timeseries'] = measurements.length;
-    datasetAnalysis['fields'] = fields;
-    datasetAnalysis['fieldsStats'] = fieldsStats;
-    datasetAnalysis['timeCompleted'] = timeDiff / 1000; //in seconds
+    //dataset analysis object
+    let datasetAnalysis = {
+        database: database,
+        policy: policy,
+        startInterval: (new Date(startInterval)).getTime(), //unix epoch time
+        endInterval: (new Date(endInterval)).getTime(),
+        period: period,
+        intervals: intervals,
+        timeseries: measurements.length,
+        fields: fields,
+        fieldsStats: datasetFieldsStats,
+        timeCompleted: timeDiff / 1000, //in seconds
+    };
 
     //store to db
     logger.log('info', 'Storing Dataset Analysis on the database');
-    const datasetAnalysisObj = new DatasetAnalysis(datasetAnalysis);
+    const datasetAnalysisObj = new DatasetAnalysisModel(datasetAnalysis);
     await datasetAnalysisObj.save();
 
     currentStageTime = new Date();
 
-    /* points stats per timestamp */
+    //points stats per timestamp analysis
     //compute mean + array construction
     logger.log('info', 'Start Points Stats per Timestamp Analysis');
     for (let timestamp in pointsStatsPerTimestamp) {
@@ -315,7 +437,7 @@ const analyzeDataset = async (
             });
 
             //save on db
-            const pointsStatsPerTimestampModel = new PointsStatsPerTimestamp(pointsStatsPerTimestampObj);
+            const pointsStatsPerTimestampModel = new PointsStatsPerTimestampModel(pointsStatsPerTimestampObj);
             await pointsStatsPerTimestampModel.save();
         }
     }
@@ -340,12 +462,19 @@ const getAnalysisCached = async (request) => {
     request.startInterval = request.startInterval || x`Start Interval is missing`;
     request.endInterval = request.endInterval || x`End Interval is missing`;
     request.analysisType = request.analysisType || x`Analysis Type is missing`;
+    request.visualizationFlag = request.visualizationFlag || x`Client flag is missing`;   //better visualization for clients
 
     logger.log('debug', request);
 
     //search in cache
     let result = await redis.get(
-        `${request.analysisType}_${request.database}_${request.policy}_${request.startInterval}_${request.endInterval}`)
+        `${request.analysisType}_` +
+        `${request.database}_` +
+        `${request.policy}_` +
+        `${request.startInterval}_` +
+        `${request.endInterval}_` +
+        `${request.visualizationFlag}`) // [client | server]
+
         .catch(err => {
 
             logger.log('error', `error during redis cache search: ${err.message}`);
@@ -359,89 +488,74 @@ const getAnalysisCached = async (request) => {
 
         switch (request.analysisType) {
 
-            case _ANALYSIS_TYPES.DATASET_ANALYSIS:
+            case constants.ANALYSIS.TYPES.DATASET:
 
-                result = await DatasetAnalysis
-                    .find({database: request.database, policy: request.policy})
-                    .exec()
-                    .then(result => {
-
-                        return result;
-                    })
+                result = await DatasetAnalysisModel
+                    .findOne({database: request.database, policy: request.policy})
                     .catch(err => {
                         logger.log('error', `Failed to retrieve dataset analysis from database: ${err.message}`);
                     });
 
                 break;
 
-            case _ANALYSIS_TYPES.POINTS_STATS_PER_TIMESTAMP_ANALYSIS:
+            case constants.ANALYSIS.TYPES.MEASUREMENTS:
 
-                result = await PointsStatsPerTimestamp
+                result = await MeasurementStatsModel
+                    .find({database: request.database, policy: request.policy})
+                    .catch(err => {
+                        logger.log('error', `Failed to retrieve measurements stats analysis from database: ${err.message}`);
+                    });
+
+                break;
+
+            case constants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP:
+
+                result = await PointsStatsPerTimestampModel
                     .find({database: request.database, policy: request.policy,
                             timestamp: {
                                 $gte: (new Date(request.startInterval)).getTime(),
                                 $lte: (new Date(request.endInterval)).getTime()
                             }
                     })
-                    .exec()
-                    .then(result => {
-
-                        return result;
-                    })
                     .catch(err => {
                         logger.log('error', `Failed to retrieve pspt analysis from database: ${err.message}`);
                     });
 
-                //better visualization for clients //TODO may be done with Moongose?
+                //better visualization for clients
                 //using with react-timeseries-charts
-                const transformPsptAnalysis = () => {
+                if (request.visualizationFlag === 'client') {
+                    const transformPsptAnalysis = () => {
 
-                    //obj = {
-                    //  field1 = [ ["timestamp", min, max, sum, mean], .. ]
-                    //  ..
-                    //}
+                        //obj = {
+                        //  field1 = [ ["timestamp", min, max, sum, mean], .. ]
+                        //  ..
+                        //}
 
-                    let obj = {};
-                    result[0].fields.forEach(field => {
+                        let obj = {};
+                        result[0].fields.forEach(field => {
 
-                        obj[field] = [];
-                    });
-
-                    result.forEach(value => {
-
-                        value.fieldsStats.forEach(fieldStat => {
-
-                            let entry = [value.timestamp];
-                            entry.push(fieldStat.min);
-                            entry.push(fieldStat.max);
-                            entry.push(fieldStat.sum);
-                            entry.push(fieldStat.mean);
-
-                            obj[fieldStat.field].push(entry);
+                            obj[field] = [];
                         });
-                    });
 
-                    return obj;
+                        result.forEach(value => {
 
-                    // let psptAnalysisTranformed = [];
-                    // result.forEach(value => {
-                    //
-                    //     let entry = {
-                    //         timestamp: new Date(value.timestamp),
-                    //     };
-                    //
-                    //     value.fieldsStats.forEach(stat => {
-                    //
-                    //         entry[stat.field] = stat.mean;
-                    //     });
-                    //
-                    //     psptAnalysisTranformed.push(entry);
-                    // });
-                    //
-                    // return psptAnalysisTranformed;
-                };
+                            value.fieldsStats.forEach(fieldStat => {
 
-                result = transformPsptAnalysis();
+                                let entry = [value.timestamp];
+                                entry.push(fieldStat.min);
+                                entry.push(fieldStat.max);
+                                entry.push(fieldStat.sum);
+                                entry.push(fieldStat.mean);
+
+                                obj[fieldStat.field].push(entry);
+                            });
+                        });
+
+                        return obj;
+                    };
+
+                    result = transformPsptAnalysis();
+                }
 
                 break;
         }
@@ -451,7 +565,12 @@ const getAnalysisCached = async (request) => {
 
             //set result in redis cache
             const redisCheck = await redis.set(
-                `${request.analysisType}_${request.database}_${request.policy}_${request.startInterval}_${request.endInterval}`,
+                `${request.analysisType}_` +
+                `${request.database}_` +
+                `${request.policy}_` +
+                `${request.startInterval}_` +
+                `${request.endInterval}_` +
+                `${request.visualizationFlag}`,
                 JSON.stringify(result)
             );
 
@@ -467,5 +586,4 @@ const getAnalysisCached = async (request) => {
 module.exports = {
     analyzeDataset: analyzeDataset,
     getAnalysisCached: getAnalysisCached,
-    _ANALYSIS_TYPES,
 };
