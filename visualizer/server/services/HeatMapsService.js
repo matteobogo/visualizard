@@ -71,7 +71,7 @@ const filenameGenerator = (heatMapRequest) => {
 const heatMapFetcher = async (
     {
         heatMapRequest,
-        imageType = constants.IMAGE_PNG_EXT,
+        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
     }
 
     ) => {
@@ -91,12 +91,11 @@ const heatMapFetcher = async (
     logger.log('info', `Requesting ${filename}.${imageType}`);
 
     //TODO image stored on external service like Amazon S3
-    //for now we use the local storage
 
-    //image already computed?
+    //checks if the heatmap image is already stored
     let file = await fs.existsSync(`${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType}`);
 
-    //image doesn't exist, build it
+    //heatmap image doesn't exist, build it
     if (!file) {
 
         logger.log('info', `${filename}.${imageType} not exist, start building it`);
@@ -108,7 +107,7 @@ const heatMapFetcher = async (
             policy: heatMapRequest.policy,
             startInterval: heatMapRequest.startInterval,
             endInterval: heatMapRequest.endInterval,
-            analysisType: analysisService._ANALYSIS_TYPES.DATASET_ANALYSIS,
+            analysisType: constants.ANALYSIS.TYPES.DATASET,
             visualizationFlag: 'server',
         });
 
@@ -116,55 +115,6 @@ const heatMapFetcher = async (
 
             logger.log('warn', `Dataset Analysis not available during HeatMap construction`);
             throw Error('HeatMap service not available');
-
-            // logger.log('info',
-            //     `Starting Analysis of ${heatMapRequest.database}` +
-            //     `with policy ${heatMapRequest.policy}`);
-            //
-            // const firstMeasurement = await influx.getFirstMeasurement(heatMapRequest.database);
-            //
-            // const firstInterval = await influx.getFirstInterval(
-            //     heatMapRequest.database,
-            //     firstMeasurement,
-            //     heatMapRequest.policy,
-            //     heatMapRequest.fields[0],
-            // );
-            //
-            // const lastInterval = await influx.getLastInterval(
-            //     heatMapRequest.database,
-            //     firstMeasurement,
-            //     heatMapRequest.policy,
-            //     heatMapRequest.fields[0],
-            // );
-            //
-            // const analysisRequest = {
-            //     database: heatMapRequest.database,
-            //     policy: heatMapRequest.policy,
-            //     startInterval: firstInterval,
-            //     endInterval: lastInterval,
-            //     period: heatMapRequest.period,
-            //     nMeasurements: heatMapRequest.nMeasurements,
-            // };
-            //
-            // const res = await analysisService.analyzeDataset(analysisRequest);
-            //
-            // if (!res) {
-            //     logger.log('error', `Analysis failed during HeatMap Construction without existing analysis\n` +
-            //                         `Request: ${analysisRequest}`);
-            //     throw Error('HeatMap service not available, sorry for the inconvenience');
-            // }
-            //
-            // logger.log('info', `Analysis done, fetching it from the database`);
-            //
-            // //analysis done, fetch it from the database
-            // analysis = await analysisService.getAnalysisCached({
-            //     database: heatMapRequest.database,
-            //     policy: heatMapRequest.policy,
-            //     startInterval: heatMapRequest.startInterval,
-            //     endInterval: heatMapRequest.endInterval,
-            //     analysisType: analysisService._ANALYSIS_TYPES.DATASET_ANALYSIS,
-            //     visualizationFlag: 'server',
-            // });
         }
 
         logger.log('info', `Start building HeatMap Image and stores it`);
@@ -346,35 +296,63 @@ const heatMapBuildAndStore = async (
 
     {
         heatMapRequest,
-        imageType, //TODO maybe insert it to request?
-        analysis,
+        imageType,
     }
 
 ) => {
 
-    console.log(`Start Validation for ${JSON.stringify(heatMapRequest)}`);
+    logger.info('info', `Start Validation for ${JSON.stringify(heatMapRequest)}`);
 
     //validation
-    const validate = await heatMapConfigurationValidation(
-        {
-            computationRequest: heatMapRequest,
-        })
-        .then(data => { return data; })
-        .catch(error => {
-            console.log(error);
-            throw new Error(`Validation fails: ${error.message}`);
+    await heatMapConfigurationValidation(heatMapRequest)
+        .catch(err => {
+            logger.log('error', `Failing to validate heatmap request: ${err.message}`);
+            throw Error(`Validation fails: ${error.message}`);
         });
 
-    console.log(`Start Construction`);
+    logger.log('info', `Fetching Dataset Analysis`);
+
+    //dataset analysis
+    const datasetAnalysis = await analysisService.getAnalysisCached({
+        database: heatMapRequest.database,
+        policy: heatMapRequest.policy,
+        startInterval: heatMapRequest.startInterval,
+        endInterval: heatMapRequest.endInterval,
+        analysisType: constants.ANALYSIS.TYPES.DATASET,
+        visualizationFlag: 'server',
+    })
+        .catch(err => {
+            logger.log('error', `Failing to fetch dataset analysis: ${err.message}`);
+            throw Error(`Fetching Dataset Analysis fails: ${err.message}`);
+        });
+
+    logger.log('info', `Fetching Measurements Analysis`);
+
+    //measurements analysis
+    const measurementsAnalysis = await analysisService.getAnalysisCached({
+        database: heatMapRequest.database,
+        policy: heatMapRequest.policy,
+        startInterval: heatMapRequest.startInterval,
+        endInterval: heatMapRequest.endInterval,
+        analysisType: constants.ANALYSIS.TYPES.MEASUREMENTS,
+        visualizationFlag: 'server',
+    })
+        .catch(err => {
+            logger.log('error', `Failing to fetch measurements analysis: ${err.message}`);
+            throw Error(`Fetching Measurements Analysis fails: ${err.message}`);
+        });
+
+    logger.log('info', `Start HeatMap Construction`);
 
     //construction
     const canvas = await heatMapConstruction(
         {
             request: heatMapRequest,
-            analysis: analysis,
-
+            analysis: {
+                datasetAnalysis: datasetAnalysis,
+                measurementsAnalysis: measurementsAnalysis,
+            },
         })
-        .then(data => { return data; })
         .catch(error => {
             console.log(error);
             throw new Error(`Construction fails: ${error.message}`);
@@ -400,9 +378,9 @@ const heatMapBuildAndStore = async (
     return 'OK';
 };
 
-const sortMeasurementsByFieldByStatsType = (stats, field, type) => {
+const sortMeasurementsByFieldByStatsType = (measurementsAnalysis, field, type) => {
 
-    return stats.slice().sort(function (a, b) {
+    return measurementsAnalysis.slice().sort(function (a, b) {
 
         return a['stats'][field][type] < b['stats'][field][type];
     });
@@ -416,7 +394,12 @@ const heatMapConstruction = async (
 
     ) => {
 
-    let measurementStats = analysis.measurementStats;
+    console.log(analysis.measurementsAnalysis);
+    process.exit(1)
+
+    //sorts the measurements analysis
+    //the order of each measurement in the measurements analysis is used to build different heatmaps
+    let measurementsAnalysis = analysis.measurementsAnalysis;
     switch (request.heatMapType) {
 
         case constants.HEATMAPS.TYPES.BY_MACHINE:
@@ -425,9 +408,9 @@ const heatMapConstruction = async (
 
         case constants.HEATMAPS.TYPES.BY_SUM:
 
-            measurementStats =
+            measurementsAnalysis =
                 sortMeasurementsByFieldByStatsType(
-                    measurementStats,
+                    measurementsAnalysis,
                     request.fields[0],
                     'sum');
 
@@ -435,16 +418,19 @@ const heatMapConstruction = async (
 
         case constants.HEATMAPS.TYPES.BY_TS_OF_MAX_VALUE:
 
-            measurementStats =
+            measurementsAnalysis =
                 sortMeasurementsByFieldByStatsType(
-                    measurementStats,
+                    measurementsAnalysis,
                     request.fields[0],
                     'max_ts');
 
             break;
+
+        default:
+            break;
     }
 
-    analysis.measurementStats = measurementStats;
+    analysis.measurementsAnalysis = measurementsAnalysis;
 
     return drawHeatMap(
         {
@@ -489,52 +475,72 @@ const validateDatabaseArgs = async (dbname, policy, fields) => {
         });
 };
 
-const heatMapConfigurationValidation = async (
+const heatMapConfigurationValidation = async (request) => {
 
-    {
-        computationRequest = x`Computation Request`,
-    }
+    request.database = request.database || x`Database`;
+    request.policy = request.policy || x`Policy`;
+    request.startInterval = request.startInterval || x`Start Interval`;
+    request.endInterval = request.endInterval || x`End Interval`;
+    request.fields = request.fields || x`Fields`;
+    request.nMeasurements = request.nMeasurements || x`number of measurements`;
+    request.period = request.period || x`Period`;
+    request.heatMapType = request.heatMapType || x`HeatMap type`;
+    request.palette = request.palette || x`Palette`;
 
-) => {
+    //database + policy + fields validation
+    await validateDatabaseArgs(request.database, request.policy, request.fields)
+    .catch(err => {
+       logger.log('error', `Failed to validate Database/Policy/Fields: ${err.message}`);
+       throw Error(`Validation of Database/Policy/Fields failed`);
+    });
 
-    //timeseries validation
-    //console.log(`Validating DB: ${database} \n - policy: ${policy} \n - fields: ${fields}`);
-    await validateDatabaseArgs(computationRequest.database, computationRequest.policy, computationRequest.fields);
+    logger.log('info', `Database: [${request.database}] validated\n` +
+                       `Policy: [${request.policy}] validated\n` +
+                       `Fields: [${request.fields}] validated`);
 
     //intervals validation
-    //console.log(`Validating time interval [${startInterval} - ${endInterval}]`);
-    let start_interval, end_interval;
+    let startInterval, endInterval;
     try {
 
-        start_interval = Date.parse(computationRequest.startInterval);
-        end_interval = Date.parse(computationRequest.endInterval);
+        startInterval = Date.parse(request.startInterval);
+        endInterval = Date.parse(request.endInterval);
     }
     catch (e) {
-        throw new Error(`invalid interval: [${computationRequest.startInterval} - ${computationRequest.endInterval}]`);
+        logger.log('error', `Failed to parse the time interval` +
+                            `[${request.startInterval} - ${request.endInterval}]: ${e.message}`);
+        throw Error(`invalid interval: [${request.startInterval} - ${request.endInterval}]`);
     }
 
     //end interval must be equal or greater than start interval
-    const diff_time = start_interval - end_interval;
-    if (diff_time > 0)
-        throw new Error('end interval must be greater or equal then start');
+    const diff_time = startInterval - endInterval;
+    if (diff_time > 0) {
+        logger.log('error', `the start interval [${startInterval}] is greater than the end interval [${endInterval}`);
+        throw Error('end interval must be greater or equal then start');
+    }
 
     //number of measurements validation
-    //console.log(`Validing #measurements [${nMeasurements}]`);
-    if (computationRequest.nMeasurements < 0)
-        throw new Error(`measurements cannot be negative [Default: 0 => all]`);
+    if (request.nMeasurements < 0) {
+        logger.log('error', `Provided invalid #measurements: ${request.nMeasurements}`);
+        throw  Error(`measurements cannot be negative [Default: 0 => all]`);
+    }
 
     //period validation
-    //console.log(`Validating period [${period}]`);
-    if ((computationRequest.period % 300) !== 0)
-        throw new Error('invalid period, must be multiple of 300 (5min)');
+    if ((request.period % 300) !== 0) {
+        logger.log('error', `Provided invalid period: ${request.period}`);
+        throw Error('invalid period, must be multiple of 300 (5min)');
+    }
 
     //palette validation
-    if (!palettes.includes(computationRequest.palette))
-        throw new Error(`invalid palette [AVAILABLE: ${palettes}]`);
+    if (!getPalettes().includes(request.palette)) {
+        logger.log('error', `Provided invalid palette: ${request.palette}`);
+        throw Error(`invalid palette: ${request.palette} [AVAILABLE: ${getPalettes()}]`);
+    }
 
     //heatmap type validation
-    if (!heatMapTypes.includes(computationRequest.heatMapType))
-        throw new Error(`invalid heatmap type [AVAILABLE: ${heatMapTypes}]`);
+    if (!getHeatMapTypes().includes(request.heatMapType)) {
+        logger.log('error', `Provided invalid HeatMap type: ${request.heatMapType}`);
+        throw Error(`invalid heatmap type [AVAILABLE: ${getHeatMapTypes()}]`);
+    }
 
     return true;
 };
