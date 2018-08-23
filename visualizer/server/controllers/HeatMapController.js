@@ -1,3 +1,4 @@
+const globals = require('../utils/globals');
 const heatMapsService = require('../services/HeatMapsService');
 
 const mime = {
@@ -36,6 +37,48 @@ const setHeatMapZscores = async (req, res) => {
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: true}, 200);
 };
+
+const getHeatMapZscore = async (req, res) => {
+
+    const zScores = heatMapsService.getZscores();
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, { payload: zScores}, 200);
+};
+
+const getHeatMapComputationStatus = async (req, res) => {
+
+    const heatMapComputationStatus = globals.getHeatMapComputationStatus();
+    const heatMapComputationPercentage = globals.getHeatMapComputationPercentage();
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, { payload: { status: heatMapComputationStatus, percentage: heatMapComputationPercentage } }, 200);
+};
+
+const stopHeatMapComputation = async (req, res) => {
+
+    globals.setHeatMapComputationStatus(false);
+    const heatMapComputationStatus = globals.getHeatMapComputationStatus();
+    const heatMapComputationPercentage = globals.getHeatMapComputationPercentage();
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, { payload: { status: heatMapComputationStatus, percentage: heatMapComputationPercentage } }, 200);
+};
+
+const startHeatMapComputation = async (req, res) => {
+
+    //TODO
+};
+
+const getHeatMapImageBase64Encoding = async (req, res) => {
+
+    //TODO
+};
+
+
+
+
+
 
 const getHeatMap = async (req, res) => {
 
@@ -147,6 +190,9 @@ module.exports = {
     getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
     setHeatMapZscores: setHeatMapZscores,
+    getHeatMapZscore: getHeatMapZscore,
+    getHeatMapComputationStatus: getHeatMapComputationStatus,
+    stopHeatMapComputation: stopHeatMapComputation,
     getHeatMap: getHeatMap,
     buildResourceUsageHeatMaps: buildResourceUsageHeatMaps,
     storeHeatMap: storeHeatMap,
