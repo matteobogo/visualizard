@@ -31,6 +31,8 @@ const config = {
     HEATMAPS: {
         MIN_Z_SCORE:    process.env.MIN_Z_SCORE          || -3,
         MAX_Z_SCORE:    process.env.MAX_Z_SCORE          || 3,
+        TILE_WIDTH:     process.env.TILE_WIDTH           || 128,
+        TILE_HEIGHT:    process.env.TILE_HEIGHT          || 128,
     }
 };
 
