@@ -1,10 +1,15 @@
+const logger = require('../config/winston');
+
+const config = require('../config/config');
+const constants = require('../utils/constants');
+
 const wsTypes = require('../../commons/WebSocketsEvents');
+
 const heatMapService = require('../services/HeatMapsService');
 const analysisService = require('../services/AnalysisService');
+
 const uuidv4 = require('uuid/v4');
 const _ = require('lodash');
-
-const logger = require('../config/winston');
 
 exports = module.exports = (io) => {
 
@@ -55,9 +60,7 @@ exports = module.exports = (io) => {
 
                 //validation
                 heatMapService
-                    .heatMapConfigurationValidation({
-                        computationRequest: computationRequest,
-                    })
+                    .heatMapConfigurationValidation(computationRequest)
                     .then(() => {
 
                         let uuid = uuidv4();
@@ -99,8 +102,8 @@ exports = module.exports = (io) => {
                 requestLogger(wsTypes.COMPUTATION_ANALYSIS_START, socket.id, uuid);
 
                 //analysis
-                const datasetAnalysisType = analysisService._ANALYSIS_TYPES.DATASET_ANALYSIS;
-                const psptAnalysisType = analysisService._ANALYSIS_TYPES.POINTS_STATS_PER_TIMESTAMP_ANALYSIS;
+                const datasetAnalysisType = constants.ANALYSIS.TYPES.DATASET;
+                const psptAnalysisType = constants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP;
 
                 let request = {
                         database: clientData.request.database,
@@ -108,6 +111,7 @@ exports = module.exports = (io) => {
                         startInterval: clientData.request.startInterval,
                         endInterval: clientData.request.endInterval,
                         analysisType: datasetAnalysisType,
+                        visualizationFlag: 'client',     //better visualization for clients (changes the response)
                 };
 
                 //dataset analysis
@@ -162,54 +166,54 @@ exports = module.exports = (io) => {
 
             });
 
-            //construction
-            socket.on(wsTypes.HEATMAP_CONSTRUCTION_START, (uuid) => {
-
-                let clientData = clientsMap.get(socket);
-
-                //check request processing in progress
-                if (clientDataCheckers(socket, null, 'progress', wsTypes.HEATMAP_CONSTRUCTION_START))
-                    return;
-
-                //check uuid (assigned during validation)
-                if (clientDataCheckers(socket, uuid, 'uuid', wsTypes.HEATMAP_CONSTRUCTION_START))
-                    return;
-
-                //check if analysis has been made
-                if (clientDataCheckers(socket, uuid, 'analysis', wsTypes.HEATMAP_CONSTRUCTION_START))
-                    return;
-
-                //is there a previous heatmap?
-                if (clientData.heatMap !== null) { //TODO cached?
-                    //TODO emit
-                    return;
-                }
-
-                clientData.isProcessing = true;
-                clientsMap.set(socket, clientData);
-
-                requestLogger(wsTypes.HEATMAP_DATASET_ANALYSIS_START, socket.id, uuid);
-
-                //construction
-                heatMapService
-                    .heatMapConstruction({
-                        uuid: uuid,
-                        request: clientData.request,
-                        analysis: clientData.analysis,
-                    })
-                    .then(() => {
-
-
-                    })
-                    .catch(error => {
-
-
-                    })
-                    .then(() => {  //finally in ES6 proposal
-                        clientData.isProcessing = false;
-                        clientsMap.set(socket, clientData);
-                    });
-            });
+            // //construction
+            // socket.on(wsTypes.HEATMAP_CONSTRUCTION_START, (uuid) => {
+            //
+            //     let clientData = clientsMap.get(socket);
+            //
+            //     //check request processing in progress
+            //     if (clientDataCheckers(socket, null, 'progress', wsTypes.HEATMAP_CONSTRUCTION_START))
+            //         return;
+            //
+            //     //check uuid (assigned during validation)
+            //     if (clientDataCheckers(socket, uuid, 'uuid', wsTypes.HEATMAP_CONSTRUCTION_START))
+            //         return;
+            //
+            //     //check if analysis has been made
+            //     if (clientDataCheckers(socket, uuid, 'analysis', wsTypes.HEATMAP_CONSTRUCTION_START))
+            //         return;
+            //
+            //     //is there a previous heatmap?
+            //     if (clientData.heatMap !== null) { //TODO cached?
+            //         //TODO emit
+            //         return;
+            //     }
+            //
+            //     clientData.isProcessing = true;
+            //     clientsMap.set(socket, clientData);
+            //
+            //     requestLogger(wsTypes.HEATMAP_DATASET_ANALYSIS_START, socket.id, uuid);
+            //
+            //     //construction
+            //     heatMapService
+            //         .heatMapConstruction({
+            //             uuid: uuid,
+            //             request: clientData.request,
+            //             analysis: clientData.analysis,
+            //         })
+            //         .then(() => {
+            //
+            //
+            //         })
+            //         .catch(error => {
+            //
+            //
+            //         })
+            //         .then(() => {  //finally in ES6 proposal
+            //             clientData.isProcessing = false;
+            //             clientsMap.set(socket, clientData);
+            //         });
+            // });
     });
 
     const clientDataCheckers = (socket, parameter, flag, stage) => {
