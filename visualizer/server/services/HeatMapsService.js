@@ -12,6 +12,7 @@ const analysisService = require('../services/AnalysisService');
 const util = require('util');
 const fs = require('fs');
 const path = require('path');
+const mkdirp = require('mkdirp');   //recursively mkdir in Node.js
 
 const readFile = util.promisify(fs.readFile);
 const Canvas = require('canvas');
@@ -82,6 +83,7 @@ const heatMapFetcher = async (
     //TODO image stored on external service like Amazon S3
 
     //checks if the heatmap image is already stored
+    //TODO usa mkdirp ?
     const file = fs.existsSync(`${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType}`);
 
     if (!file) {
@@ -316,16 +318,17 @@ const heatMapTilesBuilder = async (
 
                     //path for storing image
                     const pathTilesDir =
+                        process.cwd() +
                         constants.PATH_HEATMAPS_IMAGES +
                         `/${request.database}` +
                         `/${request.policy}` +
                         `/${request.heatMapType}` +
                         `/${request.fields[0]}` +
                         `/${request.palette}` +
-                        `/${formattedCurrentStartInterval}`;
+                        `/${currentStartInterval.getTime()}`;  //unix epoch
 
                     if (!fs.existsSync(pathTilesDir)) {
-                        fs.mkdirSync(pathTilesDir);
+                        mkdirp.sync(pathTilesDir);
                     }
 
                     //stores tile

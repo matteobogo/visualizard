@@ -23,6 +23,7 @@
     "influx": "^5.0.0-alpha.4",
     "ioredis": "^4.0.0",
     "lodash": "^4.17.10",
+    "mkdirp": "^0.5.1",
     "mongoose": "^5.2.8",
     "mongoose-float": "^1.0.2",
     "morgan": "^1.9.0",
