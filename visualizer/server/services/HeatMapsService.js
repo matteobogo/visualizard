@@ -55,20 +55,6 @@ const getZscores = () => ({ min: minZscore, max: maxZscore });
 
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
-const filenameGenerator = (heatMapRequest) => {
-
-    return `/heatmap_` +
-        `${heatMapRequest.database}_` +
-        `${heatMapRequest.policy}_` +
-        `${heatMapRequest.startInterval}_` +
-        `${heatMapRequest.endInterval}_` +
-        `${heatMapRequest.fields[0]}_` +
-        `${heatMapRequest.nMeasurements}_` +
-        `${heatMapRequest.period}_` +
-        `${heatMapRequest.heatMapType}_` +
-        `${heatMapRequest.palette}`;
-};
-
 /* HeatMap Fetchers */
 
 const heatMapFetcher = async (
@@ -105,6 +91,7 @@ const heatMapFetcher = async (
 
     //TODO carica heatmap grossa e ritaglia? altre strategie?
 
+
     //convert image file to base64-encoded string
     const base64Image = new Buffer(file, 'binary').toString('base64');
 
@@ -114,44 +101,38 @@ const heatMapFetcher = async (
 
 /* HeatMap Construction */
 
-const heatMapCanvasToImage = async (
+const canvasToImage = async (
     {
         canvas,
-        request,
+        filename,
         imageType,
+        path,
     }) => {
 
-    const filename = filenameGenerator(request);
-    const finishMsg = `Storing ${constants.PATH_HEATMAPS_IMAGES+filename}.${imageType}`;
+    const finishMsg = `Storing ${path+filename}.${imageType}`;
 
     switch (imageType) {
 
         case constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT:
 
-            canvas
+            return canvas
                 .createPNGStream()
-                .pipe(fs.createWriteStream(constants.PATH_HEATMAPS_IMAGES + `${filename}.${imageType}`))
+                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
                 .on('finish', () => logger.log('info', finishMsg));
-
-            break;
 
         case constants.IMAGE_EXTENSIONS.IMAGE_JPEG_EXT:
 
-            canvas
+            return canvas
                 .createJPEGStream()
-                .pipe(fs.createWriteStream(constants.PATH_HEATMAPS_IMAGES + `${filename}.${imageType}`))
+                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
                 .on('finish', () => logger.log('info', finishMsg));
-
-            break;
 
         case constants.IMAGE_EXTENSIONS.IMAGE_PDF_EXT:
 
-            canvas
+            return canvas
                 .createPDFStream()
-                .pipe(fs.createWriteStream(constants.PATH_HEATMAPS_IMAGES + `${filename}.${imageType}`))
+                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
                 .on('finish', () => logger.log('info', finishMsg));
-
-            break;
 
         default:
             throw Error(`media type not supported: ${imageType}`);
@@ -182,27 +163,173 @@ const colorize = ( //value must be standardized first
     }
 };
 
-const standardize = (point, field, mean, std) => {
+const standardize = ({point, field, mean, std}) => {
 
     return (point[field] - mean) / std;
+};
+
+const drawHeatMapTile = async({
+
+    pointsBatch = x`Points Batch`,
+    field = x`Field`,
+    datasetMean = x`Dataset Mean`,
+    datasetStd = x`Dataset Std`,
+    palette = x`Palette`,
+    width = x`Tile's Width`,
+    height = x`Tile's Height`
+
+}) => {
+
+    if (pointsBatch.length === 0) {
+        logger.log('error', `The batch provided doesn't have any measurement's points`);
+        throw Error(`Failing to draw HeatMap's tiles`);
+    }
+
+    //palette RGBs
+    const paletteRGB = getPalettesRGB(palette);
+
+    //canvas
+    const canvas = Canvas.createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+
+    pointsBatch.forEach((entry, indexY) => {
+
+        //drawing pixels line
+        entry.forEach((point, indexX) => {
+
+            //standardization
+            const standardizedPoint = standardize({
+                point: point,
+                field: field,
+                mean: datasetMean,
+                std: datasetStd,
+            });
+
+            //color mapping
+            const colorizedPoint = colorize({
+                value: standardizedPoint,
+                min: minZscore,
+                max: maxZscore,
+                palette: paletteRGB,
+            });
+
+            ctx.fillStyle = `rgb(${colorizedPoint.r},${colorizedPoint.g},${colorizedPoint.b})`;
+            ctx.fillRect(indexX, indexY, 1, 1);
+        });
+    });
+
+    return canvas;
+};
+
+const heatMapTilesBuilder = async (
+    {
+        request,
+        measurements,       //from measurement analysis, sorted, only the names
+        datasetMean,        //from dataset analysis
+        datasetStd,         //from dataset analysis
+        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
+    }) => {
+
+    const intervals =
+        (Date.parse(request.endInterval) - Date.parse(request.startInterval)) / (request.period * 1000) + 1;
+
+    //seconds in a time interval (i.e. the width of the tile)
+    const tileTimeRangeWidth = (request.period * config.HEATMAPS.TILE_WIDTH) - request.period;
+
+    let currentStartInterval = new Date(request.startInterval);
+    let currentEndInterval = new Date(request.startInterval);
+    currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+
+    for (let i = 0; i < intervals; i += config.HEATMAPS.TILE_WIDTH) {
+
+        for (let j = 0; j < measurements.length; j += config.HEATMAPS.TILE_HEIGHT) {
+
+            const slicedMeasurements = measurements.slice(j, j + config.HEATMAPS.TILE_HEIGHT);
+
+            let formattedCurrentStartInterval = currentStartInterval.toISOString();
+            let formattedCurrentEndInterval = currentEndInterval.toISOString();
+
+            if (currentEndInterval > Date.parse(request.endInterval))
+                formattedCurrentEndInterval = (new Date(request.endInterval)).toISOString();
+
+            //fetches points batch
+            await influx.fetchPointsFromHttpApi({
+                    database: request.database,
+                    policy: request.policy,
+                    measurements: slicedMeasurements,
+                    startInterval: formattedCurrentStartInterval,
+                    endInterval: formattedCurrentEndInterval,
+                    period: request.period,
+                    fields: request.fields,
+                })
+                .then(pointsBatch => {
+
+                    if (pointsBatch.length === 0)
+                        console.log(pointsBatch);
+
+                    //build canvas
+                    return drawHeatMapTile({
+                        pointsBatch: pointsBatch,
+                        field: request.fields[0],
+                        datasetMean: datasetMean,
+                        datasetStd: datasetStd,
+                        palette: request.palette,
+                        width: config.HEATMAPS.TILE_WIDTH,
+                        height: config.HEATMAPS.TILE_HEIGHT,
+                    });
+                })
+                .then(canvas => {
+
+                    //builds the filename
+                    const filename =
+                        `/TILE_` +
+                        `${request.database}_` +
+                        `${request.policy}_` +
+                        `${formattedCurrentStartInterval}_` +
+                        `${formattedCurrentEndInterval}_` +
+                        `${request.period}_` +
+                        `${request.fields[0]}_` +
+                        `${request.heatMapType}_` +
+                        `${request.palette}_` +
+                        `${j}_${(j + slicedMeasurements.length) - 1}`;
+
+                    //path for storing image
+                    const pathTilesDir = constants.PATH_HEATMAPS_IMAGES+`/${request.database}`;
+                    if (!fs.existsSync(pathTilesDir)) {
+                        fs.mkdirSync(pathTilesDir);
+                    }
+
+                    //stores tile
+                    return canvasToImage({
+                        canvas: canvas,
+                        filename: filename,
+                        imageType: imageType,
+                        path: pathTilesDir,
+                    })
+                })
+                .catch((err) => {
+                    logger.log('error', `Failed during HeatMap Image Tiles building: ${err}`);
+                });
+        }
+
+        //advance with time interval
+        currentStartInterval.setSeconds(currentStartInterval.getSeconds() + tileTimeRangeWidth);
+        currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+    }
+    return 'OK';
 };
 
 const drawHeatMap = async ({
 
     request,
     analysis,
+    fieldIndex,
 
 }) => {
-
-    //computes the field index (used to retrieve the request field in fieldsStats within the measurements analysis)
-    const fieldIndex = analysis.datasetAnalysis.fieldsStats.map(entry => entry.field).indexOf(request.fields[0]);
 
     //computes canvas dimensions
     const width = analysis.datasetAnalysis.intervals;
     let height = analysis.measurementsAnalysis.length; //number of measurements to compute
-    if (request.nMeasurements > 0) {
-        height = analysis.measurementsAnalysis.slice(0, request.nMeasurements).length;
-    }
 
     logger.log('info', `Start building ${request.heatMapType} HeatMap for ${request.fields[0]}`);
 
@@ -210,7 +337,7 @@ const drawHeatMap = async ({
     const palette = getPalettesRGB(request.palette);
 
     //canvas
-    logger.log('info', `Generating Canvas [${width}x${height}]`);
+    //logger.log('info', `Generating Canvas [${width}x${height}]`);
     const canvas = Canvas.createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
@@ -227,19 +354,19 @@ const drawHeatMap = async ({
         }
 
         const measurement = analysis.measurementsAnalysis[i].measurement;
-        const points = await influx.fetchPointsFromHttpApi(
-            request.database,
-            request.policy,
-            measurement,            //decides the order
-            request.startInterval,
-            request.endInterval,
-            request.period,
-            request.fields
-        )
-            .catch(err => {
-                logger.log('error', `Failed to fetch points: ${err.message}`);
-                throw Error(`Failed to draw the HeatMap`);
-            });
+        const points = await influx.fetchPointsFromHttpApi({
+            database: request.database,
+            policy: request.policy,
+            measurements: [measurement],            //decides the order
+            startInterval: request.startInterval,
+            endInterval: request.endInterval,
+            period: request.period,
+            fields: request.fields,
+        })
+        .catch(err => {
+            logger.log('error', `Failed to fetch points: ${err.message}`);
+            throw Error(`Failed to draw the HeatMap`);
+        });
 
         if (points.length === 0) {
 
@@ -250,12 +377,12 @@ const drawHeatMap = async ({
         //drawing pixels
         points.forEach((point, index) => {
 
-            let standardizedPoint = standardize(
-                point,
-                request.fields[0],
-                analysis.datasetAnalysis.fieldsStats[fieldIndex].mean,
-                analysis.datasetAnalysis.fieldsStats[fieldIndex].std
-            );
+            let standardizedPoint = standardize({
+                point: point,
+                fields: request.fields[0],
+                mean: analysis.datasetAnalysis.fieldsStats[fieldIndex].mean,
+                std: analysis.datasetAnalysis.fieldsStats[fieldIndex].std
+            });
 
             let colorizedPoint = colorize({
                 value: standardizedPoint,
@@ -280,11 +407,61 @@ const drawHeatMap = async ({
     return canvas;
 };
 
-const heatMapBuildAndStore = async (heatMapRequest, imageType) => {
+const heatMapMeasurementsSorting = async (
+    {
+        heatMapType = x`HeatMap Type`,
+        measurementsAnalysis = x`Analysis`,
+        field = x`Field`,
+        fieldIndex = x`Field Index of Dataset Analysis`
+    }) => {
 
-    //args check
-    heatMapRequest = heatMapRequest || x`HeatMap request`;
-    imageType = imageType || x`Image Type`;
+    logger.log('info', `Sorting Measurements Stats according to HeatMap Type [${heatMapType}] for the field ` +
+        `[${field} with Field Index: ${fieldIndex}]`);
+
+    //sorts the measurements analysis
+    //the order of each measurement in the measurements analysis is used to build different heatmaps
+    let measurementsAnalysisSorted = measurementsAnalysis;
+    switch (heatMapType) {
+
+        case constants.HEATMAPS.TYPES.SORT_BY_MACHINE:
+
+            break;
+
+        case constants.HEATMAPS.TYPES.SORT_BY_SUM:
+
+            measurementsAnalysisSorted =
+                sortMeasurementsByFieldByStatsType(
+                    measurementsAnalysis,
+                    fieldIndex,
+                    'sum');
+
+            break;
+
+        case constants.HEATMAPS.TYPES.SORT_BY_TS_OF_MAX_VALUE:
+
+            measurementsAnalysisSorted =
+                sortMeasurementsByFieldByStatsType(
+                    measurementsAnalysis,
+                    fieldIndex,
+                    'max_ts');
+
+            break;
+
+        default:
+            break;
+    }
+
+    logger.log('info', `Sorted Measurements Analysis updated`);
+
+    return measurementsAnalysisSorted;
+};
+
+const heatMapBuildAndStore = async (
+    {
+        request = x`HeatMap request`,
+        imageType = x`Image Type`,
+        mode = constants.HEATMAPS.MODES.TILES    //single | tiles
+    }) => {
 
     //sets computation in progress (global)
     globals.setHeatMapComputationStatus(true);
@@ -294,10 +471,10 @@ const heatMapBuildAndStore = async (heatMapRequest, imageType) => {
 
     try {
 
-        logger.info('info', `Start Validation for ${JSON.stringify(heatMapRequest)}`);
+        logger.info('info', `Start Validation for ${JSON.stringify(request)}`);
 
         //validation
-        await heatMapConfigurationValidation(heatMapRequest)
+        await heatMapConfigurationValidation(request)
             .catch(err => {
                 logger.log('error', `Failing to validate heatmap request: ${err.message}`);
                 throw Error(`Validation fails: ${err.message}`);
@@ -307,10 +484,10 @@ const heatMapBuildAndStore = async (heatMapRequest, imageType) => {
 
         //dataset analysis
         const datasetAnalysis = await analysisService.getAnalysisCached({
-            database: heatMapRequest.database,
-            policy: heatMapRequest.policy,
-            startInterval: heatMapRequest.startInterval,
-            endInterval: heatMapRequest.endInterval,
+            database: request.database,
+            policy: request.policy,
+            startInterval: request.startInterval,
+            endInterval: request.endInterval,
             analysisType: constants.ANALYSIS.TYPES.DATASET,
             visualizationFlag: 'server',
         })
@@ -322,11 +499,11 @@ const heatMapBuildAndStore = async (heatMapRequest, imageType) => {
         logger.log('info', `Fetching Measurements Analysis`);
 
         //measurements analysis
-        const measurementsAnalysis = await analysisService.getAnalysisCached({
-            database: heatMapRequest.database,
-            policy: heatMapRequest.policy,
-            startInterval: heatMapRequest.startInterval,
-            endInterval: heatMapRequest.endInterval,
+        let measurementsAnalysis = await analysisService.getAnalysisCached({
+            database: request.database,
+            policy: request.policy,
+            startInterval: request.startInterval,
+            endInterval: request.endInterval,
             analysisType: constants.ANALYSIS.TYPES.MEASUREMENTS,
             visualizationFlag: 'server',
         })
@@ -335,35 +512,71 @@ const heatMapBuildAndStore = async (heatMapRequest, imageType) => {
                 throw Error(`Fetching Measurements Analysis fails: ${err.message}`);
             });
 
-        logger.log('info', `Start HeatMap Construction`);
+        logger.log('info', `Start HeatMap Construction [MODE: ${mode}]`);
+
+        //return the field index (of the requested field) in the list of fields within the fieldsStats array
+        const fieldIndex = datasetAnalysis.fieldsStats.map(entry => entry.field).indexOf(request.fields[0]);
+
+        //sorts measurement analysis according to the type of HeatMap requested
+        const measurementsAnalysisSorted = await heatMapMeasurementsSorting({
+            heatMapType: request.heatMapType,
+            measurementsAnalysis: measurementsAnalysis,
+            field: request.fields[0],
+            fieldIndex: fieldIndex,
+        });
+
+        //subset of measurements selected
+        if (request.nMeasurements > 0) {
+            measurementsAnalysis = measurementsAnalysisSorted.slice(0, request.nMeasurements);
+        }
+
+        //slices measurements if we want only a subset of them
+        // if (request.nMeasurements > 0) {    // 0 means all the measurements
+        //     analysisSorted.measurementsAnalysis = analysisSorted.measurementsAnalysis.slice(0, request.nMeasurements);
+        // }
 
         //construction
-        const canvas = await heatMapConstruction(
-            {
-                request: heatMapRequest,
-                analysis: {
-                    datasetAnalysis: datasetAnalysis,
-                    measurementsAnalysis: measurementsAnalysis,
-                },
-            })
-            .catch(error => {
-                logger.log('error', `Failing to build the HeatMap Image: ${error.message}`);
-                throw Error(`Construction fails: ${error.message}`);
-            });
+        switch (mode) {
 
-        logger.log('info', `Start image storing`);
+            case constants.HEATMAPS.MODES.SINGLE_IMAGE:
 
-        //storing
-        await heatMapCanvasToImage(
-            {
-                canvas: canvas,
-                request: heatMapRequest,
-                imageType: imageType,
-            })
-            .catch(error => {
-                logger.log('error', `Failing to store the HeatMap Image: ${error.message}`);
-                throw Error(`Storing fails: ${error.message}`);
-            });
+                //builds canvas
+                await drawHeatMap(
+                    {
+                        request: request,
+                        analysis: measurementsAnalysis,
+                        fieldIndex: fieldIndex,
+                    })
+                    .then(canvas => {
+
+                        return canvasToImage(
+                            {
+                                canvas: canvas,
+                                request: request,
+                                imageType: imageType,
+                            });
+                    })
+                    .catch(error => {
+                        logger.log('error', `Failing to build the HeatMap Image: ${error.message}`);
+                        throw Error(`Construction of the single image HeatMap fails`);
+                    });
+
+                break;
+
+            case constants.HEATMAPS.MODES.TILES:
+
+                await heatMapTilesBuilder({
+                    request: request,
+                    measurements: measurementsAnalysis.map(m => m.measurement), //fetches only the names, sorted
+                    datasetMean: datasetAnalysis.fieldsStats[fieldIndex].mean,
+                    datasetStd: datasetAnalysis.fieldsStats[fieldIndex].std,
+                    imageType: imageType,
+                })
+                    .catch(err => {
+                        logger.log('error', `Failing to build the HeatMap Image Tiles: ${err.message}`);
+                        throw Error(`Construction of the HeatMap Image Tiles fails`);
+                    });
+        }
 
         logger.log('info', `BuildNStore process completed`);
 
@@ -390,70 +603,6 @@ const sortMeasurementsByFieldByStatsType = (measurementsAnalysis, fieldIndex, ty
 
         return a.fieldsStats[fieldIndex][type] < b['stats'][fieldIndex][type];
     });
-};
-
-const heatMapConstruction = async (
-    {
-        request = x`Computation Request`,
-        analysis = x`Analysis`,
-    }
-
-    ) => {
-
-    //sorts the measurements analysis
-    //the order of each measurement in the measurements analysis is used to build different heatmaps
-    let measurementsAnalysis = analysis.measurementsAnalysis;
-
-    //return the field index (of the requested field) in the list of fields within the fieldsStats array
-    const fieldIndex = analysis.datasetAnalysis.fieldsStats.map(entry => entry.field).indexOf(request.fields[0]);
-
-    logger.log('info', `Sorting Measurements Stats according to HeatMap Type [${request.heatMapType}] for the field ` +
-                       `[${request.fields[0]} with Field Index: ${fieldIndex}]`);
-
-    switch (request.heatMapType) {
-
-        case constants.HEATMAPS.TYPES.SORT_BY_MACHINE:
-
-            break;
-
-        case constants.HEATMAPS.TYPES.SORT_BY_SUM:
-
-            measurementsAnalysis =
-                sortMeasurementsByFieldByStatsType(
-                    measurementsAnalysis,
-                    fieldIndex,
-                    'sum');
-
-            break;
-
-        case constants.HEATMAPS.TYPES.SORT_BY_TS_OF_MAX_VALUE:
-
-            measurementsAnalysis =
-                sortMeasurementsByFieldByStatsType(
-                    measurementsAnalysis,
-                    fieldIndex,
-                    'max_ts');
-
-            break;
-
-        default:
-            break;
-    }
-
-    //update the measurement analysis (eventually) sorted
-    analysis.measurementsAnalysis = measurementsAnalysis;
-
-    logger.log('info', `Sorted Measurements Analysis updated`);
-
-    return drawHeatMap(
-        {
-            request: request,
-            analysis: analysis,
-        })
-        .catch(error => {
-            logger.log('error', `Failed during HeatMap Drawing: ${error.message}`);
-            throw Error(`Drawing HeatMap fails: ${error.message}`);
-        });
 };
 
 /* HeatMap Configuration Validation */
@@ -499,14 +648,14 @@ const heatMapConfigurationValidation = async (request) => {
     request.policy = request.policy || x`Policy`;
     request.startInterval = request.startInterval || x`Start Interval`;
     request.endInterval = request.endInterval || x`End Interval`;
-    request.fields = request.fields || x`Fields`;
+    request.field = request.field || x`Fields`;
     // request.nMeasurements = request.nMeasurements || x`number of measurements`;
     request.period = request.period || x`Period`;
     request.heatMapType = request.heatMapType || x`HeatMap type`;
     request.palette = request.palette || x`Palette`;
 
     //database + policy + fields validation
-    await validateDatabaseArgs(request.database, request.policy, request.fields)
+    await validateDatabaseArgs(request.database, request.policy, [request.field])
     .catch(err => {
        logger.log('error', `Failed to validate Database/Policy/Fields: ${err.message}`);
        throw Error(`Validation of Database/Policy/Fields failed`);
@@ -514,7 +663,7 @@ const heatMapConfigurationValidation = async (request) => {
 
     logger.log('info', `Database: [${request.database}] validated ` +
                        `Policy: [${request.policy}] validated ` +
-                       `Fields: [${request.fields}] validated`);
+                       `Fields: [${request.field}] validated`);
 
     //intervals validation
     let startInterval, endInterval;
@@ -565,10 +714,8 @@ const heatMapConfigurationValidation = async (request) => {
 
 module.exports = {
     heatMapConfigurationValidation: heatMapConfigurationValidation,
-    heatMapConstruction: heatMapConstruction,
     heatMapBuildAndStore: heatMapBuildAndStore,
     heatMapFetcher: heatMapFetcher,
-    heatMapCanvasToImage: heatMapCanvasToImage,
     getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
     setZscores: setZscores,
