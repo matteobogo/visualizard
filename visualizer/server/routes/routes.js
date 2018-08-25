@@ -26,7 +26,7 @@ router.get('/influx/periods', TimeSeriesController.getPeriods);
 router.get('/influx/measurements', TimeSeriesController.getMeasurements);
 router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesController.getTimeIntervalByPolicyByNameByField);
 router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDataByPolicyByName);
-router.get('/influx/measurements/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsByPolicyByNameByStartTimeByEndTime);
+router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);
 router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getNamesByTagKeyByTagValue);
 
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
