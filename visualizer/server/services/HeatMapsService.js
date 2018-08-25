@@ -320,6 +320,7 @@ const heatMapTilesBuilder = async (
                     const pathTilesDir =
                         process.cwd() +
                         constants.PATH_HEATMAPS_IMAGES +
+                        `/TILES` +
                         `/${request.database}` +
                         `/${request.policy}` +
                         `/${request.heatMapType}` +
@@ -327,6 +328,7 @@ const heatMapTilesBuilder = async (
                         `/${request.palette}` +
                         `/${currentStartInterval.getTime()}`;  //unix epoch
 
+                    //check if directory exists, otherwise creates it
                     if (!fs.existsSync(pathTilesDir)) {
                         mkdirp.sync(pathTilesDir);
                     }
@@ -443,10 +445,42 @@ const drawHeatMap = async ({
     logger.log('info',
         `Canvas generation completed, now starts to convert the canvas in ${imageType}`);
 
-    await canvasToImage({
+    const formattedStartInterval = (new Date(request.startInterval)).toISOString();
+    const formattedEndInterval = (new Date(request.endInterval)).toISOString();
+
+    //builds the filename
+    const filename =
+        `/HEATMAP_` +
+        `${request.database}_` +
+        `${request.policy}_` +
+        `${formattedStartInterval}_` +
+        `${formattedEndInterval}_` +
+        `${request.period}_` +
+        `${request.fields[0]}_` +
+        `${request.heatMapType}_` +
+        `${request.palette}_`;
+
+    //path for storing image
+    const pathImageDir =
+        process.cwd() +
+        constants.PATH_HEATMAPS_IMAGES +
+        `/HEATMAPS` +
+        `/${request.database}` +
+        `/${request.policy}` +
+        `/${request.heatMapType}` +
+        `/${request.fields[0]}` +
+        `/${request.palette}`;
+
+    //check if directory exists, otherwise creates it
+    if (!fs.existsSync(pathTilesDir)) {
+        mkdirp.sync(pathTilesDir);
+    }
+
+    return canvasToImage({
         canvas: canvas,
-        request: request,
+        filename: filename,
         imageType: imageType,
+        path: path,
     })
         .catch(err => {
             throw Error(`Failed to convert canvas to image: ${err.message}`);
