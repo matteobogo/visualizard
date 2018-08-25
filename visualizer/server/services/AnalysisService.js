@@ -193,15 +193,15 @@ const analyzeDataset = async (
         });
 
         //fetches measurement's points
-        const points = await influxdb.fetchPointsFromHttpApi(
-            database,
-            policy,
-            measurements[i],
-            startInterval,
-            endInterval,
-            period,
-            fields
-        );
+        const points = await influxdb.fetchPointsFromHttpApi({
+            database: database,
+            policy: policy,
+            measurements: [measurements[i]],
+            startInterval: startInterval,
+            endInterval: endInterval,
+            period: period,
+            fields: fields
+        });
 
         //collect stats from points
         points.forEach(point => {
@@ -308,15 +308,15 @@ const analyzeDataset = async (
         let measurementTmpData = {};
 
         //fetches measurement's points
-        const points = await influxdb.fetchPointsFromHttpApi(
-            database,
-            policy,
-            measurements[i],
-            startInterval,
-            endInterval,
-            period,
-            fields
-        );
+        const points = await influxdb.fetchPointsFromHttpApi({
+            database: database,
+            policy: policy,
+            measurements: [measurements[i]],
+            startInterval: startInterval,
+            endInterval: endInterval,
+            period: period,
+            fields: fields
+        });
 
         //fetches measurement stats from the database (we need to take the mean)
         const measurementStatFieldsStats = await MeasurementStatsModel
