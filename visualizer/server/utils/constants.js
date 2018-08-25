@@ -45,6 +45,10 @@ const constants = {
             SORT_BY_SUM: 'SORT_BY_SUM',
             SORT_BY_TS_OF_MAX_VALUE: 'SORT_BY_TS_OF_MAX_VALUE',
         },
+        MODES: {
+            SINGLE_IMAGE: 'SINGLE_IMAGE',
+            TILES: 'TILES',
+        },
     },
 
     ANALYSIS: {
