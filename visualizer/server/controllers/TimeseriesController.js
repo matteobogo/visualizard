@@ -205,16 +205,24 @@ const getDataByPolicyByName = async function(req, res) {
     return ReS(res, {measurement: measurement}, 200);
 };
 
-const getPointsByPolicyByNameByStartTimeByEndTime = async function(req, res) {
+const getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
     
-    let policy, name, time_start, time_end, err, measurements;
+    let database, policy, name, time_start, time_end, err, measurements;
+    database = req.params.database;
     policy = req.params.policy;
-    name = req.params.name;
+    measurements = req.params.name;
     time_start = req.params.time_start;
     time_end = req.params.time_end;
 
-    [err, measurements] = await to(influx.getPointsByPolicyByNameByStartTimeByEndTime(policy,name,time_start,time_end));
+    [err, measurements] = await to(
+        influx.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime(
+            database,
+            policy,
+            measurements,
+            time_start,
+            time_end)
+    );
 
     if(err) return ReE(res, 'error finding measurement');
     if(!measurements) return ReE(res, 'error finding measurement '+ name +
@@ -298,7 +306,7 @@ module.exports = {
     getMeasurements: getMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
     getDataByPolicyByName: getDataByPolicyByName,
-    getPointsByPolicyByNameByStartTimeByEndTime: getPointsByPolicyByNameByStartTimeByEndTime,
+    getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime: getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime,
     getNamesByTagKeyByTagValue: getNamesByTagKeyByTagValue,
     buildResourceUsageHeatMapOverMachineIdByResource: buildResourceUsageHeatMapOverMachineIdByResource
 };
