@@ -1,5 +1,8 @@
 const config = require("../config/config");
+const logger = require("../config/winston");
 const InfluxClient = require("influx");
+
+const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
 const influx = new InfluxClient.InfluxDB(
     'http://'+config.INFLUX.db_user+
@@ -106,15 +109,7 @@ const getDataByPolicyByName = (name, policy) => {
     );
 };
 
-/**
- * Get all the points of a specific time serie in a time interval [start, end].
- * @param {string} dbname - the database name.
- * @param {string} policy - the name of the policy.
- * @param {string} name - the name of the time serie.
- * @param {Date} time_start - the start time of the interval, in UTC.
- * @param {Date} time_end - the end time of the interval, in UTC.
- */
-const getPointsByPolicyByNameByStartTimeByEndTime = (dbname, policy, name, time_start, time_end) => {
+const getPointsByDatabaseByPolicyByNameByStartTimeByEndTime = (dbname, policy, name, time_start, time_end) => {
     return influx.query(
         `
         select * from ${dbname}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
@@ -132,13 +127,60 @@ const getPointsByPolicyByNameByStartTimeByEndTime = (dbname, policy, name, time_
  * @param {string} field - the specified field of the time serie.
  * @returns {Promise<IResults<any>>}
  */
-const getPointsByPolicyByNameByStartTimeByEndTimeByField = (dbname, policy, name, time_start, time_end, field) => {
+const getPointsByDatabaseByPolicyByNameByStartTimeByEndTimeByField = (dbname, policy, name, time_start, time_end, field) => {
 
     return influx.query(
         `
         select ${field} from ${dbname}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
         `
-    )
+    );
+};
+
+//mean(*) is necessary because GROUP BY doesn't work without an aggregation function.
+//Furthermore, InfluxDB doesn't support mixed aggregation and not-aggregation in the select clause
+//using the user defined period (in seconds) as grouping attribute for time, values will not change
+//this workaround is necessary to use the fill() function (only works with GROUP BY) for replacing missing values
+const getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime =
+    (database, policy, measurements, time_start, time_end, period, fillMissing = 0) => {
+
+    const query =
+        `
+        select mean(*) from 
+        ${measurements.map((measurement) => `${database}.${policy}.${measurement}`)}
+        where time >= '${time_start}' and time <= '${time_end}' GROUP BY time(${period}s) fill(${fillMissing})
+        `;
+
+    return removePrefixFromQueryResult(influx.query(query));
+};
+
+const removePrefixFromQueryResult = (queryResult) => {
+
+    return queryResult
+        .then(data => {
+
+            //InfluxDB know issue:
+            //https://community.influxdata.com/t/query-problem-removing-prefix-to-field-name-of-into-clause/1006
+            //we can't remove the prefix before the field's names: mean(*) => mean_xxx , mean_yyy, ...
+            //we can't do "select mean(*) as *" for making new fieldnames same as the source measurement
+            data.map(point => {
+
+                //removes mean_ placed by InfluxDB before the field key in the result object
+                Object.keys(point).forEach(key => {
+                    if (point.hasOwnProperty(key)) {
+                        if(key.includes('mean_')) {
+                            point[key.replace('mean_', '')] = point[key];
+                            delete point[key]
+                        }
+                    }
+                });
+            });
+
+            return data;
+        })
+        .catch(err => {
+            logger.log('error', `Failed to remove InfluxDB prefix from the query result: ${err.message}`);
+            throw Error(`Failed during query result transformation`);
+        });
 };
 
 /**
@@ -219,85 +261,137 @@ const fetchMeasurementsListFromHttpApi = (dbname) => {
     )
 };
 
-const fetchPointsFromHttpApi = (
-    database,
-    policy,
-    measurement,
-    startInterval,
-    endInterval,
-    period,
-    fields) => {
+const fetchPointsFromHttpApi = async (
+    {
+        database = x`Database`,
+        policy = x`Policy`,
+        measurements = x`Measurements`,
+        startInterval = x`Start Interval`,
+        endInterval = x`End Interval`,
+        period = x`Period`,
+        fields = x`Fields`,
+    }
+) => {
 
-    return new Promise(
-        function (resolve, reject) {
+    if (measurements.length === 0)
+        throw Error(`measurements cannot be empty`);
+    if (fields.length === 0)
+        throw Error(`fields cannot be empty`);
 
-            getPointsByPolicyByNameByStartTimeByEndTime(
-                database,
-                policy,
-                measurement,
-                startInterval,
-                endInterval)
+    //number of intervals per measurement
+    //period * 1000 because epoch time is in ms and period is in sec
+    const intervals = (Date.parse(endInterval) - Date.parse(startInterval)) / (period * 1000) + 1;
 
-                .then(p => {
+    // [batch_measurement1 .. batch_measurementn]
+    //[
+    // { time: timestamp1, field1: value, .. , fieldn: value }, .. { time: timestampn, field1: value, .. , fieldn: value },
+    // { time: timestamp1, field1: value, .. , fieldn: value }, .. { time: timestampn, field1: value, .. , fieldn: value },
+    // ..
+    //]
+    const expectedBatchSize = intervals * measurements.length;
 
-                    let points = [];
+    return getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime(
+        database,
+        policy,
+        measurements,
+        startInterval,
+        endInterval,
+        period
+    )
+        .then(async (pointsBatch) => {
 
-                    //fix missing values (eventually)
-                    let current_timestamp = Date.parse(startInterval)
-                        , end_timestamp = Date.parse(endInterval)
-                        , k = 0;
+            if (pointsBatch.length === 0) {
 
-                    while (current_timestamp <= end_timestamp) { //<= ?
+                throw Error(`Empty points batch fetched from InfluxDB for [${database}][${policy}][${measurements}]` +
+                    `[${startInterval}][${endInterval}][${period}]`);
+            }
 
-                        //init point's time and fields
-                        let point = {time: Date.parse(current_timestamp)};
-                        fields.forEach(field => {
+            //InfluxDB missing feature: https://github.com/influxdata/influxdb/issues/6412
+            //if a timeserie has no points in a time range, InfluxDB will answer with empty result, even if we
+            //use GROUP BY time(period) fill(value). InfluxDB will fill empty values only if there at least one
+            //point not empty, otherwise the result is empty.
+            //In this scenario, we will request a batch of points of multiple time series in a specific time
+            //interval, so if a time serie has no points in the time range of k intervals requested, the result
+            //array has k points less then expected.
 
-                            point[field] = 0.0;
-                        });
+            //with this "patch" (hoping that in the future InfluxDB will release this feature), if the batch has
+            //less points than expected, we will check which timeserie/s has no points in the time interval and
+            //we will generate its array of points with 0 values (default) programmatically.
 
-                        //there are points to process
-                        if (k < p.length) {
+            if (pointsBatch.length < expectedBatchSize) {
 
-                            let timestamp = Date.parse(p[k].time);
-                            const diff = timestamp - current_timestamp;
+                await (async () => {
 
-                            //timestamps mismatch: i'm ahead, so the current ts is missing
-                            if (diff > 0) {
-                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                            }
-                            //timestamp match
-                            else if (diff === 0) {
+                    pointsBatch = [];
+                    for (let i = 0; i < measurements.length; ++i) {
 
-                                //update fields with real value
-                                fields.forEach(field => {
+                        let points = await getPointsByDatabaseByPolicyByNameByStartTimeByEndTime(
+                            database,
+                            policy,
+                            measurements[i],
+                            startInterval,
+                            endInterval,
+                        )
+                            .catch(err => {
+                                logger.log('error',
+                                    `Failed fetching points of measurement [${measurements[i]}]` +
+                                    `during a wrong points batch size detection: ${err.message}`);
+                                throw Error(`Failed to retrieve points batch from InfluxDB`);
+                            });
 
-                                    point[field] = p[k][field];
+                        //time serie with no points in the time interval specified
+                        //if the time serie has missing values, but at least one value, the fill() used in the
+                        //query will cover the missing values with 0.
+                        //This is the scenario in which the time serie has no points (i.e. only missing values)
+                        if (points.length === 0) {
+
+                            let timestamp = new Date(startInterval);
+
+                            //reconstructs: [{time: xxx, field1: xxx, field2: yyy, .. fieldn: zzz}]
+                            for (let i = 0; i < intervals; ++i) {
+
+                                let obj = {time: timestamp.setSeconds(timestamp.getSeconds() + (period * i))};
+
+                                fields.forEach((field, index) => {
+
+                                    obj[field] = 0;
                                 });
 
-                                ++k;
-                                current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                            }
-                            //timestamp mismatch: i'm back, so the start interval was ahead.
-                            else if (diff < 0) {
-                                ++k;
-                                continue;
+                                points.push(obj);
                             }
                         }
-                        else { //no more points
-                            current_timestamp.setSeconds(current_timestamp.getSeconds() + period);
-                        }
-                        points.push(point);
-                    }
 
-                    resolve(points);
-                })
-                .catch((err) => {
-                    console.log(err);
-                    reject('server unavailable');
-                });
-        }
-    )
+                        pointsBatch.push(points);
+                    }
+                })();
+
+                if (pointsBatch.length === 0)
+                    throw Error(`Failed to reconstruct points batch after inconsistent batch size detection`);
+                else
+                    return pointsBatch;   //implicitly spliced with sub-arrays of measurements
+
+            }
+            else if (pointsBatch > expectedBatchSize) {
+
+                logger.log('error',
+                    `Points Batch fetched [${pointsBatch.length}] is greater than expected ` +
+                    `[${expectedBatchSize.length}]`);
+                throw Error(`Failed to retrieve points batch from InfluxDB`);
+            }
+
+            //[ { m1_ts1, fields }, { m1_ts2, fields }, .. { mn_ts1, fields }, { mn_ts2, fields } ]
+            // ==> [ [ { m1_ts1, fields }, { m1_ts2, fields }, .. ] , [ { mn_ts1, fields }, { mn_ts2, fields } ] ]
+            // each sub-array represents a measurement with its set of points in the time interval specified
+            let splicedPointsBatch = [];
+            while (pointsBatch.length > 0) {
+
+                splicedPointsBatch.push(pointsBatch.splice(0, intervals));
+            }
+
+            if (splicedPointsBatch.length === 0)
+                throw Error(`Failed to splice points batch according to the number of intervals [${intervals}]`);
+            else return splicedPointsBatch;
+        });
 };
 
 module.exports = {
@@ -309,8 +403,9 @@ module.exports = {
     getFirstInterval: getFirstInterval,
     getLastInterval: getLastInterval,
     getDataByPolicyByName: getDataByPolicyByName,
-    getPointsByPolicyByNameByStartTimeByEndTime: getPointsByPolicyByNameByStartTimeByEndTime,
-    getPointsByPolicyByNameByStartTimeByEndTimeByField: getPointsByPolicyByNameByStartTimeByEndTimeByField,
+    getPointsByDatabaseByPolicyByNameByStartTimeByEndTime: getPointsByDatabaseByPolicyByNameByStartTimeByEndTime,
+    getPointsByDatabaseByPolicyByNameByStartTimeByEndTimeByField: getPointsByDatabaseByPolicyByNameByStartTimeByEndTimeByField,
+    getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime: getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime,
     getNamesByTagKeyByTagValue: getNamesByTagKeyByTagValue,
     getAllTagKeys: getAllTagKeys,
     getAllTagKeysByName: getAllTagKeysByName,
