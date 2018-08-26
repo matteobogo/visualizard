@@ -254,23 +254,25 @@ const heatMapTilesBuilder = async (
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
+        tileWidth,
+        tileHeight,
     }) => {
 
     const intervals =
         (Date.parse(request.endInterval) - Date.parse(request.startInterval)) / (request.period * 1000) + 1;
 
     //seconds in a time interval (i.e. the width of the tile)
-    const tileTimeRangeWidth = (request.period * config.HEATMAPS.TILE_WIDTH) - request.period;
+    const tileTimeRangeWidth = (request.period * tileWidth) - request.period;
 
     let currentStartInterval = new Date(request.startInterval);
     let currentEndInterval = new Date(request.startInterval);
     currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
 
-    for (let i = 0; i < intervals; i += config.HEATMAPS.TILE_WIDTH) {
+    for (let i = 0; i < intervals; i += tileWidth) {
 
-        for (let j = 0; j < measurements.length; j += config.HEATMAPS.TILE_HEIGHT) {
+        for (let j = 0; j < measurements.length; j += tileHeight) {
 
-            const slicedMeasurements = measurements.slice(j, j + config.HEATMAPS.TILE_HEIGHT);
+            const slicedMeasurements = measurements.slice(j, j + tileHeight);
 
             let formattedCurrentStartInterval = currentStartInterval.toISOString();
             let formattedCurrentEndInterval = currentEndInterval.toISOString();
@@ -297,8 +299,8 @@ const heatMapTilesBuilder = async (
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
                         palette: request.palette,
-                        width: config.HEATMAPS.TILE_WIDTH,
-                        height: config.HEATMAPS.TILE_HEIGHT,
+                        width: tileWidth,
+                        height: tileHeight,
                     });
                 })
                 .then(canvas => {
@@ -540,7 +542,9 @@ const heatMapBuildAndStore = async (
     {
         request = x`HeatMap request`,
         imageType = x`Image Type`,
-        mode = constants.HEATMAPS.MODES.TILES    //single | tiles
+        mode = constants.HEATMAPS.MODES.TILES,    //single | tiles
+        tileWidth = 128,
+        tileHeight = 128,
     }) => {
 
     //sets computation in progress (global)
@@ -652,6 +656,8 @@ const heatMapBuildAndStore = async (
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
                         imageType: imageType,
+                        tileWidth: tileWidth,
+                        tileHeight: tileHeight,
                     })
                     .catch(err => {
                         logger.log('error', `Failing to build the HeatMap Image Tiles: ${err.message}`);
