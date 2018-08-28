@@ -58,50 +58,53 @@ const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
 /* HeatMap Fetchers */
 
-const heatMapFetcher = async (
-    {
-        heatMapRequest,
-        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-    }
-
-    ) => {
-
-    heatMapRequest.database = heatMapRequest.database || x`Database is missing`;
-    heatMapRequest.policy = heatMapRequest.policy || x`Policy is missing`;
-    heatMapRequest.startInterval = heatMapRequest.startInterval || x`Start Interval is missing`;
-    heatMapRequest.endInterval = heatMapRequest.endInterval || x`End Interval is missing`;
-    heatMapRequest.fields[0] = heatMapRequest.fields[0] || x`Field is missing`;
-    heatMapRequest.nMeasurements = heatMapRequest.nMeasurements || x`number of measurements is missing`;
-    heatMapRequest.period = heatMapRequest.period || x`Period is missing`;
-    heatMapRequest.heatMapType = heatMapRequest.heatMapType || x`HeatMap Type is missing`;
-    heatMapRequest.palette = heatMapRequest.palette || x`Palette is missing`;
-
-    const filename = filenameGenerator(heatMapRequest);
-
-    logger.log('info', `Requesting ${filename}.${imageType}`);
-
-    //TODO image stored on external service like Amazon S3
-
-    //checks if the heatmap image is already stored
-    //TODO usa mkdirp ?
-    const file = fs.existsSync(`${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType}`);
-
-    if (!file) {
-        logger.log('warn', `Requested ${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType} ` +
-                           `but image has not been computed yet`);
-    }
-
-    //TODO carica heatmap grossa e ritaglia? altre strategie?
-
-
-    //convert image file to base64-encoded string
-    const base64Image = new Buffer(file, 'binary').toString('base64');
-
-    //combine all the strings and return the result
-    return `data:image/${imageType};base64,${base64Image}`;
-};
+// const heatMapFetcher = async (
+//     {
+//         heatMapRequest,
+//         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
+//     }
+//
+//     ) => {
+//
+//     heatMapRequest.database = heatMapRequest.database || x`Database is missing`;
+//     heatMapRequest.policy = heatMapRequest.policy || x`Policy is missing`;
+//     heatMapRequest.startInterval = heatMapRequest.startInterval || x`Start Interval is missing`;
+//     heatMapRequest.endInterval = heatMapRequest.endInterval || x`End Interval is missing`;
+//     heatMapRequest.fields[0] = heatMapRequest.fields[0] || x`Field is missing`;
+//     heatMapRequest.nMeasurements = heatMapRequest.nMeasurements || x`number of measurements is missing`;
+//     heatMapRequest.period = heatMapRequest.period || x`Period is missing`;
+//     heatMapRequest.heatMapType = heatMapRequest.heatMapType || x`HeatMap Type is missing`;
+//     heatMapRequest.palette = heatMapRequest.palette || x`Palette is missing`;
+//
+//     const filename = filenameGenerator(heatMapRequest);
+//
+//     logger.log('info', `Requesting ${filename}.${imageType}`);
+//
+//     //TODO image stored on external service like Amazon S3
+//
+//     //checks if the heatmap image is already stored
+//     //TODO usa mkdirp ?
+//     const file = fs.existsSync(`${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType}`);
+//
+//     if (!file) {
+//         logger.log('warn', `Requested ${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType} ` +
+//                            `but image has not been computed yet`);
+//     }
+//
+//     //TODO carica heatmap grossa e ritaglia? altre strategie?
+//
+//
+//     //convert image file to base64-encoded string
+//     const base64Image = new Buffer(file, 'binary').toString('base64');
+//
+//     //combine all the strings and return the result
+//     return `data:image/${imageType};base64,${base64Image}`;
+// };
 
 /* HeatMap Construction */
+
+//TODO storing on external storage service like Amazon S3 and stores the HTTP URLs in a database
+//TODO then just fetches to the clients the URL of requested tiles
 
 const canvasToImage = async (
     {
@@ -188,6 +191,8 @@ const standardize = (
     }
 };
 
+/* HeatMap Tiles Builder */
+
 const drawHeatMapTile = async({
 
     pointsBatch = x`Points Batch`,
@@ -254,25 +259,24 @@ const heatMapTilesBuilder = async (
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-        tileWidth,
-        tileHeight,
+        tileSize,
     }) => {
 
     const intervals =
         (Date.parse(request.endInterval) - Date.parse(request.startInterval)) / (request.period * 1000) + 1;
 
     //seconds in a time interval (i.e. the width of the tile)
-    const tileTimeRangeWidth = (request.period * tileWidth) - request.period;
+    const tileTimeRangeWidth = (request.period * tileSize) - request.period;
 
     let currentStartInterval = new Date(request.startInterval);
     let currentEndInterval = new Date(request.startInterval);
     currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
 
-    for (let i = 0; i < intervals; i += tileWidth) {
+    for (let i = 0; i < intervals; i += tileSize) {
 
-        for (let j = 0; j < measurements.length; j += tileHeight) {
+        for (let j = 0; j < measurements.length; j += tileSize) {
 
-            const slicedMeasurements = measurements.slice(j, j + tileHeight);
+            const slicedMeasurements = measurements.slice(j, j + tileSize);
 
             let formattedCurrentStartInterval = currentStartInterval.toISOString();
             let formattedCurrentEndInterval = currentEndInterval.toISOString();
@@ -299,15 +303,15 @@ const heatMapTilesBuilder = async (
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
                         palette: request.palette,
-                        width: tileWidth,
-                        height: tileHeight,
+                        width: tileSize,
+                        height: tileSize,
                     });
                 })
                 .then(canvas => {
 
                     //builds the filename
-                    const filename =
-                        `/TILE_` +
+                    const filename = `/${j}`;  //y (machines)
+
                         // `${request.database}_` +
                         // `${request.policy}_` +
                         // `${formattedCurrentStartInterval}_` +
@@ -316,9 +320,11 @@ const heatMapTilesBuilder = async (
                         // `${request.fields[0]}_` +
                         // `${request.heatMapType}_` +
                         // `${request.palette}_` +
-                        `${j}_${(j + slicedMeasurements.length) - 1}`;
+                        //`${j}_${(j + slicedMeasurements.length) - 1}`;
 
                     //path for storing image
+                    //in a real scenario: http://.../z/x/y
+                    //where z is the zoom (e.g. 256x256), x and y the coordinates (x is the time and y is the machines)
                     const pathTilesDir =
                         process.cwd() +
                         constants.PATH_HEATMAPS_IMAGES +
@@ -327,8 +333,9 @@ const heatMapTilesBuilder = async (
                         `/${request.policy}` +
                         `/${request.heatMapType}` +
                         `/${request.fields[0]}` +
-                        `/${request.palette}` +
-                        `/${currentStartInterval.getTime()}`;  //unix epoch
+                        //`/${request.palette}` +
+                        `/${tileSize}` +         //zoom
+                        `/${currentStartInterval.getTime()}`;   //x (timestamp in unix epoch)
 
                     //check if directory exists, otherwise creates it
                     if (!fs.existsSync(pathTilesDir)) {
@@ -543,8 +550,7 @@ const heatMapBuildAndStore = async (
         request = x`HeatMap request`,
         imageType = x`Image Type`,
         mode = constants.HEATMAPS.MODES.TILES,    //single | tiles
-        tileWidth = 128,
-        tileHeight = 128,
+        tileSize = 256,
     }) => {
 
     //sets computation in progress (global)
@@ -656,8 +662,7 @@ const heatMapBuildAndStore = async (
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
                         imageType: imageType,
-                        tileWidth: tileWidth,
-                        tileHeight: tileHeight,
+                        tileSize: tileSize,
                     })
                     .catch(err => {
                         logger.log('error', `Failing to build the HeatMap Image Tiles: ${err.message}`);
@@ -801,7 +806,6 @@ const heatMapConfigurationValidation = async (request) => {
 module.exports = {
     heatMapConfigurationValidation: heatMapConfigurationValidation,
     heatMapBuildAndStore: heatMapBuildAndStore,
-    heatMapFetcher: heatMapFetcher,
     getHeatMapTypes: getHeatMapTypes,
     getPalettes: getPalettes,
     setZscores: setZscores,

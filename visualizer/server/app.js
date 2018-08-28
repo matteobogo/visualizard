@@ -42,11 +42,8 @@ app.use('/api', api);
 /** WebSockets */
 const webSocketEvents = require('./ws/WebSocketManager')(io);
 
-// /** Home */
-// app.use('/', function(req, res) {
-//     res.statusCode = 200;
-//     res.json({status:"success", message:"Visualizard API", data:{}})
-// });
+/* Handling static files */
+app.use(express.static('public'));
 
 /** Handling Errors */
 app.use(function(req, res, next) {

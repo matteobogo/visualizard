@@ -109,12 +109,17 @@ const getDataByPolicyByName = (name, policy) => {
     );
 };
 
-const getPointsByDatabaseByPolicyByNameByStartTimeByEndTime = (dbname, policy, name, time_start, time_end) => {
-    return influx.query(
+const getPointsByDatabaseByPolicyByNameByStartTimeByEndTime =
+    (dbname, policy, name, time_start, time_end, period, fillMissing = 0) => {
+
+    const query =
         `
-        select * from ${dbname}.${policy}.${name} where time >= '${time_start}' and time <= '${time_end}'
-        `
-    );
+        select mean(*) from 
+        ${dbname}.${policy}.${name} 
+        where time >= '${time_start}' and time <= '${time_end}' GROUP BY time(${period}s) fill(${fillMissing})
+        `;
+
+        return removePrefixFromQueryResult(influx.query(query));
 };
 
 /**
@@ -127,7 +132,8 @@ const getPointsByDatabaseByPolicyByNameByStartTimeByEndTime = (dbname, policy, n
  * @param {string} field - the specified field of the time serie.
  * @returns {Promise<IResults<any>>}
  */
-const getPointsByDatabaseByPolicyByNameByStartTimeByEndTimeByField = (dbname, policy, name, time_start, time_end, field) => {
+const getPointsByDatabaseByPolicyByNameByStartTimeByEndTimeByField =
+    (dbname, policy, name, time_start, time_end, field) => {
 
     return influx.query(
         `
@@ -331,6 +337,7 @@ const fetchPointsFromHttpApi = async (
                             measurements[i],
                             startInterval,
                             endInterval,
+                            period,
                         )
                             .catch(err => {
                                 logger.log('error',
