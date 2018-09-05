@@ -201,7 +201,7 @@ const drawHeatMapTile = async({
     datasetStd = x`Dataset Std`,
     palette = x`Palette`,
     width = x`Tile's Width`,
-    height = x`Tile's Height`
+    height = x`Tile's Height`,
 
 }) => {
 
@@ -252,6 +252,50 @@ const drawHeatMapTile = async({
     }
 };
 
+const tileStorage = async (
+    {
+        request,
+        canvas,
+        zoom,
+        xID,
+        yID,
+        imageType,
+
+    }) => {
+
+    //builds the filename
+    const filename = `/tile`;
+
+    //path for storing image
+    //retina/zoom
+    //x (timestamp => ID starting from 0, according to TMS standard
+    //y (# machines => ID starting from 0, according to TMS standard)
+    const pathTilesDir =
+        process.cwd() +
+        constants.PATH_HEATMAPS_IMAGES +
+        `/TILES` +
+        `/${request.database}` +
+        `/${request.policy}` +
+        `/${request.heatMapType}` +
+        `/${request.fields[0]}` +
+        `/${zoom}` +
+        `/${xID}` +
+        `/${yID}`;
+
+    //check if directory exists, otherwise creates it
+    if (!fs.existsSync(pathTilesDir)) {
+        mkdirp.sync(pathTilesDir);
+    }
+
+    //stores original tile
+    await canvasToImage({
+        canvas: canvas,
+        filename: filename,
+        imageType: imageType,
+        path: pathTilesDir,
+    });
+};
+
 const heatMapTilesBuilder = async (
     {
         request,
@@ -259,7 +303,8 @@ const heatMapTilesBuilder = async (
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-        tileSize,
+        tileSize = config.HEATMAPS.TILE_SIZE,       //256x256 px
+        zoomLevels = config.HEATMAPS.TILE_ZOOMS,    //2x
     }) => {
 
     const intervals =
@@ -272,9 +317,9 @@ const heatMapTilesBuilder = async (
     let currentEndInterval = new Date(request.startInterval);
     currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
 
-    for (let i = 0; i < intervals; i += tileSize) {
+    for (let i = 0, xIDsrc = 0; i < intervals; i += tileSize, ++xIDsrc) {                 //xID is used for TMS x ID
 
-        for (let j = 0; j < measurements.length; j += tileSize) {
+        for (let j = 0, yIDsrc = 0; j < measurements.length; j += tileSize, ++yIDsrc) {   //yID is used for TMS y ID
 
             const slicedMeasurements = measurements.slice(j, j + tileSize);
 
@@ -285,7 +330,7 @@ const heatMapTilesBuilder = async (
                 formattedCurrentEndInterval = (new Date(request.endInterval)).toISOString();
 
             //fetches points batch
-            await influx.fetchPointsFromHttpApi({
+            const originalCanvas = await influx.fetchPointsFromHttpApi({
                     database: request.database,
                     policy: request.policy,
                     measurements: slicedMeasurements,
@@ -307,58 +352,79 @@ const heatMapTilesBuilder = async (
                         height: tileSize,
                     });
                 })
-                .then(canvas => {
-
-                    //builds the filename
-                    const filename = `/${j}`;  //y (machines)
-
-                        // `${request.database}_` +
-                        // `${request.policy}_` +
-                        // `${formattedCurrentStartInterval}_` +
-                        // `${formattedCurrentEndInterval}_` +
-                        // `${request.period}_` +
-                        // `${request.fields[0]}_` +
-                        // `${request.heatMapType}_` +
-                        // `${request.palette}_` +
-                        //`${j}_${(j + slicedMeasurements.length) - 1}`;
-
-                    //path for storing image
-                    //in a real scenario: http://.../z/x/y
-                    //where z is the zoom (e.g. 256x256), x and y the coordinates (x is the time and y is the machines)
-                    const pathTilesDir =
-                        process.cwd() +
-                        constants.PATH_HEATMAPS_IMAGES +
-                        `/TILES` +
-                        `/${request.database}` +
-                        `/${request.policy}` +
-                        `/${request.heatMapType}` +
-                        `/${request.fields[0]}` +
-                        //`/${request.palette}` +
-                        `/${tileSize}` +         //zoom
-                        `/${currentStartInterval.getTime()}`;   //x (timestamp in unix epoch)
-
-                    //check if directory exists, otherwise creates it
-                    if (!fs.existsSync(pathTilesDir)) {
-                        mkdirp.sync(pathTilesDir);
-                    }
-
-                    //stores tile
-                    return canvasToImage({
-                        canvas: canvas,
-                        filename: filename,
-                        imageType: imageType,
-                        path: pathTilesDir,
-                    })
-                })
                 .catch((err) => {
                     throw Error(`Failed during HeatMap Image Tiles building: ${err}`);
                 });
+
+            //building the tile's filename according to TMS standard http://.../z/x/y.imagetype
+            //TMS providers will fetch a coordinates tuple as (x, y, z) starting from (0, 0, 0), where:
+            //x is the axis X (timestamps, 0 is the first timestamp, every 256 timestamp the ID is increased)
+            //y is the axis Y (machines, 0 is the first machine, every 256 machines the ID is increased)
+            //z is the zoom (0 => 256 pixels, default for tiles)
+            //further info on TMS standard: https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification
+
+            logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]`);
+
+            //save the original tile (level 1)
+            await tileStorage({
+                request: request,
+                canvas: originalCanvas,
+                zoom: 0,
+                xID: xIDsrc,
+                yID: yIDsrc,
+                imageType: imageType,
+            })
+                .catch(err => logger.log('error', `Failed to store the original canvas: ${err.message}`));
+
+            //zooms
+            //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+            for (let i = 0; i < zoomLevels.length; ++i) {
+
+                const zoom = zoomLevels[i];
+
+                //skip 1x zoom (i.e. the original canvas)
+                if (config.HEATMAPS.TILE_ZOOMS.includes(zoom)) {
+
+                    logger.log('info', `Start Generating tiles with zoom: ${`@${zoom}x`} ` +
+                        `- original: [${xIDsrc},${yIDsrc}]`);
+
+                    const subTileSize = tileSize / zoom;
+
+                    let xID = xIDsrc * zoom;
+                    for (let x = 0; x < tileSize; x += subTileSize, ++xID) {
+
+                        let yID = yIDsrc * zoom;
+                        for (let y = 0; y < tileSize; y += subTileSize, ++yID) {
+
+                            //generates a new canvas and scales
+                            const canvas = Canvas.createCanvas(tileSize, tileSize);
+                            const ctx = canvas.getContext("2d");
+
+                            ctx.drawImage(originalCanvas, x, y, subTileSize, subTileSize, 0, 0, tileSize, tileSize);
+
+                            await tileStorage({
+                                request: request,
+                                canvas: canvas,
+                                zoom: zoom,
+                                xID: xID,
+                                yID: yID,
+                                imageType: imageType
+                            })
+                                .catch(err => logger.log('error', `Failed to store a zoomed [@${zoom}x] tile ` +
+                                    `[${xID},${yID}]: ${err.message}`));
+                        }
+                    }
+                }
+                else throw Error(`Failed during HeatMap Image Tiles building: ` +
+                    `Zoom level not permitted: ${zoom}`);
+            }
         }
 
         //advance with time interval
         currentStartInterval.setSeconds(currentStartInterval.getSeconds() + tileTimeRangeWidth);
         currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
     }
+
     return 'OK';
 };
 
@@ -741,9 +807,6 @@ const heatMapConfigurationValidation = async (request) => {
     request.startInterval = request.startInterval || x`Start Interval`;
     request.endInterval = request.endInterval || x`End Interval`;
     request.fields = request.fields || x`Fields`;
-    request.period = request.period || x`Period`;
-    request.heatMapType = request.heatMapType || x`HeatMap type`;
-    request.palette = request.palette || x`Palette`;
 
     //database + policy + fields validation
     await validateDatabaseArgs(request.database, request.policy, request.fields) //field accepts array
@@ -774,30 +837,6 @@ const heatMapConfigurationValidation = async (request) => {
     if (diff_time > 0) {
         logger.log('error', `the start interval [${startInterval}] is greater than the end interval [${endInterval}`);
         throw Error('end interval must be greater or equal then start');
-    }
-
-    //number of measurements validation
-    if (request.nMeasurements === undefined || (typeof request.nMeasurements) !== "number" || request.nMeasurements < 0) {
-        logger.log('error', `Provided invalid #measurements: ${request.nMeasurements}`);
-        throw  Error(`measurements cannot be negative [Default: 0 => all]`);
-    }
-
-    //period validation
-    if ((request.period % 300) !== 0) {
-        logger.log('error', `Provided invalid period: ${request.period}`);
-        throw Error('invalid period, must be multiple of 300 (5min)');
-    }
-
-    //palette validation
-    if (!getPalettes().includes(request.palette)) {
-        logger.log('error', `Provided invalid palette: ${request.palette}`);
-        throw Error(`invalid palette: ${request.palette} [AVAILABLE: ${getPalettes()}]`);
-    }
-
-    //heatmap type validation
-    if (!getHeatMapTypes().includes(request.heatMapType)) {
-        logger.log('error', `Provided invalid HeatMap type: ${request.heatMapType}`);
-        throw Error(`invalid heatmap type [AVAILABLE: ${getHeatMapTypes()}]`);
     }
 
     return true;
