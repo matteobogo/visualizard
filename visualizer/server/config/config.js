@@ -29,10 +29,10 @@ const config = {
         period:         process.env.TS_PERIOD            || 300,
     },
     HEATMAPS: {
-        MIN_Z_SCORE:    process.env.MIN_Z_SCORE          || -3,
-        MAX_Z_SCORE:    process.env.MAX_Z_SCORE          || 3,
-        TILE_WIDTH:     process.env.TILE_WIDTH           || 128,
-        TILE_HEIGHT:    process.env.TILE_HEIGHT          || 128,
+        MIN_Z_SCORE:    process.env.HEATMAP_MIN_Z_SCORE  || -3,
+        MAX_Z_SCORE:    process.env.HEATMAP_MAX_Z_SCORE  || 3,
+        TILE_SIZE:      process.env.HEATMAP_TILE_SIZE    || 256,
+        TILE_ZOOMS:     process.env.HEATMAP_TILE_ZOOMS   || [2] //2x
     }
 };
 
