@@ -4,6 +4,7 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
+const sharedConstants = require('../../commons/constants');
 
 const redis = require('../cache/redis');
 const influxdb = require('../database/influxdb');
@@ -461,14 +462,17 @@ const getAnalysisCached = async (request) => {
     request.policy = request.policy || x`Policy is missing`;
     request.startInterval = request.startInterval || x`Start Interval is missing`;
     request.endInterval = request.endInterval || x`End Interval is missing`;
-    request.analysisType = request.analysisType || x`Analysis Type is missing`;
+    request.type = request.type || x`Analysis Type is missing`;
     request.visualizationFlag = request.visualizationFlag || x`Client flag is missing`;   //better visualization for clients
 
     logger.log('debug', request);
 
+    //validate request
+    //TODO
+
     //search in cache
     let result = await redis.get(
-        `${request.analysisType}_` +
+        `${request.type}_` +
         `${request.database}_` +
         `${request.policy}_` +
         `${request.startInterval}_` +
@@ -486,9 +490,9 @@ const getAnalysisCached = async (request) => {
 
     if (!result) { //search in db
 
-        switch (request.analysisType) {
+        switch (request.type) {
 
-            case constants.ANALYSIS.TYPES.DATASET:
+            case sharedConstants.ANALYSIS.TYPES.DATASET:
 
                 result = await DatasetAnalysisModel
                     .findOne({database: request.database, policy: request.policy})
@@ -498,7 +502,7 @@ const getAnalysisCached = async (request) => {
 
                 break;
 
-            case constants.ANALYSIS.TYPES.MEASUREMENTS:
+            case sharedConstants.ANALYSIS.TYPES.MEASUREMENTS:
 
                 result = await MeasurementStatsModel
                     .find({database: request.database, policy: request.policy})
@@ -508,7 +512,7 @@ const getAnalysisCached = async (request) => {
 
                 break;
 
-            case constants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP:
+            case sharedConstants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP:
 
                 result = await PointsStatsPerTimestampModel
                     .find({database: request.database, policy: request.policy,
@@ -523,7 +527,7 @@ const getAnalysisCached = async (request) => {
 
                 //better visualization for clients
                 //using with react-timeseries-charts
-                if (request.visualizationFlag === 'client') {
+                if (result && request.visualizationFlag === 'client') {
                     const transformPsptAnalysis = () => {
 
                         //obj = {
@@ -560,12 +564,12 @@ const getAnalysisCached = async (request) => {
                 break;
         }
 
-        if (!result) throw Error(`${request.analysisType} not found`);
+        if (!result) throw Error(`${request.type} not found`);
         else {
 
             //set result in redis cache
             const redisCheck = await redis.set(
-                `${request.analysisType}_` +
+                `${request.type}_` +
                 `${request.database}_` +
                 `${request.policy}_` +
                 `${request.startInterval}_` +
@@ -576,7 +580,7 @@ const getAnalysisCached = async (request) => {
 
             //redis check
             if (redisCheck !== 'OK')
-                logger.log('warning', `Failed to set ${request.analysisType} in cache, with request: ${request}`);
+                logger.log('warning', `Failed to set ${request.type} in cache, with request: ${request}`);
         }
     }
 
