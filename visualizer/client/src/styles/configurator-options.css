@@ -1,0 +1,18 @@
+.switches-container {
+
+    height: 35px;
+    min-width: 240px;
+}
+
+.switch-container {
+
+    margin: 5px 10px 10px 0;
+    min-width: 50px;
+    max-width: 120px;
+    float: left;
+}
+
+.switch-label {
+    min-width: 10px;
+    margin: 2px 10px 0 0;
+}
