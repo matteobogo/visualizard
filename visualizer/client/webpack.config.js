@@ -5,7 +5,7 @@ const path = require('path');
 const Dotenv = require('dotenv-webpack');
 
 module.exports = {
-    entry: "./src/index.js",
+    entry: ["babel-polyfill", "./src/index.js"],
     output: {
         path: path.resolve("dist/assets"),
         filename: "bundle.js",
@@ -25,9 +25,10 @@ module.exports = {
     module: {
         rules: [
             {
-                test: /\.js$/,
+                test: /\.(js|jsx)$/,
                 exclude: /(node_modules)/,
                 loader: 'babel-loader',
+                resolve: { extensions: [".js", ".jsx"]}
             },
             {
                 test: /\.css$/,
@@ -42,7 +43,7 @@ module.exports = {
                 loader: 'url-loader?limit=10000&mimetype=application/font-woff'
             },
             {
-                // test: /\.(ttf|otf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?|(jpg|gif)$/,
+                // tests: /\.(ttf|otf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?|(jpg|gif)$/,
                 test: /\.(jpg|png|gif|svg|pdf|ico|ttf|otf|eot)$/,
                 loader: 'file-loader'
             }]
