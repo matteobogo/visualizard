@@ -2,168 +2,97 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
+const sharedConstants = require('../../commons/constants');
 
-const wsTypes = require('../../commons/WebSocketsEvents');
+const wsTypes = require('../../commons/wsEvents');
 
-const heatMapService = require('../services/HeatMapsService');
 const analysisService = require('../services/AnalysisService');
 
-const uuidv4 = require('uuid/v4');
 const _ = require('lodash');
 
 exports = module.exports = (io) => {
 
-    const clientsMap = new Map();
-    const clientDataInitialStatus = { //TODO may be cached (redis?)
-        uuid: null,
-        request: null,
-        analysis: null,
-        heatMap: null,
-        isProcessing: false,
-    };
-
     /* WebSocket Management */
 
-    const socket = io.of('/ws/heatmap');    //namespace
+    const socket = io.of('/ws/static');    //namespace
 
     socket
         .on("connection", (socket) => {
 
             /* Client Connections Management */
-            console.info(`Client connected [ID=${socket.id}]`);
-            clientsMap.set(socket, clientDataInitialStatus);
+            logger.log('info', `Client connected [ID=${socket.id}]`);
 
             socket.on("disconnect", () => {
-                clientsMap.delete(socket);
-                console.info(`Client disconnected [ID=${socket.id}`);
-            });
-
-            /* HeatMap Computation */
-
-            //initialization + validation
-            socket.on(wsTypes.COMPUTATION_VALIDATION_START, (computationRequest) => {
-
-                let clientData = clientsMap.get(socket);
-
-                //check request processing in progress
-                if (clientDataCheckers(socket, null, 'progress', wsTypes.COMPUTATION_VALIDATION_START))
-                    return;
-
-                //reset previous configurations
-                clientData = clientDataInitialStatus;
-
-                clientData.isProcessing = true;
-                clientsMap.set(socket, clientData);
-
-                requestLogger(wsTypes.COMPUTATION_VALIDATION_START, socket.id);
-                console.log(`\nHeatMap Configuration:\n ${JSON.stringify(computationRequest)}`);
-
-                //validation
-                heatMapService
-                    .heatMapConfigurationValidation(computationRequest)
-                    .then(() => {
-
-                        let uuid = uuidv4();
-
-                        clientData.uuid = uuid;
-                        clientData.request = computationRequest;
-                        clientsMap.set(socket, clientData);
-
-                        socket.emit(wsTypes.COMPUTATION_VALIDATION_SUCCESS, uuid);
-                        console.log(`HeatMap request fetched by [${socket.id}] validated\n UUID assigned [${uuid}]`);
-                    })
-                    .catch(error => {
-
-                        socket.emit(wsTypes.COMPUTATION_VALIDATION_FAIL, error.message);
-                        console.log(`HeatMap request fetched by [${socket.id}] not valid\n ${error.message}`);
-                    })
-                    .then(() => {  //finally in ES6 proposal
-                        clientData.isProcessing = false;
-                        clientsMap.set(socket, clientData);
-                    });
+                logger.log('info',`Client disconnected [ID=${socket.id}`);
             });
 
             //analysis
-            socket.on(wsTypes.COMPUTATION_ANALYSIS_START, async (uuid) => {
+            socket.on(wsTypes.COMPUTATION_REQUEST, async (request) => {
 
-                let clientData = clientsMap.get(socket);
+                //add visualization flag (request from client, need for better format of data)
+                request['visualizationFlag'] = 'client';
 
-                //check request processing in progress
-                if (clientDataCheckers(socket, null, 'progress', wsTypes.COMPUTATION_ANALYSIS_START))
-                    return;
+                const datasetAnalysisType = sharedConstants.ANALYSIS.TYPES.DATASET;
+                const psptAnalysisType = sharedConstants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP;
 
-                //check uuid (assigned during validation)
-                if (clientDataCheckers(socket, uuid, 'uuid', wsTypes.COMPUTATION_ANALYSIS_START))
-                    return;
+                let errMsg = `${request.type} not available`;
+                let analysis = null;
 
-                clientData.isProcessing = true;
-                clientsMap.set(socket, clientData);
+                switch(request.type) {
 
-                requestLogger(wsTypes.COMPUTATION_ANALYSIS_START, socket.id, uuid);
+                    case datasetAnalysisType:
 
-                //analysis
-                const datasetAnalysisType = constants.ANALYSIS.TYPES.DATASET;
-                const psptAnalysisType = constants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP;
+                        analysis = await analysisService.getAnalysisCached(request)
+                            .then(result => {
 
-                let request = {
-                        database: clientData.request.database,
-                        policy: clientData.request.policy,
-                        startInterval: clientData.request.startInterval,
-                        endInterval: clientData.request.endInterval,
-                        analysisType: datasetAnalysisType,
-                        visualizationFlag: 'client',     //better visualization for clients (changes the response)
-                };
+                                logger.log('info', `${datasetAnalysisType} Analysis started by [${socket.id}] completed`);
+                                return result;
+                            })
+                            .catch(err => {
 
-                //dataset analysis
-                const datasetAnalysis = await analysisService.getAnalysisCached(request)
-                    .catch(err => {
+                                socket.emit(wsTypes.COMPUTATION_FAILED, errMsg);
+                                logger.log(
+                                    'error',
+                                    `${datasetAnalysisType} Analysis started by [${socket.id}] failed ` +
+                                    `Error: ${err.message}`);
+                            });
 
-                        socket.emit(wsTypes.COMPUTATION_ANALYSIS_FAILED, error.message, uuid);
-                        console.log(
-                            `${datasetAnalysisType} Analysis started by [${socket.id}] of request [${uuid}] failed\n` +
-                            `Error: \n` +
-                            `${err.message}`);
-                    })
-                    .then(result => {
+                        break;
 
-                        console.log(`${datasetAnalysisType} Analysis started by [${socket.id}] of request [${uuid}] completed`);
-                        return result;
-                    });
+                    case psptAnalysisType:
 
-                //pspt analysis
-                request.analysisType = psptAnalysisType;
-                const psptAnalysis = await analysisService.getAnalysisCached(request)
-                    .catch(err => {
+                        analysis = await analysisService.getAnalysisCached(request)
+                            .then(result => {
 
-                        socket.emit(wsTypes.COMPUTATION_ANALYSIS_FAILED, error.message, uuid);
-                        console.log(
-                            `${psptAnalysisType} Analysis started by [${socket.id}] of request [${uuid}] failed\n` +
-                            `Error: \n` +
-                            `${err.message}`);
-                    })
-                    .then(result => {
+                                logger.log('info',`${psptAnalysisType} Analysis started by [${socket.id}] completed`);
+                                return result;
+                            })
+                            .catch(err => {
 
-                        console.log(`${psptAnalysisType} Analysis started by [${socket.id}] of request [${uuid}] completed`);
-                        return result;
-                    });
+                                socket.emit(wsTypes.COMPUTATION_FAILED, errMsg);
+                                logger.log(
+                                    'error',
+                                    `${psptAnalysisType} Analysis started by [${socket.id}] failed ` +
+                                    `Error: ${err.message}`);
+                            });
 
-                clientData.isProcessing = false;
-                clientsMap.set(socket, clientData);
+                        break;
 
-                if (!datasetAnalysis || !psptAnalysis) {
-
-                    const errMsg = 'analysis not available';
-                    logger.log('error', errMsg);
-                    socket.emit(wsTypes.COMPUTATION_ERROR, errMsg);
+                    default:
+                        errMsg = `${request.type} not supported`;
+                        socket.emit(wsTypes.COMPUTATION_ERROR, errMsg);
+                        break;
                 }
 
-                const analysis = {
-                    datasetAnalysis: datasetAnalysis,
-                    psptAnalysis: psptAnalysis,
-                };
+                if (analysis) {
 
-                socket.emit(wsTypes.COMPUTATION_ANALYSIS_SUCCESS, analysis, uuid);
+                    const response = {
+                        analysis: analysis,
+                        type: request.type,
+                    };
 
+                    socket.emit(wsTypes.COMPUTATION_SUCCESS, response);
+                }
             });
 
             // //construction
@@ -215,61 +144,5 @@ exports = module.exports = (io) => {
             //         });
             // });
     });
-
-    const clientDataCheckers = (socket, parameter, flag, stage) => {
-
-        const emitError = (socket, message, stage) => {
-
-            socket.emit(wsTypes.COMPUTATION_ERROR, message, stage);
-        };
-
-        let clientData = clientsMap.get(socket);
-
-        switch (flag) {
-
-            case 'uuid':
-
-                if (parameter !== clientData.uuid) {
-
-                    emitError(socket, 'invalid uuid', stage);
-                    console.log(`[${socket.id}] has provided an invalid UUID during a ${stage} request`);
-                    return true;
-                }
-                return false;
-
-            case 'progress':
-
-                if (clientData.isProcessing) {
-
-                    emitError(socket, 'request processing in progress', stage);
-                    return true;
-                }
-                return false;
-
-            case 'analysis':
-
-                if (clientData.analysis === null)  {
-
-                    emitError(socket, 'analysis is required', stage);
-                    return true;
-                }
-                return false;
-
-            default:
-                break;
-        }
-    };
-
-    const requestLogger = (stage, clientId, uuid = 'None') => {
-
-        console.log(
-            '\n------------------------------\n' +
-            `Received an ${stage} request    \n` +
-            '------------------------------  \n' +
-            `CLIENT_ID: ${clientId}          \n` +
-            '------------------------------  \n' +
-            `UUID: ${uuid}                   \n` +
-            '------------------------------  \n' );
-    };
 };
 
