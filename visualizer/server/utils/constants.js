@@ -6,7 +6,7 @@ const constants = {
         IMAGE_PDF_EXT: 'pdf',
     },
 
-    PATH_HEATMAPS_IMAGES: '/images',
+    PATH_HEATMAPS_IMAGES: '/public/images',
 
     PALETTES: {
         GRAY: {
