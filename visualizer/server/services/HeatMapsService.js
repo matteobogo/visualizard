@@ -4,6 +4,7 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
+const sharedConstants = require('../../commons/constants');
 const globals = require('../utils/globals');
 
 const influx = require('../database/influxdb');
@@ -644,7 +645,7 @@ const heatMapBuildAndStore = async (
             policy: request.policy,
             startInterval: request.startInterval,
             endInterval: request.endInterval,
-            analysisType: constants.ANALYSIS.TYPES.DATASET,
+            analysisType: sharedConstants.ANALYSIS_DATASET,
             visualizationFlag: 'server',
         })
             .catch(err => {
@@ -660,7 +661,7 @@ const heatMapBuildAndStore = async (
             policy: request.policy,
             startInterval: request.startInterval,
             endInterval: request.endInterval,
-            analysisType: constants.ANALYSIS.TYPES.MEASUREMENTS,
+            analysisType: sharedConstants.ANALYSIS_MEASUREMENTS,
             visualizationFlag: 'server',
         })
             .catch(err => {

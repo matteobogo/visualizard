@@ -492,7 +492,7 @@ const getAnalysisCached = async (request) => {
 
         switch (request.type) {
 
-            case sharedConstants.ANALYSIS.TYPES.DATASET:
+            case sharedConstants.ANALYSIS_DATASET:
 
                 result = await DatasetAnalysisModel
                     .findOne({database: request.database, policy: request.policy})
@@ -502,7 +502,7 @@ const getAnalysisCached = async (request) => {
 
                 break;
 
-            case sharedConstants.ANALYSIS.TYPES.MEASUREMENTS:
+            case sharedConstants.ANALYSIS_MEASUREMENTS:
 
                 result = await MeasurementStatsModel
                     .find({database: request.database, policy: request.policy})
@@ -512,7 +512,7 @@ const getAnalysisCached = async (request) => {
 
                 break;
 
-            case sharedConstants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP:
+            case sharedConstants.ANALYSIS_PSPT:
 
                 result = await PointsStatsPerTimestampModel
                     .find({database: request.database, policy: request.policy,
