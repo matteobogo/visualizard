@@ -32,8 +32,8 @@ exports = module.exports = (io) => {
                 //add visualization flag (request from client, need for better format of data)
                 request['visualizationFlag'] = 'client';
 
-                const datasetAnalysisType = sharedConstants.ANALYSIS.TYPES.DATASET;
-                const psptAnalysisType = sharedConstants.ANALYSIS.TYPES.POINTS_PER_TIMESTAMP;
+                const datasetAnalysisType = sharedConstants.ANALYSIS_DATASET;
+                const psptAnalysisType = sharedConstants.ANALYSIS_PSPT;
 
                 let errMsg = `${request.type} not available`;
                 let analysis = null;
@@ -50,7 +50,9 @@ exports = module.exports = (io) => {
                             })
                             .catch(err => {
 
-                                socket.emit(wsTypes.COMPUTATION_FAILED, errMsg);
+                                socket.emit(wsTypes.COMPUTATION_ERROR, {
+                                    message: errMsg
+                                });
                                 logger.log(
                                     'error',
                                     `${datasetAnalysisType} Analysis started by [${socket.id}] failed ` +
@@ -69,7 +71,9 @@ exports = module.exports = (io) => {
                             })
                             .catch(err => {
 
-                                socket.emit(wsTypes.COMPUTATION_FAILED, errMsg);
+                                socket.emit(wsTypes.COMPUTATION_ERROR, {
+                                    message: errMsg,
+                                });
                                 logger.log(
                                     'error',
                                     `${psptAnalysisType} Analysis started by [${socket.id}] failed ` +
@@ -80,15 +84,18 @@ exports = module.exports = (io) => {
 
                     default:
                         errMsg = `${request.type} not supported`;
-                        socket.emit(wsTypes.COMPUTATION_ERROR, errMsg);
+                        socket.emit(wsTypes.COMPUTATION_ERROR, {
+                            message: errMsg,
+                        });
                         break;
                 }
 
                 if (analysis) {
 
                     const response = {
-                        analysis: analysis,
+                        data: analysis,
                         type: request.type,
+                        uuid: request.uuid
                     };
 
                     socket.emit(wsTypes.COMPUTATION_SUCCESS, response);
