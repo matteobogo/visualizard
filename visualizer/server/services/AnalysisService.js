@@ -15,6 +15,11 @@ const PointsStatsPerTimestampModel = require('../models/PointsStatsPerTimestamp'
 
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
+const getStatistics = () => {
+
+    return ['min', 'max', 'sum', 'mean'];
+};
+
 const initializePointsStatsPerTS = (
     {
         startInterval,
@@ -588,6 +593,7 @@ const getAnalysisCached = async (request) => {
 };
 
 module.exports = {
+    getStatistics: getStatistics,
     analyzeDataset: analyzeDataset,
     getAnalysisCached: getAnalysisCached,
 };

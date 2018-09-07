@@ -3,6 +3,7 @@ const express   = require('express')
 
 const HomeController = require('../controllers/HomeController');
 const TimeSeriesController = require('../controllers/TimeseriesController');
+const AnalysisController = require('../controllers/AnalysisController');
 const HeatMapController = require('../controllers/HeatMapController');
 
 router.get('/', function(req, res, next) {
@@ -28,6 +29,8 @@ router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesControlle
 router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDataByPolicyByName);
 router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);
 router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getNamesByTagKeyByTagValue);
+
+router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
 
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
 router.get('/heatmaps/palettes', HeatMapController.getPalettes);
