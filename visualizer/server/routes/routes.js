@@ -25,6 +25,7 @@ router.get('/influx/lastInterval', TimeSeriesController.getLastInterval);
 router.get('/influx/intervals', TimeSeriesController.getFirstAndLastIntervals);
 router.get('/influx/periods', TimeSeriesController.getPeriods);
 router.get('/influx/measurements', TimeSeriesController.getMeasurements);
+router.get('/influx/measurements/number', TimeSeriesController.getNMeasurements);
 router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesController.getTimeIntervalByPolicyByNameByField);
 router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDataByPolicyByName);
 router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);

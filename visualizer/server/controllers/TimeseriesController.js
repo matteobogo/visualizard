@@ -120,7 +120,7 @@ const getFirstAndLastIntervals = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/json');
 
-    let err, dbname, policy, field, firstMeasurement, firstInterval, lastInterval, timeRange;
+    let err, dbname, policy, field, firstMeasurement, firstInterval, lastInterval;
 
     dbname = req.query.dbname;
     policy = req.query.policy;
@@ -155,17 +155,28 @@ const getPeriods = async (req, res) => {
 const getMeasurements = async function(req, res) {
     res.setHeader('Content-Type', 'application/json');
     
-    let err, measurements;
-    [err, measurements] = await to(influx.getMeasurements());
+    let err, dbname, measurements;
+
+    dbname = req.query.dbname;
+
+    [err, measurements] = await to(influx.fetchMeasurementsListFromHttpApi(dbname));
 
     if(err) return ReE(res, 'error retrieving measurements');
 
-    let measurements_json = [];
-    measurements.forEach(s => {
-        measurements_json.push(s.name);
-    });
+    return ReS(res, {measurements: measurements}, 200);
+};
 
-    return ReS(res, {measurements: measurements_json}, 200);
+const getNMeasurements = async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    let dbname = req.query.dbname;
+
+    let err, nMeasurements;
+    [err, nMeasurements] = await to(influx.fetchMeasurementsListFromHttpApi(dbname));
+
+    if (err) return ReE(res, `error retreving the number of measurements`);
+
+    return ReS(res, {payload: nMeasurements.length}, 200);
 };
 
 const getTimeIntervalByPolicyByNameByField = async function(req, res) {
@@ -252,48 +263,6 @@ const getNamesByTagKeyByTagValue = async function(req, res) {
     return ReS(res, {names: names_json}, 200);
 };
 
-const buildResourceUsageHeatMapOverMachineIdByResource = async function(req, res) {
-    res.setHeader('Content-Type', 'application/json');
-
-    let err, type, dbname, policy, interval, fields, n_machines, period, response;
-
-    type = req.params.type;
-    dbname = req.params.dbname;
-    policy = req.params.policy;
-
-    interval = req.query.interval.split(',');
-    fields = req.query.fields.split(',');
-    n_machines = req.query.n_machines;
-    period = req.query.period;
-
-
-    // [err, response] = await to(
-    //     heatmaps.buildHeatMapOrderByMachineId(
-    //         'autogen',
-    //         '2011-02-01T00:15:00.000Z',
-    //         '2011-02-01T10:50:00.000Z',
-    //         //'2011-03-01T10:50:00.000Z',
-    //         resource_id,
-    //         500
-    //     ));
-
-    [err, response] = await to(heatmaps.buildHeatMaps(
-        {
-            dbname: dbname,
-            policy: policy,
-            interval: interval,
-            fields: fields,
-            n_machines: n_machines,
-            period: period,
-            type: type,
-        }
-    ));
-
-    //if(err) return ReE(res, err.message, 400);
-
-    return ReS(res, {message: 'HeatMap built'}, 200);
-};
-
 module.exports = {
     ping: ping,
     getDatabases: getDatabases,
@@ -304,9 +273,9 @@ module.exports = {
     getFirstAndLastIntervals: getFirstAndLastIntervals,
     getPeriods: getPeriods,
     getMeasurements: getMeasurements,
+    getNMeasurements: getNMeasurements,
     getTimeIntervalByPolicyByNameByField: getTimeIntervalByPolicyByNameByField,
     getDataByPolicyByName: getDataByPolicyByName,
     getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime: getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime,
     getNamesByTagKeyByTagValue: getNamesByTagKeyByTagValue,
-    buildResourceUsageHeatMapOverMachineIdByResource: buildResourceUsageHeatMapOverMachineIdByResource
 };
