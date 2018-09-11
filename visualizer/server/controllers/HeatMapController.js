@@ -9,19 +9,29 @@ const mime = {
 
 const getHeatMapTypes = async (req, res) => {
 
-    let heatMapTypes = heatMapsService.getHeatMapTypes();
+    const heatMapTypes = heatMapsService.getHeatMapTypes();
 
-    if (heatMapTypes.length === 0) ReE(res, 'no heatmap types available');
+    if (!heatMapTypes || heatMapTypes.length === 0) return ReE(res, 'no heatmap types available');
 
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: heatMapTypes}, 200);
 };
 
+const getZoomLevels = async (req, res) => {
+
+    const zoomLevels = heatMapsService.getZoomLevels();
+
+    if (!zoomLevels || zoomLevels.length === 0) return ReE(res, 'no zoom levels available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: zoomLevels}, 200);
+};
+
 const getPalettes = async (req, res) => {
 
-    let palettes = heatMapsService.getPalettes();
+    const palettes = heatMapsService.getPalettes();
 
-    if (palettes.length === 0) ReE(res, 'no palettes available');
+    if (!palettes || palettes.length === 0) return ReE(res, 'no palettes available');
 
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: palettes}, 200);
@@ -188,6 +198,7 @@ const storeHeatMap = async (req, res) => {
 
 module.exports = {
     getHeatMapTypes: getHeatMapTypes,
+    getZoomLevels: getZoomLevels,
     getPalettes: getPalettes,
     setHeatMapZscores: setHeatMapZscores,
     getHeatMapZscore: getHeatMapZscore,

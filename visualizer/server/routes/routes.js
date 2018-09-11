@@ -33,6 +33,7 @@ router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getN
 router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
 
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
+router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
 router.get('/heatmaps/palettes', HeatMapController.getPalettes);
 router.post('/heatmaps/zscores', HeatMapController.setHeatMapZscores);
 router.get('/heatmaps/zscores', HeatMapController.getHeatMapZscore);

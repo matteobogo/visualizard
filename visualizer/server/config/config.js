@@ -32,7 +32,7 @@ const config = {
         MIN_Z_SCORE:    process.env.HEATMAP_MIN_Z_SCORE  || -3,
         MAX_Z_SCORE:    process.env.HEATMAP_MAX_Z_SCORE  || 3,
         TILE_SIZE:      process.env.HEATMAP_TILE_SIZE    || 256,
-        TILE_ZOOMS:     process.env.HEATMAP_TILE_ZOOMS   || [2] //2x
+        TILE_ZOOMS:     process.env.HEATMAP_TILE_ZOOMS   || '2' //2x
     }
 };
 

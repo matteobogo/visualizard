@@ -37,6 +37,15 @@ const getHeatMapTypes = () => {
     return Object.keys(constants.HEATMAPS.TYPES);
 };
 
+const getZoomLevels = () => {
+
+    //zoom levels plus the level 0 (no zoom)
+    let zoomLevels = config.HEATMAPS.TILE_ZOOMS.split(',');
+    zoomLevels.unshift('0');
+
+    return zoomLevels;
+};
+
 //Feature Scaling: Standardization => https://en.wikipedia.org/wiki/Standard_score
 //used for mapping colors in colorize function (EDITABLE)
 let minZscore = -3;
@@ -303,9 +312,9 @@ const heatMapTilesBuilder = async (
         measurements,       //from measurement analysis, sorted, only the names
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
-        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-        tileSize = config.HEATMAPS.TILE_SIZE,       //256x256 px
-        zoomLevels = config.HEATMAPS.TILE_ZOOMS,    //2x
+        imageType,
+        tileSize,
+        zoomLevels
     }) => {
 
     const intervals =
@@ -381,10 +390,11 @@ const heatMapTilesBuilder = async (
             //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
             for (let i = 0; i < zoomLevels.length; ++i) {
 
-                const zoom = zoomLevels[i];
+                const zoom = Number(zoomLevels[i]);
+                const availableZooms = config.HEATMAPS.TILE_ZOOMS.split(',').map(Number);
 
                 //skip 1x zoom (i.e. the original canvas)
-                if (config.HEATMAPS.TILE_ZOOMS.includes(zoom)) {
+                if (availableZooms.includes(zoom)) {
 
                     logger.log('info', `Start Generating tiles with zoom: ${`@${zoom}x`} ` +
                         `- original: [${xIDsrc},${yIDsrc}]`);
@@ -615,9 +625,10 @@ const heatMapMeasurementsSorting = async (
 const heatMapBuildAndStore = async (
     {
         request = x`HeatMap request`,
-        imageType = x`Image Type`,
-        mode = constants.HEATMAPS.MODES.TILES,    //single | tiles
-        tileSize = 256,
+        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,       //png
+        mode = constants.HEATMAPS.MODES.TILES,                      //single | tiles
+        tileSize = config.HEATMAPS.TILE_SIZE,                       //fetch default from config
+        zoomLevels = () => config.HEATMAPS.TILE_ZOOMS.split(','),   //fetch default from config
     }) => {
 
     //sets computation in progress (global)
@@ -730,6 +741,7 @@ const heatMapBuildAndStore = async (
                         datasetStd: datasetStd,
                         imageType: imageType,
                         tileSize: tileSize,
+                        zoomLevels: zoomLevels,
                     })
                     .catch(err => {
                         logger.log('error', `Failing to build the HeatMap Image Tiles: ${err.message}`);
@@ -847,6 +859,7 @@ module.exports = {
     heatMapConfigurationValidation: heatMapConfigurationValidation,
     heatMapBuildAndStore: heatMapBuildAndStore,
     getHeatMapTypes: getHeatMapTypes,
+    getZoomLevels: getZoomLevels,
     getPalettes: getPalettes,
     setZscores: setZscores,
     getZscores: getZscores,
