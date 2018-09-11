@@ -101,10 +101,10 @@ const getLastInterval = (dbname, name, policy, field) => {
  * @param {string} name - the name of the time serie.
  * @param {string} policy - the name of the policy.
  */
-const getDataByPolicyByName = (name, policy) => {
+const getDataByPolicyByName = (database, policy, name) => {
     return influx.query(
         `
-        select * from ${CONFIG.db_name}.${policy}.${name}
+        select * from ${database}.${policy}.${name}
         `
     );
 };
@@ -405,7 +405,6 @@ module.exports = {
     ping: ping,
     getDatabases: getDatabases,
     getRetentionPolicies: getRetentionPolicies,
-    getMeasurements: getMeasurements,
     getFirstMeasurement: getFirstMeasurement,
     getFirstInterval: getFirstInterval,
     getLastInterval: getLastInterval,
