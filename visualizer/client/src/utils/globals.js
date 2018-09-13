@@ -1,0 +1,1 @@
+export const CleanData = (data) => data.map(v => v.toLowerCase().replace(/[_]/g, ' '));
