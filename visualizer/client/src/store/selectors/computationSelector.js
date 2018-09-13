@@ -1,21 +1,8 @@
-export const getRequestUUID = (state) => {
+import * as types from '../types/actionTypes';
 
-    return state.computation.uuid;
-};
+export const getConfiguration = (state) => {
 
-export const getComputationRequest = (state) => {
-
-    return state.computation.request;
-};
-
-export const getCurrentComputationStage = (state) => {
-
-    return state.computation.currentStage;
-};
-
-export const getPendingComputationStages = (state) => {
-
-    return state.computation.stagesQueue;
+    return state.computation.configuration;
 };
 
 export const getComputationInProgress = (state) => {
@@ -31,4 +18,9 @@ export const getDatasetAnalysis = (state) => {
 export const getPointsStatsPerTimestampAnalysis = (state) => {
 
     return state.computation.analysis.psptAnalysis;
+};
+
+export const getHeatMapType = (state) => {
+
+    return state.computation.heatMap.heatMapType;
 };

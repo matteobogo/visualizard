@@ -1,34 +1,14 @@
 import * as actionTypes from '../types/actionTypes';
 
-export const setComputationRequestItem = (item, itemType) => {
+export const setRequestItem = (item, itemType) => {
 
     return (dispatch) => {
 
-        dispatch({ type: actionTypes.SET_COMPUTATION_REQUEST_ITEM, payload: item, itemType: itemType});
-    };
-};
-
-export const startComputation = () => {
-
-    return (dispatch) => {
-
-        dispatch({ type: actionTypes.COMPUTATION_START });
-    };
-};
-
-export const consumeComputationStage = (stage) => {
-
-    return (dispatch) => {
-
-        dispatch({ type: actionTypes.COMPUTATION_CONSUME_STAGE, payload: stage });
-    };
-};
-
-export const setCurrentComputationStage = (stage) => {
-
-    return (dispatch) => {
-
-        dispatch({ type: actionTypes.COMPUTATION_SET_STAGE, payload: stage });
+        dispatch({
+            type: actionTypes.SET_REQUEST_ITEM,
+            payload: item,
+            itemType: itemType
+        });
     };
 };
 
@@ -36,61 +16,49 @@ export const setComputationInProgress = (bool) => {
 
     return (dispatch) => {
 
-        dispatch({ type: actionTypes.COMPUTATION_IN_PROGRESS, payload: bool });
+        dispatch({
+            type: actionTypes.COMPUTATION_IN_PROGRESS,
+            payload: bool
+        });
     }
 };
 
-export const computationReceived = ({response, uuid}={}, type) => {
+export const computationReceived = (response, computationType) => {
 
-    switch(type) {
+    switch(computationType) {
 
-        case actionTypes.COMPUTATION_VALIDATION_RECEIVED:
-
-            return (dispatch) => {
-
-                dispatch({ type: actionTypes.COMPUTATION_VALIDATION_RECEIVED, uuid: uuid })
-            };
-
-        case actionTypes.COMPUTATION_ANALYSIS_RECEIVED:
+        case actionTypes._TYPE_COMPUTATION_ANALYSIS_DATASET:
 
             return (dispatch) => {
 
-                dispatch({ type: actionTypes.COMPUTATION_ANALYSIS_RECEIVED, payload: response, uuid: uuid })
+                dispatch({
+                    type: actionTypes.COMPUTATION_SUCCESS,
+                    payload: response,
+                    computationType: actionTypes._TYPE_COMPUTATION_ANALYSIS_DATASET,
+                })
             };
+
+        case actionTypes._TYPE_COMPUTATION_ANALYSIS_PSPT:
+
+            return (dispatch) => {
+
+                dispatch({
+                    type: actionTypes.COMPUTATION_SUCCESS,
+                    payload: response,
+                    computationType: actionTypes._TYPE_COMPUTATION_ANALYSIS_PSPT,
+                })
+            }
     }
 };
 
-export const computationFailed = (error, type, {uuid} = {}) => {
-
-    switch(type) {
-
-        case actionTypes.COMPUTATION_ERRORED:
-
-            return (dispatch) => {
-
-                dispatch({ type: actionTypes.COMPUTATION_ERRORED, error: error});
-            };
-
-        case actionTypes.COMPUTATION_VALIDATION_FAILED:
-
-            return (dispatch) => {
-
-                dispatch({ type: actionTypes.COMPUTATION_VALIDATION_FAILED, error: error});
-            };
-
-        case actionTypes.COMPUTATION_ANALYSIS_FAILED:
-
-            return (dispatch) => {
-
-                dispatch({ type: actionTypes.COMPUTATION_ANALYSIS_FAILED, error: error});
-            };
-    }
-};
-
-export const resetPreviousComputationRequest = () => {
+export const computationFailed = (error, errorType) => {
 
     return (dispatch) => {
 
-        dispatch({ type: actionTypes.HEATMAP_COMPUTATION_RESET })
-    };
+        dispatch({
+            type: actionTypes.COMPUTATION_ERRORED,
+            error: error,
+            errorType: errorType
+        })
+    }
 };

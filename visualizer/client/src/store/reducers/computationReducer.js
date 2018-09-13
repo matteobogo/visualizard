@@ -1,21 +1,21 @@
 import * as actionTypes from '../types/actionTypes';
-import * as commonTypes from '../types/commonTypes';
 
 const initialState = {
 
-    uuid: null,
-
-    request: {
+    configuration: {
 
         database: null,
         policy: null,
         startInterval: null,
         endInterval: null,
         field: null,
-        nMeasurements: 0,
         period: null,
-        heatMapType: null,
-        palette: null,
+
+        options: {
+
+            analysis: false,
+            heatmap: false,
+        },
     },
 
     analysis: {
@@ -24,60 +24,57 @@ const initialState = {
         psptAnalysis: null,
     },
 
-    heatmap: {
+    heatMap: {
 
-        //TODO
+        heatMapType: null,
+        palette: null,
     },
-
-    computationStages: [],
-    currentStage: commonTypes.COMPUTATION_STAGE_IDLE,
-    stagesQueue: [],
 
     inProgress: false,
 
-    error: "",
+    error: {
+        message: null,
+        type: null,
+    },
 };
 
 export const computation = (state = initialState, action) => {
 
-    let currentStage = commonTypes.COMPUTATION_STAGE_IDLE;
-    let stageQueue = [];
-
     switch(action.type) {
 
-        case actionTypes.SET_COMPUTATION_REQUEST_ITEM:
+        case actionTypes.SET_REQUEST_ITEM:
 
             switch (action.itemType) {
 
-                case actionTypes._TYPE_DATABASE:
+                case actionTypes._TYPE_DATABASES:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             database: action.payload,
                         }
                     };
 
-                case actionTypes._TYPE_POLICY:
+                case actionTypes._TYPE_POLICIES:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             policy: action.payload,
                         }
                     };
 
-                case actionTypes._TYPE_FIELD:
+                case actionTypes._TYPE_FIELDS:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             field: action.payload,
                         }
                     };
@@ -87,19 +84,19 @@ export const computation = (state = initialState, action) => {
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             period: action.payload,
                         }
                     };
 
-                case actionTypes._TYPE_HEATMAP_TYPE:
+                case actionTypes._TYPE_HEATMAP_TYPES:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        heatMap: {
+                            ...state.heatMap,
                             heatMapType: action.payload,
                         }
                     };
@@ -109,31 +106,59 @@ export const computation = (state = initialState, action) => {
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        heatMap: {
+                            ...state.heatMap,
                             palette: action.payload,
                         }
                     };
 
-                case actionTypes._TYPE_START_INTERVAL:
+                case actionTypes._TYPE_SELECTED_START_INTERVAL:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             startInterval: action.payload,
                         }
                     };
 
-                case actionTypes._TYPE_END_INTERVAL:
+                case actionTypes._TYPE_SELECTED_END_INTERVAL:
 
                     return {
 
                         ...state,
-                        request: {
-                            ...state.request,
+                        configuration: {
+                            ...state.configuration,
                             endInterval: action.payload,
+                        }
+                    };
+
+                case actionTypes._TYPE_OPTION_ANALYSIS:
+
+                    return {
+
+                        ...state,
+                        configuration: {
+                            ...state.configuration,
+                            options: {
+                                ...state.configuration.options,
+                                analysis: action.payload,
+                            }
+                        }
+                    };
+
+                case actionTypes._TYPE_OPTION_HEATMAP:
+
+                    return {
+
+                        ...state,
+                        configuration: {
+                            ...state.configuration,
+                            options: {
+                                ...state.configuration.options,
+                                heatmap: action.payload,
+                            }
                         }
                     };
 
@@ -149,51 +174,35 @@ export const computation = (state = initialState, action) => {
                     return state;
             }
 
-        case actionTypes.COMPUTATION_START:
+        case actionTypes.COMPUTATION_SUCCESS:
 
-            if (state.computationStages.length > 0) {
+            switch(action.computationType) {
 
-                //copies user's chosen stages to processing queue
-                stageQueue = state.computationStages;
+                case actionTypes._TYPE_COMPUTATION_ANALYSIS_DATASET:
 
-                //picks the first stage to be processed (and sets as current)
-                currentStage = stageQueue[0];
+                    return {
+
+                        ...state,
+                        analysis: {
+                            ...state.analysis,
+                            datasetAnalysis: action.payload,
+                        }
+                    };
+
+                case actionTypes._TYPE_COMPUTATION_ANALYSIS_PSPT:
+
+                    return {
+
+                        ...state,
+                        analysis: {
+                            ...state.analysis,
+                            psptAnalysis: action.payload,
+                        }
+                    };
+
+                default:
+                    return state;
             }
-
-            return {
-
-                ...state,
-                currentStage: currentStage,
-                stagesQueue: stageQueue,
-            };
-
-        case actionTypes.COMPUTATION_CONSUME_STAGE:
-
-            if (state.stagesQueue.length > 0) {
-
-                //removes the consumed stage
-                stageQueue = state.stagesQueue.filter(item => item !== action.payload);
-
-                //pops the new current stage (if there is one)
-                if (stageQueue.length > 0) {
-                    currentStage = stageQueue[0];
-                }
-            }
-
-            return {
-
-                ...state,
-                currentStage: currentStage,
-                stagesQueue: stageQueue,
-            };
-
-        case actionTypes.COMPUTATION_SET_STAGE:
-
-            return {
-
-                ...state,
-                currentStage: action.payload,
-            };
 
         case actionTypes.COMPUTATION_IN_PROGRESS:
 
@@ -208,40 +217,12 @@ export const computation = (state = initialState, action) => {
             return {
 
                 ...state,
-                error: action.error,
-            };
+                error: {
+                    ...state.error,
+                    message: action.error,
+                    type: action.errorType,
+                }
 
-        case actionTypes.COMPUTATION_VALIDATION_RECEIVED:
-
-            return {
-
-                ...state,
-                uuid: action.uuid,
-            };
-
-        case actionTypes.COMPUTATION_VALIDATION_FAILED:
-
-            return {
-
-                ...state,
-                error: action.error,
-            };
-
-        case actionTypes.COMPUTATION_ANALYSIS_RECEIVED:
-
-            return {
-
-                ...state,
-                analysis: action.payload,
-                uuid: action.uuid,
-            };
-
-        case actionTypes.COMPUTATION_ANALYSIS_FAILED:
-
-            return {
-
-                ...state,
-                error: action.error,
             };
 
         default:
