@@ -6,35 +6,21 @@ export const FETCH_ITEMS_RESET                  = 'FETCH_ITEMS_RESET';
 export const CURRENT_CONFIG_SET_ITEM            = 'CURRENT_CONFIG_SET_ITEM';
 export const CURRENT_CONFIG_RESET               = 'CURRENT_CONFIG_RESET';
 
-export const _TYPE_DATABASE                     = 'DATABASE';
-export const _TYPE_POLICY                       = 'POLICY';
-export const _TYPE_FIELD                        = 'FIELD';
-export const _TYPE_PERIOD                       = 'PERIOD';
-export const _TYPE_HEATMAP_TYPE                 = 'HEATMAP_TYPE';
-export const _TYPE_PALETTE                      = 'PALETTE';
-export const _TYPE_FIRST_INTERVAL               = 'FIRST_INTERVAL';
-export const _TYPE_LAST_INTERVAL                = 'LAST_INTERVAL';
-export const _TYPE_START_INTERVAL               = 'START_INTERVAL';
-export const _TYPE_END_INTERVAL                 = 'END_INTERVAL';
-export const _TYPE_COMPUTATION_OPTIONS          = '_TYPE_COMPUTATION_OPTIONS';
+export const SET_REQUEST_ITEM                   = 'SET_REQUEST_ITEM';
 
-export const NOTIFICATION                       = 'NOTIFICATION';
-export const NOTIFICATION_TYPE_SUCCESS          = 'SUCCESS';
-export const NOTIFICATION_TYPE_ERROR            = 'ERROR';
-export const NOTIFICATION_TYPE_WARNING          = 'WARNING';
-
-export const SET_COMPUTATION_REQUEST_ITEM       = 'SET_COMPUTATION_REQUEST_ITEM';
-
-export const COMPUTATION_START                  = 'COMPUTATION_START';
-export const COMPUTATION_SET_STAGE              = 'COMPUTATION_SET_STAGE';
-export const COMPUTATION_CONSUME_STAGE          = 'COMPUTATION_CONSUME_STAGE';
-
-export const COMPUTATION_VALIDATION_RECEIVED    = 'COMPUTATION_VALIDATION_RECEIVED';
-export const COMPUTATION_VALIDATION_FAILED      = 'COMPUTATION_VALIDATION_FAILED';
-
-export const COMPUTATION_ANALYSIS_RECEIVED      = 'COMPUTATION_ANALYSIS_RECEIVED';
-export const COMPUTATION_ANALYSIS_FAILED        = 'COMPUTATION_ANALYSIS_FAILED';
-
+export const COMPUTATION_SUCCESS                = 'COMPUTATION_SUCCESS';
 export const COMPUTATION_IN_PROGRESS            = 'COMPUTATION_IN_PROGRESS';
 export const COMPUTATION_ERRORED                = 'COMPUTATION_ERRORED';
-export const COMPUTATION_RESET                  = 'COMPUTATION_RESET';
+
+export const SET_NOTIFICATION                   = 'SET_NOTIFICATION';
+export const RESET_NOTIFICATION                 = 'RESET_NOTIFICATION';
+
+export const WS_SET_CONNECTION                  = 'WS_SET_CONNECTION';
+export const WS_RESET_CONNECTION                = 'WS_RESET_CONNECTION';
+export const WS_ADD_ITEM                        = 'WS_ADD_ITEM';
+export const WS_POP_ITEM                        = 'WS_POP_ITEM';
+
+export const _TYPE_COMPUTATION_VALIDATION       = 'COMPUTATION_VALIDATION';
+export const _TYPE_COMPUTATION_ANALYSIS_DATASET = 'COMPUTATION_ANALYSIS_DATASET';
+export const _TYPE_COMPUTATION_ANALYSIS_PSPT    = 'COMPUTATION_ANALYSIS_PSPT';
+export const _TYPE_COMPUTATION_HEATMAP          = 'COMPUTATION_HEATMAP ';
