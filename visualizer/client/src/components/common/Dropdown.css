@@ -1,0 +1,15 @@
+.dropdowns-container {
+
+    margin: 0 0 10px 0;
+    min-width: 225px;
+    float: left;
+}
+
+.form-group {
+
+}
+
+.control-label {
+    font-weight: lighter;
+    font-family: Arial, serif;
+}

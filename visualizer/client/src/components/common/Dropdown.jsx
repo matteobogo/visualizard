@@ -3,13 +3,13 @@ import PropTypes from 'prop-types';
 import { DropdownList, DateTimePicker } from 'react-widgets';
 import { FormGroup, ControlLabel } from 'react-bootstrap';
 
-import '../../styles/dropdown.css'
+import './Dropdown.css'
 
 export const DropdownClassic = (props) => {
 
     return (
-        <FormGroup>
-            <ControlLabel>{props.label}</ControlLabel>
+        <FormGroup bsClass="form-group">
+            <ControlLabel bsClass="control-label">{props.label}</ControlLabel>
             <div className="dropdowns-container">
                 <DropdownList
                     id={props.id}
@@ -39,7 +39,7 @@ DropdownClassic.propTypes = {
 };
 
 DropdownClassic.defaultProps = {
-    disabled: false
+    disabled: false,
 };
 
 const handleTime = (value) => {
