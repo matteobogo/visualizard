@@ -31,6 +31,7 @@ router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDa
 router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);
 router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getNamesByTagKeyByTagValue);
 
+router.post('/analysis', AnalysisController.startDatasetAnalysis);
 router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
 
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
