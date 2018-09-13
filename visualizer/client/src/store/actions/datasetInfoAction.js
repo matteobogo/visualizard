@@ -1,6 +1,5 @@
 import * as types from '../types/actionTypes';
-import * as config from '../../config/config';
-import * as apiFetcher from '../../services/visualizardApiFetcher';
+import * as apiFetcher from '../../services/ApiFetcher';
 
 export const itemsHasErrored = (error, itemType) =>
     ({ type: types.FETCH_ITEMS_ERROR, payload: error, itemType: itemType});
@@ -11,23 +10,20 @@ export const itemsIsLoading = (bool, itemType) =>
 export const itemsFetchDataSuccess = (items, itemType) =>
     ({ type: types.FETCH_ITEMS_SUCCESS, payload: items, itemType: itemType });
 
-export const resetItems = () =>
-    ({ type: types.FETCH_ITEMS_RESET });
-
 export const fetchItems = (itemType, {database, policy, field} = {}) => {
 
     let _URL;
     switch (itemType) {
 
-        case types._TYPE_DATABASE:
+        case types._TYPE_DATABASES:
             _URL = apiFetcher._URL_DATABASES;
             break;
 
-        case types._TYPE_POLICY:
+        case types._TYPE_POLICIES:
             _URL = apiFetcher._URL_POLICIES(database);
             break;
 
-        case types._TYPE_FIELD:
+        case types._TYPE_FIELDS:
             _URL = apiFetcher._URL_FIELDS(database);
             break;
 
@@ -35,7 +31,7 @@ export const fetchItems = (itemType, {database, policy, field} = {}) => {
             _URL = apiFetcher._URL_PERIODS;
             break;
 
-        case types._TYPE_HEATMAP_TYPE:
+        case types._TYPE_HEATMAP_TYPES:
             _URL = apiFetcher._URL_HEATMAP_TYPES;
             break;
 
@@ -62,12 +58,5 @@ export const fetchItems = (itemType, {database, policy, field} = {}) => {
             })
             .then(() => dispatch(itemsIsLoading(false, itemType)))
             .catch((err) => dispatch(itemsHasErrored(err.message, itemType)));
-    }
-};
-
-export const resetDatasetItems = () => {
-
-    return (dispatch) => {
-        dispatch(resetItems());
     }
 };

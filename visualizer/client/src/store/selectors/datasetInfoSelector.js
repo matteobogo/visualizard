@@ -21,15 +21,15 @@ export const getItems = (state, itemType) => {
 
     switch (itemType) {
 
-        case types._TYPE_DATABASE:
+        case types._TYPE_DATABASES:
 
             return state.datasetInfo.databases;
 
-        case types._TYPE_POLICY:
+        case types._TYPE_POLICIES:
 
             return state.datasetInfo.policies;
 
-        case types._TYPE_FIELD:
+        case types._TYPE_FIELDS:
 
             return state.datasetInfo.fields;
 
@@ -37,7 +37,7 @@ export const getItems = (state, itemType) => {
 
             return state.datasetInfo.periods;
 
-        case types._TYPE_HEATMAP_TYPE:
+        case types._TYPE_HEATMAP_TYPES:
 
             return state.datasetInfo.heatMapTypes;
 

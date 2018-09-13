@@ -11,8 +11,8 @@ const initialState = {
     periods: [],
     heatMapTypes: [],
     palettes: [],
-    firstInterval: new Date(),
-    lastInterval: new Date(),
+    firstInterval: null,
+    lastInterval: null,
     hasErrored: null,
     isLoading: false,
 };
@@ -37,21 +37,21 @@ export const datasetInfo = (state = initialState, action) => {
 
         case types.FETCH_ITEMS_SUCCESS:
 
-            if (action.itemType === types._TYPE_DATABASE) {
+            if (action.itemType === types._TYPE_DATABASES) {
 
                 return {
                     ...state,
                     databases: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_POLICY) {
+            else if (action.itemType === types._TYPE_POLICIES) {
 
                 return {
                     ...state,
                     policies: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_FIELD) {
+            else if (action.itemType === types._TYPE_FIELDS) {
 
                 return {
                     ...state,
@@ -65,7 +65,7 @@ export const datasetInfo = (state = initialState, action) => {
                     periods: action.payload,
                 };
             }
-            else if (action.itemType === types._TYPE_HEATMAP_TYPE) {
+            else if (action.itemType === types._TYPE_HEATMAP_TYPES) {
 
                 return {
                     ...state,
