@@ -2,9 +2,9 @@ import React from "react";
 import PropTypes from 'prop-types';
 import { Alert } from 'react-bootstrap';
 
-import * as localConstants from '../../utils/constants';
+import * as localConstants from '../utils/constants';
 
-import '../../styles/notification-bar.css';
+import './NotificationBar.css';
 
 export const NotificationBar = (props) => {
 
@@ -22,7 +22,7 @@ export const NotificationBar = (props) => {
         case localConstants.NOTIFICATION_TYPE_ERROR:
 
             alertStyle = "danger";
-            alertTitle = "Oh snap! You got an error!";
+            alertTitle = "An error occurred!";
             break;
 
         case localConstants.NOTIFICATION_TYPE_WARNING:
