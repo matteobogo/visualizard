@@ -5,9 +5,6 @@ LABEL developer="Matteo Bogo" \
     version="0.1.0" \
     description="Visualizard API"
 
-#
-ENV VISUALIZARD_HOME=/visualizard
-
 # init
 RUN apt-get -qq update && apt-get -qq install -y > /dev/null
 RUN apt-get -qq install curl -y > /dev/null
@@ -21,7 +18,7 @@ RUN apt-get install -y nodejs > /dev/null
 # install Cairo (used by node-canvas)
 RUN apt-get install libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential g++ -qq -y > /dev/null
 
-WORKDIR $VISUALIZARD_HOME
+WORKDIR /visualizard-api
 
 # copy package.json and package-lock.json with wildcard
 COPY package*.json ./
