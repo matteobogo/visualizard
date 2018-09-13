@@ -4,7 +4,7 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
-const sharedConstants = require('../../commons/constants');
+const sharedConstants = require('../commons/constants');
 
 const redis = require('../cache/redis');
 const influxdb = require('../database/influxdb');
@@ -17,7 +17,7 @@ const x = p => { throw new Error(`Missing parameter: ${p}`) };
 
 const getStatistics = () => {
 
-    return ['min', 'max', 'sum', 'mean'];
+    return ['mean', 'sum', 'min', 'max'];
 };
 
 const initializePointsStatsPerTS = (

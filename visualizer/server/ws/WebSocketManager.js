@@ -2,9 +2,9 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
-const sharedConstants = require('../../commons/constants');
+const sharedConstants = require('../commons/constants');
 
-const wsTypes = require('../../commons/wsEvents');
+const wsTypes = require('../commons/wsEvents');
 
 const analysisService = require('../services/AnalysisService');
 

@@ -41,9 +41,9 @@ const constants = {
 
     HEATMAPS: {
         TYPES: {
-            SORT_BY_MACHINE: 'SORT_BY_MACHINE',
-            SORT_BY_SUM: 'SORT_BY_SUM',
-            SORT_BY_TS_OF_MAX_VALUE: 'SORT_BY_TS_OF_MAX_VALUE',
+            SORT_BY_MACHINE: 'Machine ID',
+            SORT_BY_SUM: 'Sum',
+            SORT_BY_TS_OF_MAX_VALUE: 'Timestamp of max',
         },
         MODES: {
             SINGLE_IMAGE: 'SINGLE_IMAGE',

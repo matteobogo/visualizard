@@ -4,7 +4,7 @@ const logger = require('../config/winston');
 
 const config = require('../config/config');
 const constants = require('../utils/constants');
-const sharedConstants = require('../../commons/constants');
+const sharedConstants = require('../commons/constants');
 const globals = require('../utils/globals');
 
 const influx = require('../database/influxdb');
