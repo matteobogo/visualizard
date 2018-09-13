@@ -35,7 +35,8 @@
   },
   "scripts": {
     "build": "webpack -p --config webpack.config.js --hide-modules",
-    "dev": "webpack-dev-server --hot --mode development"
+    "dev": "webpack-dev-server --hot --mode development",
+    "dev-docker": "webpack-dev-server --config ./webpack.config.dev.docker.js --public"
   },
   "dependencies": {
     "bootstrap": "^3.3.7",

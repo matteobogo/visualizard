@@ -1,24 +1,14 @@
-ARG VERSION=9.11.2
-FROM node:$VERSION
+FROM node:latest
 
 LABEL developer="Matteo Bogo" \
     version="0.1.0" \
-    description="Visualizard API"
+    description="Visualizard Client"
 
-#
-ENV VISUALIZARD_HOME=/visualizard
+RUN mkdir /visualizard-client
+COPY . /visualizard-client
+WORKDIR /visualizard-client
 
-# init
+RUN npm install webpack-dev-server -g && npm install
 
-WORKDIR $VISUALIZARD_HOME
-
-# copy package.json and package-lock.json with wildcard
-COPY package*.json ./
-
-# install npm dependencies
-RUN npm install
-
-# copy app source
-COPY . .
-
-CMD ["npm", "run", "dev"]
+EXPOSE 45671
+CMD ["npm", "run", "dev-docker"]

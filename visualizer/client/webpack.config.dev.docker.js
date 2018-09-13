@@ -2,7 +2,7 @@ const webpack = require("webpack");
 
 const OpenBrowserPlugin = require('open-browser-webpack-plugin');
 const path = require('path');
-//const Dotenv = require('dotenv-webpack');
+const Dotenv = require('dotenv-webpack');
 
 module.exports = {
     entry: ["babel-polyfill", "./src/index.js"],
@@ -12,15 +12,13 @@ module.exports = {
         publicPath: "assets"
     },
     plugins: [
-        new OpenBrowserPlugin({url: 'http://localhost:4800'}),
-        //new Dotenv()
+        //new OpenBrowserPlugin({url: 'http://localhost:4800'}),
+        new Dotenv()
     ],
     devServer: {
-        //host: '0.0.0.0', //when deploy
-        inline: true,
+        host: '0.0.0.0', //when deploy
         contentBase: './dist',
-        hot: true,  //live-reload
-        port: 4800
+        port: 45671
     },
     module: {
         rules: [
