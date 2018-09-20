@@ -20,12 +20,12 @@ const getAnalysisStatistics = async (req, res) => {
 
 const startDatasetAnalysis = async (req, res) => {
 
-    let database = res.query.database;
-    let policy = res.query.policy;
-    let startInterval = res.query.startInterval;
-    let endInterval = res.query.endInterval;
-    let period = res.query.period;
-    let nMeasurements = res.query.nMeasurements;
+    let database = req.query.database;
+    let policy = req.query.policy;
+    let startInterval = req.query.startInterval;
+    let endInterval = req.query.endInterval;
+    let period = req.query.period;
+    let nMeasurements = req.query.nMeasurements;
 
     analysisService.analyzeDataset({
         database: database,
