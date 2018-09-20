@@ -32,3 +32,7 @@ export const NOTIFICATION_TYPE_ERROR            = 'ERROR';
 export const NOTIFICATION_TYPE_WARNING          = 'WARNING';
 export const NOTIFICATION_TYPE_INFO             = 'INFO';
 export const NOTIFICATION_DELAY                 = 5000;
+
+export const _TYPE_MOUSE_CLICK                  = 'MOUSE_CLICK';
+export const _TYPE_MOUSE_HOOVER                 = 'MOUSE_HOOVER';
+export const _TYPE_MOUSE_WHEEL                  = 'MOUSE_WHEEL';
