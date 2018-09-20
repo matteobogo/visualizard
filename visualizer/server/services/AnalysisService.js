@@ -210,7 +210,7 @@ const analyzeDataset = async (
         });
 
         //collect stats from points
-        points.forEach(point => {
+        points[0].forEach(point => {
 
             fields.forEach((field, index) => {
 
@@ -334,7 +334,7 @@ const analyzeDataset = async (
             });
 
         //std computation (first part): sums (xi - mean)^2 for each measurement's point xi
-        points.forEach(point => {
+        points[0].forEach(point => {
 
             fields.forEach((field, index) => {
 
