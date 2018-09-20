@@ -3,7 +3,7 @@ import React, { Component } from 'react';
 import * as localConstants from '../../utils/constants';
 import * as apiFetcher from "../../services/ApiFetcher";
 
-import { DropdownClassic, DropdownDateTime } from './Dropdown';
+import { DropdownClassic, DropdownDateTime } from '../common/Dropdown';
 import { ConfiguratorOptions } from './ConfiguratorOptions';
 
 import { Col, Panel, Form } from 'react-bootstrap';
@@ -11,7 +11,7 @@ import { Col, Panel, Form } from 'react-bootstrap';
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
-import '../../styles/configurator.css';
+import './ConfiguratorContainer.css';
 
 export default class ConfiguratorContainer extends Component {
 
@@ -199,32 +199,8 @@ export default class ConfiguratorContainer extends Component {
 
         const { onError } = this.props;
 
-        let _URL;
-        switch (itemType) {
-
-            case localConstants._TYPE_DATABASES:
-                _URL = apiFetcher._URL_DATABASES;
-                break;
-
-            case localConstants._TYPE_POLICIES:
-                _URL = apiFetcher._URL_POLICIES(args.database);
-                break;
-
-            case localConstants._TYPE_FIELDS:
-                _URL = apiFetcher._URL_FIELDS(args.database);
-                break;
-
-            case localConstants._TYPE_FIRST_INTERVAL:
-                _URL = apiFetcher._URL_FIRST_INTERVAL(args.database, args.policy, args.field);
-                break;
-
-            case localConstants._TYPE_LAST_INTERVAL:
-                _URL = apiFetcher._URL_LAST_INTERVAL(args.database, args.policy, args.field);
-                break;
-        }
-
-        apiFetcher
-            .fetchResources(_URL)
+        return apiFetcher
+            .fetchData({ itemType: itemType, args: args })
             .then((data) => {
                 this.setState({ isLoading: true });
                 return data;
@@ -233,14 +209,13 @@ export default class ConfiguratorContainer extends Component {
                 this.setState({
                     dataset: {
                         ...this.state.dataset,
-                        [itemType]: data  //ES6 computed property name
+                        [itemType]: data,  //ES6 computed property name
                     }
                 });
             })
             .catch(err => {
 
                 const options = {
-                    url: _URL,
                     itemType: itemType,
                     error: err.message,
                     ...args
@@ -302,7 +277,7 @@ export default class ConfiguratorContainer extends Component {
 
         return (
 
-            <Panel defaultExpanded>
+            <Panel bsStyle="primary" defaultExpanded>
                 <Panel.Heading>
                     <Panel.Title toggle>
                         Configurator
@@ -348,7 +323,7 @@ export default class ConfiguratorContainer extends Component {
                                             id="datetime-start"
                                             placeholder="select start interval"
                                             min={firstInterval}
-                                            max={lastInterval}
+                                            max={configuration[localConstants._TYPE_SELECTED_END_INTERVAL]}
                                             step={(300 / 60)}
                                             value={configuration[localConstants._TYPE_SELECTED_START_INTERVAL]}
                                             type={localConstants._TYPE_SELECTED_START_INTERVAL}
@@ -374,7 +349,7 @@ export default class ConfiguratorContainer extends Component {
                                     <Col xs={12}>
 
                                         <ConfiguratorOptions
-                                            label="Options"
+                                            label=""
                                             options={[
                                                 {
                                                     name: 'Analysis',
