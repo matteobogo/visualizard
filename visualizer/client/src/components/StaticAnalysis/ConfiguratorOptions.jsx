@@ -4,7 +4,7 @@ import Switch from 'rc-switch';
 import 'rc-switch/assets/index.css';
 import { FormGroup, ControlLabel } from 'react-bootstrap';
 
-import '../../styles/configurator-options.css';
+import './ConfiguratorOptions.css';
 
 const SwitchComponent = (props) => {
 
