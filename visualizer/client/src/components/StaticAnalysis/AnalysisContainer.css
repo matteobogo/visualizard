@@ -1,0 +1,11 @@
+.analysis-menu-container {
+    margin: 0 0 25px 0;
+    display: flex;
+}
+
+.timeserie-chart-container {
+
+    margin: 10px 0 0 0;
+    width: 100%;
+    height: 300px;
+}
