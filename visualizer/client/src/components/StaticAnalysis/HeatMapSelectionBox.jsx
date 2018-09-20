@@ -31,5 +31,5 @@ export const HeatMapSelectionBox = (props) => {
 HeatMapSelectionBox.propTypes = {
     label: PropTypes.string.isRequired,
     timestamp: PropTypes.string.isRequired,
-    machine: PropTypes.number.isRequired,
+    machine: PropTypes.string.isRequired,
 };
