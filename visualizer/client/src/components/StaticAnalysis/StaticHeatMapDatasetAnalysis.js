@@ -24,15 +24,15 @@ const styles = {
 
 };
 
-export default class StaticHeatMapAnalysis extends Component {
+export default class StaticHeatMapDatasetAnalysis extends Component {
 
     render() {
 
-        const { datasetStats } = this.props;
+        const { datasetAnalysis, show } = this.props;
 
         return(
 
-            datasetStats !== null ?
+            show === true ?
 
             <Panel>
                 <Panel.Heading>
@@ -41,7 +41,7 @@ export default class StaticHeatMapAnalysis extends Component {
                 <Panel.Body>
                     <Grid>
                     {
-                        Object.keys(datasetStats).map((key, index) =>(
+                        Object.keys(datasetAnalysis).map((key, index) =>(
 
                             <Row key={index}>
                                 <Col>
@@ -52,7 +52,7 @@ export default class StaticHeatMapAnalysis extends Component {
                                         <AnimatedNumber
                                             component="span"
                                             initialValue={0}
-                                            value={Math.round(datasetStats[key] * 100) / 100} //approx. 2 decimals
+                                            value={Math.round(datasetAnalysis[key] * 100) / 100} //approx. 2 decimals
                                             stepPrecision={2}
                                             duration={3000}
                                             style={{
@@ -83,6 +83,6 @@ export default class StaticHeatMapAnalysis extends Component {
     }
 }
 
-StaticHeatMapAnalysis.propTypes = {
+StaticHeatMapDatasetAnalysis.propTypes = {
 
 };
