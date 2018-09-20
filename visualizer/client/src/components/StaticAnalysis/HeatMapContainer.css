@@ -72,8 +72,9 @@ img {
 
 .tiles-container {
     grid-area: main;
-    border: 1px gray solid;
+    border: 1px #3072AC solid;
     display: grid;
+    cursor: crosshair;
 }
 
 .footer {
@@ -95,52 +96,3 @@ img {
     width: 256px;
     height: 256px;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#heatmap-panel-container {
-
-    display: grid;
-}
-
-.heatmap-panel-arrows-horizontal {
-
-    grid-row: header;
-    text-align: center;
-    width: 100%;
-}
-
-#heatmap-panel-middle-container {
-
-}
-
-.heatmap-panel-arrows-vertical {
-
-    min-width: 35px;
-}
-
-
-
-
-

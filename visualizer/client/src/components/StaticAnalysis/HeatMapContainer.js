@@ -31,7 +31,7 @@ const _MENU_NAVIGATION = {
     _LEFT: 'LEFT',
 };
 
-const convertTimestampToID = (genesis, current, period) => {
+const convertTimestampToID = (genesis, current, period = 300) => {
 
     let start = Date.parse(genesis);    //converts to unix epoch time (ms)
     let end = Date.parse(current);
@@ -39,12 +39,24 @@ const convertTimestampToID = (genesis, current, period) => {
     return Math.floor((end - start) / (period * 1000 * config.TILE_SIZE));
 };
 
-const convertTileCoordinates = ({ tileIds, tileCoords }) => {
+const convertTileCoordinates = ({ genesis, tileIds, tileCoords, period = 300 }) => {
+
+    //TODO zoom level ?
 
     const [tileIdX, tileIdY] = tileIds;
     const [tileCoordX, tileCoordY] = tileCoords;
 
+    let timestamp = new Date(genesis);
+    const tileInterval = period * config.TILE_SIZE;
 
+    timestamp.setSeconds(
+        timestamp.getSeconds() +
+        (tileInterval * tileIdX) +      //get the start timestamp of the tile identified by the ID
+        (period * tileCoordX));         //get the timestamp associated with the pixel within the tile
+
+    let machineIdx = (config.TILE_SIZE * tileIdY) + tileCoordY;
+
+    return [timestamp.toISOString(), `${machineIdx}`];
 };
 
 export default class HeatMapContainer extends Component {
@@ -86,6 +98,12 @@ export default class HeatMapContainer extends Component {
                 tileRowsURLs: [],
             },
 
+            selection: {
+
+                timestamp: 'No Data',
+                machineIdx: 'No Data',
+            },
+
             width: window.innerWidth,
             height: window.innerHeight,
 
@@ -99,8 +117,7 @@ export default class HeatMapContainer extends Component {
         this.handleDropdownSelection = this.handleDropdownSelection.bind(this);
         this.handleMenuNavigation = this.handleMenuNavigation.bind(this);
 
-        this.handleTileMouseClick = this.handleTileMouseClick.bind(this);
-        this.handleTileMouseHoover = this.handleTileMouseHoover.bind(this);
+        this.handleTileMouseInteraction = this.handleTileMouseInteraction.bind(this);
     }
 
     componentDidMount() {
@@ -505,17 +522,57 @@ export default class HeatMapContainer extends Component {
         }
     }
 
-    handleTileMouseClick({ tileX, tileY, imgX, imgY }) {
+    handleTileMouseInteraction({
+        coordinates: {tileX, tileY, imgX, imgY} = {},
+        zoomTick = null,
+        type,
+    }) {
 
+        const {
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
+        } = this.state.dataset;
 
-    }
+        if (type === localConstants._TYPE_MOUSE_WHEEL) {
 
-    handleTileMouseHoover() {
+            const { [localConstants._TYPE_HEATMAP_ZOOMS]: zooms } = this.state.dataset;
+            const { [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom } = this.state.configuration;
 
+            let oldZoomIdx = zooms.indexOf(selectedZoom);
+            let newZoomIdx;
 
+            //out
+            if (zoomTick > 0 && oldZoomIdx > 0) newZoomIdx = --oldZoomIdx;
+            else if (zoomTick < 0 && oldZoomIdx < zooms.length - 1) newZoomIdx = ++oldZoomIdx;
+            else return;
+
+            this.setState({
+                configuration: {
+                    ...this.state.configuration,
+                    [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zooms[newZoomIdx],
+                }
+            });
+        }
+        else if (type === localConstants._TYPE_MOUSE_CLICK || type === localConstants._TYPE_MOUSE_HOOVER) {
+
+            const [ timestamp, machineIdx ] = convertTileCoordinates({
+                genesis: firstInterval,
+                tileIds: [tileX, tileY],
+                tileCoords: [imgX, imgY]
+            });
+
+            this.setState({
+                selection: {
+                    ...this.state.selection,
+                    timestamp: timestamp,
+                    machineIdx: machineIdx,
+                }
+            });
+        }
     }
 
     render() {
+
+        console.log(this.state)
 
         const { disabled } = this.props;
         const { isLoading } = this.state;
@@ -532,7 +589,9 @@ export default class HeatMapContainer extends Component {
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
         } = this.state.configuration;
 
-        const { tileRowsURLs } = this.state.navigation;
+        const { tileIdCurrentInterval, tileIdCurrentMachineIndex, tileRowsURLs } = this.state.navigation;
+
+        const { timestamp, machineIdx } = this.state.selection;
 
         if (disabled) return null;
 
@@ -588,8 +647,8 @@ export default class HeatMapContainer extends Component {
                                     <Col xs={12} sm={6} md={3}>
                                         <HeatMapSelectionBox
                                             label="Selection"
-                                            timestamp={'test'}
-                                            machine={2}
+                                            timestamp={timestamp}
+                                            machine={machineIdx}
                                         />
                                     </Col>
                                 </Form>
@@ -625,10 +684,12 @@ export default class HeatMapContainer extends Component {
 
                                                             <Tile
                                                                 key={`${indexRow},${indexCol}`}
-                                                                tileID={[indexRow, indexCol]}
+                                                                tileID={[
+                                                                    tileIdCurrentInterval + indexRow,
+                                                                    tileIdCurrentMachineIndex + indexCol
+                                                                ]}
                                                                 tileURL={col}
-                                                                handleTileMouseClick={this.handleTileMouseClick}
-                                                                handleTileMouseHoover={this.handleTileMouseHoover}
+                                                                handleTileMouseInteraction={this.handleTileMouseInteraction}
                                                             />
 
                                                         ))
