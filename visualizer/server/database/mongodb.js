@@ -11,7 +11,7 @@ exports.moongoseConfig = () => {
         .catch((err) => {
             console.log(`Failed to connect: ${err.message}`);
         });
-    mongoose.set('debug', true);
+    //mongoose.set('debug', true);
 
     //using promises instead of callbacks
     mongoose.Promise = Promise;
