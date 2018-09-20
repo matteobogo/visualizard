@@ -27,6 +27,17 @@ const getPalettesRGB = (palette) => {
     else throw Error(`palette ${palette} not available`);
 };
 
+const getPalettesBounds = (palette) => {
+
+    if (constants.PALETTES.hasOwnProperty(palette)) {
+
+        return [
+            constants.PALETTES[palette.toUpperCase()].OUTLIER_MIN,
+            constants.PALETTES[palette.toUpperCase()].OUTLIER_MAX
+        ];
+    }
+};
+
 const getPalettes = () => {
 
     return Object.keys(constants.PALETTES);
@@ -65,51 +76,6 @@ const setZscores = (min, max) => {
 const getZscores = () => ({ min: minZscore, max: maxZscore });
 
 const x = p => { throw new Error(`Missing parameter: ${p}`) };
-
-/* HeatMap Fetchers */
-
-// const heatMapFetcher = async (
-//     {
-//         heatMapRequest,
-//         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-//     }
-//
-//     ) => {
-//
-//     heatMapRequest.database = heatMapRequest.database || x`Database is missing`;
-//     heatMapRequest.policy = heatMapRequest.policy || x`Policy is missing`;
-//     heatMapRequest.startInterval = heatMapRequest.startInterval || x`Start Interval is missing`;
-//     heatMapRequest.endInterval = heatMapRequest.endInterval || x`End Interval is missing`;
-//     heatMapRequest.fields[0] = heatMapRequest.fields[0] || x`Field is missing`;
-//     heatMapRequest.nMeasurements = heatMapRequest.nMeasurements || x`number of measurements is missing`;
-//     heatMapRequest.period = heatMapRequest.period || x`Period is missing`;
-//     heatMapRequest.heatMapType = heatMapRequest.heatMapType || x`HeatMap Type is missing`;
-//     heatMapRequest.palette = heatMapRequest.palette || x`Palette is missing`;
-//
-//     const filename = filenameGenerator(heatMapRequest);
-//
-//     logger.log('info', `Requesting ${filename}.${imageType}`);
-//
-//     //TODO image stored on external service like Amazon S3
-//
-//     //checks if the heatmap image is already stored
-//     //TODO usa mkdirp ?
-//     const file = fs.existsSync(`${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType}`);
-//
-//     if (!file) {
-//         logger.log('warn', `Requested ${constants.PATH_HEATMAPS_IMAGES + filename}.${imageType} ` +
-//                            `but image has not been computed yet`);
-//     }
-//
-//     //TODO carica heatmap grossa e ritaglia? altre strategie?
-//
-//
-//     //convert image file to base64-encoded string
-//     const base64Image = new Buffer(file, 'binary').toString('base64');
-//
-//     //combine all the strings and return the result
-//     return `data:image/${imageType};base64,${base64Image}`;
-// };
 
 /* HeatMap Construction */
 
@@ -164,19 +130,24 @@ const colorize = ( //value must be standardized first
 
     try {
 
+        //palette RGBs
+        const paletteRGB = getPalettesRGB(palette);
+        let paletteMin, paletteMax;
+        [paletteMin, paletteMax] = getPalettesBounds(palette);
+
         const range = Math.abs(max - min);
-        const bucket_len = range / palette.length;
+        const bucket_len = range / paletteRGB.length;
 
         //outliers
-        if (value < min) return {r: 255, g: 255, b: 255};   //white
-        if (value > max) return {r: 0, g: 0, b: 0};         //black
+        if (value < min) return paletteMin;
+        if (value > max) return paletteMax;
 
         //mapping colors to normal distribution
-        for (let i = 0, b = min; i < palette.length; ++i, b += bucket_len) {
+        for (let i = 0, b = min; i < paletteRGB.length; ++i, b += bucket_len) {
 
             //value in the current bucket
             if (value <= b + bucket_len)
-                return palette[i];
+                return paletteRGB[i];
         }
 
     } catch(err) {
@@ -222,9 +193,6 @@ const drawHeatMapTile = async({
 
     try {
 
-        //palette RGBs
-        const paletteRGB = getPalettesRGB(palette);
-
         //canvas
         const canvas = Canvas.createCanvas(width, height);
         const ctx = canvas.getContext('2d');
@@ -247,7 +215,7 @@ const drawHeatMapTile = async({
                     value: standardizedPoint,
                     min: minZscore,
                     max: maxZscore,
-                    palette: paletteRGB,
+                    palette: palette,
                 });
 
                 ctx.fillStyle = `rgb(${colorizedPoint.r},${colorizedPoint.g},${colorizedPoint.b})`;
@@ -492,13 +460,13 @@ const drawHeatMap = async ({
             throw Error(`Failed to fetch points: ${err.message}`);
         });
 
-        if (points.length === 0) {
+        if (points[0].length === 0) {
 
             throw Error(`No points available in the timeserie [${measurements[i]}]`);
         }
 
         //drawing pixels
-        points.forEach((point, index) => {
+        points[0].forEach((point, index) => {
 
             let standardizedPoint = standardize({
                 point: point,
@@ -558,8 +526,8 @@ const drawHeatMap = async ({
         `/${request.palette}`;
 
     //check if directory exists, otherwise creates it
-    if (!fs.existsSync(pathTilesDir)) {
-        mkdirp.sync(pathTilesDir);
+    if (!fs.existsSync(pathImageDir)) {
+        mkdirp.sync(pathImageDir);
     }
 
     return canvasToImage({
@@ -656,7 +624,7 @@ const heatMapBuildAndStore = async (
             policy: request.policy,
             startInterval: request.startInterval,
             endInterval: request.endInterval,
-            analysisType: sharedConstants.ANALYSIS_DATASET,
+            type: sharedConstants.ANALYSIS_DATASET,
             visualizationFlag: 'server',
         })
             .catch(err => {
@@ -672,7 +640,7 @@ const heatMapBuildAndStore = async (
             policy: request.policy,
             startInterval: request.startInterval,
             endInterval: request.endInterval,
-            analysisType: sharedConstants.ANALYSIS_MEASUREMENTS,
+            type: sharedConstants.ANALYSIS_MEASUREMENTS,
             visualizationFlag: 'server',
         })
             .catch(err => {
