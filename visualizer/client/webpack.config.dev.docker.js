@@ -18,8 +18,9 @@ module.exports = {
     devServer: {
         host: '0.0.0.0', //when deploy
         contentBase: './dist',
-        port: 45671
+        port: 45671,
         compress: true,
+        disableHostCheck: true,
         historyApiFallback: true,
     },
     module: {
