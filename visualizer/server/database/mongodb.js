@@ -3,10 +3,27 @@ const mongoose = require('mongoose');
 
 exports.moongoseConfig = () => {
 
-    const mongodbURL = `mongodb://${config.MONGO.db_host}/${config.MONGO.db_name}`;
-    mongoose.connect(mongodbURL)
+    const options = {
+        useNewUrlParser: true,
+    };
+
+    let uri = `mongodb://`;
+
+    if (config.MONGO.db_authentication) {
+
+        uri = uri +
+            `${config.MONGO.db_user}:` +
+            `${config.MONGO.db_password}@`;
+    }
+
+    uri = uri +
+        `${config.MONGO.db_host}:` +
+        `${config.MONGO.db_port}/` +
+        `${config.MONGO.db_name}`;
+
+    mongoose.connect(uri, options)
         .then(() => {
-            console.log(`${mongodbURL} connected`);
+            console.log(`${uri} connected`);
         })
         .catch((err) => {
             console.log(`Failed to connect: ${err.message}`);
