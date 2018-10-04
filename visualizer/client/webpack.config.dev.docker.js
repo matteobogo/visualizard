@@ -17,11 +17,11 @@ module.exports = {
     ],
     devServer: {
         host: '0.0.0.0', //when deploy
-        compress: true,
-        historyApiFallback: true,
-        contentBase: path.join(__dirname, 'dist'),
+        contentBase: './dist',
         port: 45671,
-        publicPath: '/',
+        compress: true,
+        disableHostCheck: true,
+        historyApiFallback: true,
     },
     module: {
         rules: [

@@ -1,0 +1,114 @@
+version: "2"
+
+services:
+
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx-proxy
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - visualizard-frontend
+      - visualizard-backend
+      - visualizard-security
+    volumes:
+      - "./nginx/vhost.d:/etc/nginx/vhost.d"
+      - "./nginx/html:/usr/share/nginx/html"
+      - "./nginx/certs:/etc/nginx/certs"
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+
+  letsencrypt-companion:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: letsencrypt-companion
+    restart: unless-stopped
+    hostname: letsencrypt-companion
+    networks:
+      - visualizard-security
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    volumes_from:
+      - "nginx-proxy"
+
+  visualizard-client:
+      build:
+        context: visualizer/client/
+        dockerfile: Dockerfile
+        # args:
+        #   APP_VERSION: ${CLIENT_APP_VERSION}
+        #   NODE_VERSION: ${CLIENT_NODE_VERSION}  #9.11.2
+      # image: visualizard-client:${CLIENT_APP_VERSION}
+      # command: ["npm", "run", "dev"]
+      container_name: visualizard-client
+      restart: always
+      ports:
+        - "45671"
+      networks:
+        - visualizard-frontend
+      environment:
+        VIRTUAL_HOST: visualizard.borgotech.cloud
+        VIRTUAL_PORT: 8080
+        LETSENCRYPT_HOST: ###
+        LETSENCRYPT_EMAIL: ###
+        API_HOSTNAME: ###
+        API_PORT: ###
+
+      # depends_on:
+      #   - visualizard-api
+
+  # visualizard-api:
+  #     build:
+  #       context: visualizer/server/
+  #       dockerfile: Dockerfile
+  #     # command: ["npm", "start"]
+  #     container_name: visualizard-api
+  #     restart: always
+  #     hostname: visualizard-api
+  #     ports:
+  #       - "45670:45670"
+  #     networks:
+  #       - visualizard-backend
+  #     env_file:
+  #       - ./visualizer/server/api-dev.env
+  #     volumes:
+  #       - "${HOME}/public:/visualizard-api/public"
+  #     depends_on:
+  #       - redis
+  #       - mongodb
+  #
+  # redis:
+  #   image: redis
+  #   container_name: redis
+  #   restart: always
+  #   hostname: redis
+  #   networks:
+  #     - visualizard-backend
+  #   ports:
+  #     - "6379"
+  #
+  # mongodb:
+  #   image: mongo
+  #   container_name: mongodb
+  #   restart: always
+  #   hostname: mongodb
+  #   networks:
+  #     - visualizard-backend
+  #   ports:
+  #     - "27017"
+
+  # influxdb:
+  #   image: influxdb
+  #   container_name: influxdb
+  #   restart: always
+  #   hostname: influxdb
+  #   networks:
+  #     - visualizard-backend
+  #   ports:
+  #     - "8086"
+
+networks:
+  visualizard-frontend:
+  visualizard-backend:
+  visualizard-security:
