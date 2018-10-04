@@ -46,12 +46,6 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
 
-            options: {
-
-                [localConstants._TYPE_OPTION_ANALYSIS]: false,
-                [localConstants._TYPE_OPTION_HEATMAP]: false,
-            },
-
             //analysis
             [sharedConstants.ANALYSIS_DATASET]: null,
             [sharedConstants.ANALYSIS_PSPT]: null,
@@ -63,7 +57,6 @@ class StaticAnalysisContainer extends Component {
         };
 
         this.setConfigurationItem = this.setConfigurationItem.bind(this);
-        this.setOption = this.setOption.bind(this);
         this.handleError = this.handleError.bind(this);
     }
 
@@ -124,53 +117,40 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_END_INTERVAL]: prevEndInterval,
         } = prevState.configuration;
 
-        const {
-            [localConstants._TYPE_OPTION_ANALYSIS]: optionAnalysis,
-            [localConstants._TYPE_OPTION_HEATMAP]: optionHeatMap,
-        } = this.state.options;
-
-        const {
-            [localConstants._TYPE_OPTION_ANALYSIS]: prevOptionAnalysis,
-            [localConstants._TYPE_OPTION_HEATMAP]: prevOptionHeatMap,
-        } = prevState.options;
-
         const { addRequest, removeResponse } = this.props;
 
         //some configuration's item is changed?
         if (prevDatabase !== database || prevPolicy !== policy || prevStartInterval !== startInterval ||
-            prevEndInterval !== endInterval || prevOptionAnalysis !== optionAnalysis) {
+            prevEndInterval !== endInterval) {
 
             //null check
             if (Object.values(this.state.configuration).some(value => (value === null || value === undefined))) return;
 
             //configuration ready => send requests (dataset + pspt analysis)
-            if (optionAnalysis) {
+            const uuids = [uuidv4(), uuidv4()];
 
-                const uuids = [uuidv4(), uuidv4()];
+            const requests = {
+                [uuids[0]]: {operation: sharedConstants.ANALYSIS_DATASET, data: this.state.configuration},
+                [uuids[1]]: {operation: sharedConstants.ANALYSIS_PSPT, data: this.state.configuration},
+            };
 
-                const requests = {
-                    [uuids[0]]: {operation: sharedConstants.ANALYSIS_DATASET, data: this.state.configuration},
-                    [uuids[1]]: {operation: sharedConstants.ANALYSIS_PSPT, data: this.state.configuration},
-                };
+            addRequest({
+                uuid: uuids[0],
+                ...requests[uuids[0]],
+            });
 
-                addRequest({
-                    uuid: uuids[0],
-                    ...requests[uuids[0]],
-                });
+            addRequest({
+                uuid: uuids[1],
+                ...requests[uuids[1]],
+            });
 
-                addRequest({
-                    uuid: uuids[1],
-                    ...requests[uuids[1]],
-                });
-
-                this.setState({
-                    pendingRequests: {
-                        ...this.state.pendingRequests,
-                        ...requests
-                    },
-                    isLoading: true
-                });
-            }
+            this.setState({
+                pendingRequests: {
+                    ...this.state.pendingRequests,
+                    ...requests
+                },
+                isLoading: true
+            });
         }
 
         if (this.state.pendingDeletion.length > 0) {
@@ -206,16 +186,6 @@ class StaticAnalysisContainer extends Component {
         });
     }
 
-    setOption({bool, type}) {
-
-        this.setState({
-            options: {
-                ...this.state.options,
-                [type]: bool,
-            },
-        });
-    }
-
     handleError({message, type, ...options}) {
 
         const { notify } = this.props;
@@ -248,11 +218,22 @@ class StaticAnalysisContainer extends Component {
 
         const {
             configuration,
-            options,
             [sharedConstants.ANALYSIS_DATASET]: datasetAnalysis,
             [sharedConstants.ANALYSIS_PSPT]: psptAnalysis,
             isLoading,
         } = this.state;
+
+        const {
+
+            [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
+            [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
+
+        } = this.state.configuration;
+
+        let showContainers = false;
+        if (selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) showContainers = true;
 
         const { connectionStatus } = this.props;
 
@@ -269,9 +250,7 @@ class StaticAnalysisContainer extends Component {
                             <Col xs={12}>
                                 <ConfiguratorContainer
                                     configuration={configuration}
-                                    options={options}
                                     setConfigurationItem={this.setConfigurationItem}
-                                    setOption={this.setOption}
                                     onError={this.handleError}
                                 />
                             </Col>
@@ -279,7 +258,7 @@ class StaticAnalysisContainer extends Component {
                         <Row>
                             <Col xs={12}>
                                 <AnalysisContainer
-                                    disabled={!options[localConstants._TYPE_OPTION_ANALYSIS]}
+                                    disabled={!showContainers}
                                     datasetAnalysis={datasetAnalysis}
                                     psptAnalysis={psptAnalysis}
                                 />
@@ -288,30 +267,11 @@ class StaticAnalysisContainer extends Component {
                         <Row>
                             <Col xs={12}>
                                 <HeatMapContainer
-                                    disabled={!options[localConstants._TYPE_OPTION_HEATMAP]}
+                                    disabled={!showContainers}
                                     configuration={configuration}
                                     onError={this.handleError}
                                 />
                             </Col>
-                        </Row>
-                        <Row>
-                            {
-                                options[localConstants._TYPE_OPTION_HEATMAP] ?
-
-                                    <div>
-                                        <Col xs={12} sm={6} md={4}>
-                                            <StaticHeatMapRowStats/>
-                                        </Col>
-                                        < Col xs={12} sm={6} md={4}>
-                                        <StaticHeatMapColumnStats/>
-                                        </Col>
-                                        <Col xs={12} md={4}>
-                                        <StaticHeatMapPointStats/>
-                                        </Col>
-                                    </div>
-
-                                : null
-                            }
                         </Row>
                     </LoadingOverlay>
                     <Loader loading={isLoading}/>

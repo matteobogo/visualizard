@@ -34,7 +34,6 @@ export default class ConfiguratorContainer extends Component {
 
         this.fetchDataFromApi = this.fetchDataFromApi.bind(this);
         this.handleDropdownSelection = this.handleDropdownSelection.bind(this);
-        this.handleOptionsSelection = this.handleOptionsSelection.bind(this);
     }
 
     //It enables a component to update its internal state as the result of changes in props
@@ -44,7 +43,7 @@ export default class ConfiguratorContainer extends Component {
         const { configuration } = nextProps;
 
         const {
-            dataset, lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
+            lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
         } = prevState;
 
         if (configuration[localConstants._TYPE_SELECTED_DATABASE] !== lastSelectedDatabase) {
@@ -235,16 +234,9 @@ export default class ConfiguratorContainer extends Component {
         this.props.setConfigurationItem({ item: value, itemType: type });
     }
 
-    handleOptionsSelection({bool, type}) {
-
-        const { setOption, options } = this.props;
-
-        setOption({ bool: !options[type], type: type });
-    }
-
     render() {
 
-        const { configuration, options } = this.props;
+        const { configuration } = this.props;
 
         const { isLoading } = this.state;
 
@@ -259,7 +251,6 @@ export default class ConfiguratorContainer extends Component {
         //dropdowns unlocking
         let unlockPoliciesDropdown = false;
         let unlockDateTimePickers = false;
-        let unlockOptions = false;
 
         if (configuration[localConstants._TYPE_SELECTED_DATABASE]) {
 
@@ -267,11 +258,6 @@ export default class ConfiguratorContainer extends Component {
             if (configuration[localConstants._TYPE_SELECTED_POLICY] && firstInterval && lastInterval) {
 
                 unlockDateTimePickers = true;
-                if (configuration[localConstants._TYPE_SELECTED_START_INTERVAL] &&
-                    configuration[localConstants._TYPE_SELECTED_END_INTERVAL]) {
-
-                    unlockOptions = true;
-                }
             }
         }
 
@@ -345,27 +331,6 @@ export default class ConfiguratorContainer extends Component {
                                             onChange={this.handleDropdownSelection}
                                             disabled={!unlockDateTimePickers}/>
 
-                                    </Col>
-                                    <Col xs={12}>
-
-                                        <ConfiguratorOptions
-                                            label=""
-                                            options={[
-                                                {
-                                                    name: 'Analysis',
-                                                    type: localConstants._TYPE_OPTION_ANALYSIS,
-                                                    onChange: this.handleOptionsSelection,
-                                                    value: options[localConstants._TYPE_OPTION_ANALYSIS],
-                                                    disabled: !unlockOptions,
-                                                },
-                                                {
-                                                    name: 'HeatMap',
-                                                    type: localConstants._TYPE_OPTION_HEATMAP,
-                                                    onChange: this.handleOptionsSelection,
-                                                    value: options[localConstants._TYPE_OPTION_HEATMAP],
-                                                    disabled: !unlockOptions,
-                                                }
-                                            ]}/>
                                     </Col>
                                 </Form>
                                 <Loader loading={isLoading}/>
