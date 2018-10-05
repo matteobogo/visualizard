@@ -31,9 +31,6 @@ export default class NavBar extends React.Component {
                             <NavItem eventKey={1} href="#">
                                 Static Analysis
                             </NavItem>
-                            <NavItem eventKey={2} href="#">
-                                Real-time Analysis
-                            </NavItem>
                             <NavItem eventKey={3} href="#">
                                 About
                             </NavItem>
