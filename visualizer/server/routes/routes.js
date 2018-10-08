@@ -5,7 +5,6 @@ const HomeController = require('../controllers/HomeController');
 const InfluxDBController = require('../controllers/InfluxDBController');
 const AnalysisController = require('../controllers/AnalysisController');
 const HeatMapController = require('../controllers/HeatMapController');
-const TimeSeriesController = require('../controllers/TimeSeriesController');
 
 router.get('/', function(req, res, next) {
     res.json({
@@ -46,7 +45,7 @@ router.post('/heatmaps/stop', HeatMapController.stopHeatMapComputation);
 
 router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
 
-router.get('/timeseries/:heatMapType/:timeSerieIndex', TimeSeriesController.getDataByMachineIdxByHeatMapType);
+router.get('/timeseries/:heatMapType/:timeSerieIndex', HeatMapController.getDataByMachineIdxByHeatMapType);
 
 router.post('/admin/store-heatmap', HeatMapController.storeHeatMap);
 

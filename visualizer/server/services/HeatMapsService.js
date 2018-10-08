@@ -1,4 +1,5 @@
 require('datejs');
+const gf = require('../utils/global_functions');
 
 const logger = require('../config/winston');
 
@@ -176,13 +177,13 @@ const standardize = (
 
 const drawHeatMapTile = async({
 
-    pointsBatch = x`Points Batch`,
-    field = x`Field`,
-    datasetMean = x`Dataset Mean`,
-    datasetStd = x`Dataset Std`,
-    palette = x`Palette`,
-    width = x`Tile's Width`,
-    height = x`Tile's Height`,
+    pointsBatch = gf.checkParam`Points Batch`,
+    field = gf.checkParam`Field`,
+    datasetMean = gf.checkParam`Dataset Mean`,
+    datasetStd = gf.checkParam`Dataset Std`,
+    palette = gf.checkParam`Palette`,
+    width = gf.checkParam`Tile's Width`,
+    height = gf.checkParam`Tile's Height`,
 
 }) => {
 
@@ -543,10 +544,10 @@ const drawHeatMap = async ({
 
 const heatMapMeasurementsSorting = async (
     {
-        heatMapType = x`HeatMap Type`,
-        measurementsAnalysis = x`Analysis`,
-        field = x`Field`,
-        fieldIndex = x`Field Index of Dataset Analysis`
+        heatMapType = gf.checkParam`HeatMap Type`,
+        measurementsAnalysis = gf.checkParam`Analysis`,
+        field = gf.checkParam`Field`,
+        fieldIndex = gf.checkParam`Field Index of Dataset Analysis`
     }) => {
 
     logger.log('info', `Sorting Measurements Stats according to HeatMap Type [${heatMapType}] for the field ` +
@@ -592,7 +593,7 @@ const heatMapMeasurementsSorting = async (
 
 const heatMapBuildAndStore = async (
     {
-        request = x`HeatMap request`,
+        request = gf.checkParam`HeatMap request`,
         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,       //png
         mode = constants.HEATMAPS.MODES.TILES,                      //single | tiles
         tileSize = config.HEATMAPS.TILE_SIZE,                       //fetch default from config
@@ -783,11 +784,11 @@ const validateDatabaseArgs = async (database, policy, fields) => {
 
 const heatMapConfigurationValidation = async (request) => {
 
-    request.database = request.database || x`Database`;
-    request.policy = request.policy || x`Policy`;
-    request.startInterval = request.startInterval || x`Start Interval`;
-    request.endInterval = request.endInterval || x`End Interval`;
-    request.fields = request.fields || x`Fields`;
+    request.database = request.database || gf.checkParam`Database`;
+    request.policy = request.policy || gf.checkParam`Policy`;
+    request.startInterval = request.startInterval || gf.checkParam`Start Interval`;
+    request.endInterval = request.endInterval || gf.checkParam`End Interval`;
+    request.fields = request.fields || gf.checkParam`Fields`;
 
     //database + policy + fields validation
     await validateDatabaseArgs(request.database, request.policy, request.fields) //field accepts array
@@ -823,6 +824,96 @@ const heatMapConfigurationValidation = async (request) => {
     return true;
 };
 
+const getDataByMachineIdxByHeatMapType = async (
+    {
+        database = gf.checkParam`Database`,
+        policy = gf.checkParam`Policy`,
+        startInterval = gf.checkParam`Start Interval`,
+        endInterval = gf.checkParam`End Interval`,
+        fields = gf.checkParam`Fields`,
+        heatMapType = gf.checkParam`HeatMap Type`,
+        timeSerieIndex = gf.checkParam`Timeserie Index`,
+    }) => {
+
+    //validation
+    await heatMapConfigurationValidation({
+        database: database,
+        policy: policy,
+        startInterval: startInterval,
+        endInterval: endInterval,
+        fields: fields,
+    });
+
+    if (!getHeatMapTypes().includes(heatMapType))
+        throw Error(`invalid param: HeatMap Type ${heatMapType}`);
+
+    //fetch timeseries names from db
+    let timeseriesNames = await
+        influx.fetchMeasurementsListFromHttpApi(database)
+            .catch(err => {
+                logger.log('error', `Failed during measurements list fetching: ${err}`);
+            });
+    if (!timeseriesNames || timeseriesNames.length === 0) throw Error(`no timeseries available`);
+
+    if (timeSerieIndex < 0 || timeSerieIndex > (timeseriesNames.length - 1))
+        throw Error(`invalid param: Machine Index ${timeSerieIndex}`);
+
+    //step 1: retrieve the timeserie name (e.g. resource_usage_10), according to heatmap type and a given index
+    //different heatmap types (e.g. sort by sum) associate different indexes to timeseries
+    switch(heatMapType) {
+
+        case constants.HEATMAPS.TYPES.SORT_BY_MACHINE: //the natural order
+
+            break;
+
+        case constants.HEATMAPS.TYPES.SORT_BY_SUM:
+
+            //TODO sort according, may saves the sorting order in the database when doing analysis?
+            break;
+
+        case constants.HEATMAPS.TYPES.SORT_BY_TS_OF_MAX_VALUE:
+
+            //TODO
+            break;
+    }
+
+    const indexedTimeSerie = timeseriesNames[timeSerieIndex];
+
+    logger.log('info', `fetching data of timeserie ${indexedTimeSerie}`);
+
+    let timeSerieData = await influx.fetchPointsFromHttpApi({
+        database: database,
+        policy: policy,
+        measurements: [indexedTimeSerie],
+        startInterval: startInterval,
+        endInterval: endInterval,
+        period: config.TIMESERIES.period,
+        fields: fields,
+    })
+        .catch(err => {
+            logger.log('error', `Failed during points fetching for ${indexedTimeSerie}: ${err}`);
+        });
+
+    //we have a batch of measurements where each entry contains the points of each measurement
+    if (!timeSerieData || timeSerieData.length === 0) throw Error(`no data available for ${indexedTimeSerie}`);
+
+    //flatting ('cos we have requested only 1 timeserie)
+    const points = timeSerieData[0].map(e => {
+
+        let data = [e.time.getTime()];    //convert to unix epoch
+        fields.forEach((field, idx) => data.push(e[field])); //take only requested fields
+
+        return data;
+    });
+    if (!points || points.length === 0) throw Error(`no points available for ${indexedTimeSerie}`);
+
+    return {
+        name: indexedTimeSerie,
+        fields: ['time'].concat(fields),
+        points: points,
+    };
+};
+
 module.exports = {
     heatMapConfigurationValidation: heatMapConfigurationValidation,
     heatMapBuildAndStore: heatMapBuildAndStore,
@@ -831,4 +922,5 @@ module.exports = {
     getPalettes: getPalettes,
     setZscores: setZscores,
     getZscores: getZscores,
+    getDataByMachineIdxByHeatMapType: getDataByMachineIdxByHeatMapType,
 };

@@ -75,21 +75,6 @@ const stopHeatMapComputation = async (req, res) => {
     return ReS(res, { payload: { status: heatMapComputationStatus, percentage: heatMapComputationPercentage } }, 200);
 };
 
-const startHeatMapComputation = async (req, res) => {
-
-    //TODO
-};
-
-const getHeatMapImageBase64Encoding = async (req, res) => {
-
-    //TODO
-};
-
-
-
-
-
-
 const getHeatMap = async (req, res) => {
 
     let img_type = req.params.img_type
@@ -110,64 +95,6 @@ const getHeatMap = async (req, res) => {
             res.setHeader('Content-Type', mime.json);
             return ReE(res, `${img_type} media type not supported`, 400);
     }
-};
-
-const buildResourceUsageHeatMaps = async function(req, res) {
-    //res.setHeader('Content-Type', 'image/png');
-
-    let err, type, dbname, policy, fields, n_measurements, period;
-
-    type = req.query.type;
-    dbname = req.query.dbname;
-    policy = req.query.policy;
-    fields = req.query.fields.split(',');
-    n_measurements = req.query.n_measurements;
-    period = req.query.period;
-
-    // [err, response] = await to(
-    //     heatmaps.buildHeatMapOrderByMachineId(
-    //         'autogen',
-    //         '2011-02-01T00:15:00.000Z',
-    //         '2011-02-01T10:50:00.000Z',
-    //         //'2011-03-01T10:50:00.000Z',
-    //         resource_id,
-    //         500
-    //     ));
-
-    let interval = req.query.interval.split(',');
-    if (interval.length !== 2)
-        return ReE(res, {message: 'two timestamps are required'}, 400);
-
-    let body = await heatMapsService.entrypoint(
-
-        dbname,
-        policy,
-        interval[0],
-        interval[1],
-        fields,
-        n_measurements,
-        period,
-        type
-    )
-        .then(data => {
-            res.set('Content-Type', 'image/png');
-			res.send(data);
-        });
-
-    //TODO gestisci error (non usare to() perche vale solo per i JSON
-    //TODO cambia da fields a richiesta su singolo field
-    //TODO rivedi in heatmaps.js la catena di return ed elimina i for sui fields
-
-    // res.set('Content-Type', 'image/png');
-    // res.send(body);
-        // .then(result => {
-        //     console.log(result);
-        //     return ReS(res, result, 200);
-        // })
-        // .catch(err => {
-			// console.log(err);
-        //     return ReE(res, err.message, 400);
-        // });
 };
 
 const storeHeatMap = async (req, res) => {
@@ -196,6 +123,29 @@ const storeHeatMap = async (req, res) => {
     return ReS(res, {payload: 'computation started'}, 200);
 };
 
+const getDataByMachineIdxByHeatMapType = async (req, res) => {
+
+    res.setHeader('Content-Type', 'application/json');
+
+    const request = {
+        database: req.query.database,
+        policy: req.query.policy,
+        startInterval: req.query.startInterval,
+        endInterval: req.query.endInterval,
+        fields: req.query.fields.split(','),
+        heatMapType: req.params.heatMapType,
+        timeSerieIndex: req.params.timeSerieIndex,
+    };
+
+    const data = await
+        heatMapsService.getDataByMachineIdxByHeatMapType(request)
+            .catch(err => ReE(res, `${err}`, 400));
+
+    if (!data) return ReE(res, `no data available`, 400);
+
+    return ReS(res,{payload: data}, 200);
+};
+
 module.exports = {
     getHeatMapTypes: getHeatMapTypes,
     getZoomLevels: getZoomLevels,
@@ -205,6 +155,6 @@ module.exports = {
     getHeatMapComputationStatus: getHeatMapComputationStatus,
     stopHeatMapComputation: stopHeatMapComputation,
     getHeatMap: getHeatMap,
-    buildResourceUsageHeatMaps: buildResourceUsageHeatMaps,
     storeHeatMap: storeHeatMap,
+    getDataByMachineIdxByHeatMapType: getDataByMachineIdxByHeatMapType,
 };

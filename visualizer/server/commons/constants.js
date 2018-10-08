@@ -1,8 +1,10 @@
 const sharedConstants = {
 
-    ANALYSIS_DATASET: 'Dataset Analysis',
-    ANALYSIS_MEASUREMENTS: 'Measurements Analysis',
-    ANALYSIS_PSPT: 'Points per Timestamp Analysis',
+    ANALYSIS_DATASET: 'ANALYSIS_DATASET',
+    ANALYSIS_MEASUREMENTS: 'ANALYSIS_MEASUREMENTS',
+    ANALYSIS_PSPT: 'ANALYSIS_PSPT',
+
+    FETCH_TIMESERIES_DATA: 'FETCH_TIMESERIES_DATA',
 };
 
 module.exports = sharedConstants;
