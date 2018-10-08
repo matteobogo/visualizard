@@ -7,7 +7,7 @@ import * as apiFetcher from "../../services/ApiFetcher";
 import { Panel, Col, Form } from 'react-bootstrap';
 import 'react-widgets/dist/css/react-widgets.css';
 
-import './HeatMapContainer.css';
+import './HeatMapNavigatorContainer.css';
 
 import { DropdownClassic } from '../common/Dropdown';
 import { HeatMapSelectionBox } from './HeatMapSelectionBox';
@@ -59,7 +59,7 @@ const convertTileCoordinates = ({ genesis, tileIds, tileCoords, period = 300 }) 
     return [timestamp.toISOString(), `${machineIdx}`];
 };
 
-export default class HeatMapContainer extends Component {
+export default class HeatMapNavigatorContainer extends Component {
 
     constructor() {
         super();
@@ -552,7 +552,7 @@ export default class HeatMapContainer extends Component {
                 }
             });
         }
-        else if (type === localConstants._TYPE_MOUSE_CLICK || type === localConstants._TYPE_MOUSE_HOOVER) {
+        else if (type === localConstants._TYPE_MOUSE_HOOVER) {
 
             const [ timestamp, machineIdx ] = convertTileCoordinates({
                 genesis: firstInterval,
@@ -566,6 +566,31 @@ export default class HeatMapContainer extends Component {
                     timestamp: timestamp,
                     machineIdx: machineIdx,
                 }
+            });
+        }
+        else if (type === localConstants._TYPE_MOUSE_CLICK) {
+
+            const { handleTimeSerieSelection } = this.props;
+            const {
+                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+                [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+                [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
+            } = this.state.configuration;
+
+            const [ timestamp, timeSerieIdx ] = convertTileCoordinates({
+                genesis: firstInterval,
+                tileIds: [tileX, tileY],
+                tileCoords: [imgX, imgY]
+            });
+
+            //send back the selection
+            handleTimeSerieSelection({
+                timeSerieIdx: timeSerieIdx,
+                timestamp: timestamp,
+                heatMapType: selectedHeatMapType,
+                fields: [selectedField, 'n_jobs', 'n_tasks'], //TODO make other fields selectable
+                zoom: selectedZoom,
+                actionType: 'selection',
             });
         }
     }
