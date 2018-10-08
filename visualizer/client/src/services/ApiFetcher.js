@@ -11,12 +11,28 @@ const _URL_LAST_INTERVAL     = (database, policy, field) =>
     `/influx/lastInterval?dbname=${database}&policy=${policy}&field=${field}`;
 
 const _URL_STATISTICS = `/analysis/statistics`;
-
 const _URL_HEATMAP_TYPES = `/heatmaps/types`;
 const _URL_HEATMAP_ZOOMS = `/heatmaps/zooms`;
-const _URL_PALETTES  = `/heatmaps/palettes`;
 
 const _URL_N_MEASUREMENTS = (database) => `/influx/measurements/number?dbname=${database}`;
+
+const _URL_TIMESERIE_DATA = (req) =>
+    `/timeseries/` +
+    `${req[localConstants._TYPE_SELECTED_HEATMAP_TYPE]}/` +
+    `${req[localConstants._TYPE_SELECTED_TIMESERIE_INDEX]}?` +
+    `database=${req[localConstants._TYPE_SELECTED_DATABASE]}&` +
+    `policy=${req[localConstants._TYPE_SELECTED_POLICY]}&` +
+    `startInterval=${req[localConstants._TYPE_SELECTED_START_INTERVAL]}&` +
+    `endInterval=${req[localConstants._TYPE_SELECTED_END_INTERVAL]}&` +
+    `fields=${req[localConstants._TYPE_SELECTED_FIELDS].toString()}`;
+
+const _URL_ANALYSES = (req) =>
+    `/analysis?` +
+    `database=${req[localConstants._TYPE_SELECTED_DATABASE]}&` +
+    `policy=${req[localConstants._TYPE_SELECTED_POLICY]}&` +
+    `startInterval=${req[localConstants._TYPE_SELECTED_START_INTERVAL]}&` +
+    `endInterval=${req[localConstants._TYPE_SELECTED_END_INTERVAL]}&` +
+    `type=${req[localConstants._TYPE_SELECTED_ANALYSIS]}`;
 
 const fetchResources = (resource_uri) => {
 
@@ -71,6 +87,14 @@ export const fetchData = ({itemType, args = {}}) => {
 
         case localConstants._TYPE_STATISTICS:
             _URL = _URL_STATISTICS;
+            break;
+
+        case localConstants._TYPE_TIMESERIE_DATA:
+            _URL = _URL_TIMESERIE_DATA(args);
+            break;
+
+        case localConstants._TYPE_ANALYSES:
+            _URL = _URL_ANALYSES(args);
             break;
 
         default:
