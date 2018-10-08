@@ -1,10 +1,8 @@
-/**
- * StaticAnalysisContainer - Container Component
- */
 import React, { Component } from 'react';
 
 import sharedConstants from '../../commons/constants';
 import * as localConstants from '../../utils/constants';
+import * as apiFetcher from "../../services/ApiFetcher";
 
 const uuidv4 = require('uuid/v4');
 
@@ -17,14 +15,10 @@ import { getConnectionStatus, getResponsesByUUID } from '../../store/selectors/w
 import { FakePreview } from './FakePreview';
 import ConfiguratorContainer from './ConfiguratorContainer';
 import AnalysisContainer from './AnalysisContainer';
-import HeatMapContainer from './HeatMapContainer';
+import HeatMapNavigatorContainer from './HeatMapNavigatorContainer';
+import TimeSeriesChartsContainer from './TimeSeriesChartsContainer';
 
-//TODO change
-import StaticHeatMapColumnStats from './StaticHeatMapColumnStats';
-import StaticHeatMapPointStats from './StaticHeatMapPointStats';
-import StaticHeatMapRowStats from './StaticHeatMapRowStats';
-
-import { Grid, Row, Col, Alert } from 'react-bootstrap';
+import { Grid, Row, Col } from 'react-bootstrap';
 
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
@@ -46,9 +40,20 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
 
-            //analysis
-            [sharedConstants.ANALYSIS_DATASET]: null,
-            [sharedConstants.ANALYSIS_PSPT]: null,
+            analyses: {
+
+                [sharedConstants.ANALYSIS_DATASET]: null,
+                [sharedConstants.ANALYSIS_PSPT]: null,
+            },
+
+            heatMapSelection: {
+
+                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
+                [localConstants._TYPE_SELECTED_FIELD]: null,
+                [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: null,
+            },
+
+            timeSerieSelection: null,
 
             pendingRequests: {},    //map of pending requests in process through redux
             pendingDeletion: [],    //uuid list of pending requests consumed (need to be deleted from redux store)
@@ -58,10 +63,22 @@ class StaticAnalysisContainer extends Component {
 
         this.setConfigurationItem = this.setConfigurationItem.bind(this);
         this.handleError = this.handleError.bind(this);
+        this.handleTimeSerieSelection = this.handleTimeSerieSelection.bind(this);
     }
 
     componentDidMount() {
 
+        //TEST
+        // setTimeout(() => {
+        //     console.log('simulate selection heatmap')
+        //     this.handleTimeSerieSelection({
+        //         machineIdx: 0,
+        //         timestamp: 0,
+        //         heatMapType: 'Machine ID',
+        //         fields: ['mean_cpu_usage_rate', 'n_jobs', 'n_tasks'],
+        //         actionType: 'selection',
+        //     })
+        // }, 15000)
     }
 
     static getDerivedStateFromProps(nextProps, prevState) {
@@ -104,67 +121,17 @@ class StaticAnalysisContainer extends Component {
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const {
-            [localConstants._TYPE_SELECTED_DATABASE]: database,
-            [localConstants._TYPE_SELECTED_POLICY]: policy,
-            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
-            [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+            [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
+            [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.state.configuration;
 
-        const {
-            [localConstants._TYPE_SELECTED_DATABASE]: prevDatabase,
-            [localConstants._TYPE_SELECTED_POLICY]: prevPolicy,
-            [localConstants._TYPE_SELECTED_START_INTERVAL]: prevStartInterval,
-            [localConstants._TYPE_SELECTED_END_INTERVAL]: prevEndInterval,
-        } = prevState.configuration;
+        //fetch dataset analysis when configuration changes
+        if (JSON.stringify(this.state.configuration) !== JSON.stringify(prevState.configuration) &&
+            selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) {
 
-        const { addRequest, removeResponse } = this.props;
-
-        //some configuration's item is changed?
-        if (prevDatabase !== database || prevPolicy !== policy || prevStartInterval !== startInterval ||
-            prevEndInterval !== endInterval) {
-
-            //null check
-            if (Object.values(this.state.configuration).some(value => (value === null || value === undefined))) return;
-
-            //configuration ready => send requests (dataset + pspt analysis)
-            const uuids = [uuidv4(), uuidv4()];
-
-            const requests = {
-                [uuids[0]]: {operation: sharedConstants.ANALYSIS_DATASET, data: this.state.configuration},
-                [uuids[1]]: {operation: sharedConstants.ANALYSIS_PSPT, data: this.state.configuration},
-            };
-
-            addRequest({
-                uuid: uuids[0],
-                ...requests[uuids[0]],
-            });
-
-            addRequest({
-                uuid: uuids[1],
-                ...requests[uuids[1]],
-            });
-
-            this.setState({
-                pendingRequests: {
-                    ...this.state.pendingRequests,
-                    ...requests
-                },
-                isLoading: true
-            });
-        }
-
-        if (this.state.pendingDeletion.length > 0) {
-
-            const uuid = this.state.pendingDeletion.pop();
-
-            removeResponse(uuid);
-        }
-
-        if (prevState.isLoading &&
-            Object.keys(this.state.pendingRequests).length === 0 &&
-            this.state.pendingDeletion.length === 0) {
-
-            this.setState({ isLoading: false });
+            this.fetchAnalysis(sharedConstants.ANALYSIS_DATASET);
         }
     }
 
@@ -172,6 +139,41 @@ class StaticAnalysisContainer extends Component {
 
         //close ws socket
         this.socket.close();
+    }
+
+    fetchAnalysis(type) {
+
+        const { notify } = this.props;
+
+        this.setState({isLoading: true});
+
+        //fetch dataset analysis when configuration changes
+        apiFetcher.fetchData({
+            itemType: localConstants._TYPE_ANALYSES,
+            args: {
+                ...this.state.configuration,
+                [localConstants._TYPE_SELECTED_ANALYSIS]: type,
+            }
+        })
+            .then(analysis => {
+
+                this.setState({
+                    analyses: {
+                        ...this.state.analyses,
+                        [type]: analysis,
+                    }
+                });
+            })
+            .catch(() => {
+
+                notify({
+                    enable: true,
+                    message: `Failing to fetch ${type}`,
+                    type: localConstants.NOTIFICATION_TYPE_ERROR,
+                    delay: localConstants.NOTIFICATION_DELAY,
+                });
+            })
+            .then(() => this.setState({isLoading: false}));
     }
 
     setConfigurationItem({item, itemType}) {
@@ -214,12 +216,84 @@ class StaticAnalysisContainer extends Component {
         }
     }
 
+    handleTimeSerieSelection(
+        {
+            timeSerieIdx,
+            timestamp = null,
+            heatMapType = null,
+            fields = null,
+            zoom = null,
+            actionType
+        }) {
+
+        const {
+            [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
+            [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
+        } = this.state.configuration;
+
+        console.log(timeSerieIdx, timestamp, heatMapType, fields, actionType)
+        console.log(selectedDatabase, selectedPolicy, selectedStartInterval, selectedEndInterval)
+
+        switch (actionType) {
+
+            case 'selection':
+
+                if (!selectedDatabase || !selectedPolicy || !selectedStartInterval || !selectedEndInterval ||
+                    !heatMapType || !fields || fields.length === 0 ||
+                    timestamp < 0 || timestamp === undefined || timestamp === null ||
+                    timeSerieIdx < 0 || timeSerieIdx === undefined || timeSerieIdx === null)
+                    return;
+
+                //request data of timeserie selected
+                this.setState({isLoading: true});
+
+                apiFetcher.fetchData({
+                    itemType: localConstants._TYPE_TIMESERIE_DATA,
+                    args: {
+                        ...this.state.configuration,
+                        [localConstants._TYPE_SELECTED_TIMESERIE_INDEX]: timeSerieIdx,
+                        [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
+                        [localConstants._TYPE_SELECTED_FIELDS]: fields,
+                    }
+                })
+                    .then(data => {
+
+                        this.setState({
+                            heatMapSelection: {
+                                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
+                                [localConstants._TYPE_SELECTED_FIELD]: fields[0],
+                                [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
+                            },
+                            timeSerieSelection: {
+                                ...this.state.timeSerieSelection,
+                                [timeSerieIdx]: {
+                                    //the first is the time, the second the main field, the other are the side fields
+                                    name: data.name,        //'timeserie_name'
+                                    fields: data.fields,    //[ 'time', 'field1', 'field2', ..]
+                                    points: data.points,    //[ [time, value1, value2, ..], ..]
+                                },
+                            },
+                            isLoading: false,
+                        });
+                    });
+
+                break;
+
+            case 'unselection':
+
+                break;
+        }
+    }
+
     render() {
+
+        console.log(this.state)
 
         const {
             configuration,
-            [sharedConstants.ANALYSIS_DATASET]: datasetAnalysis,
-            [sharedConstants.ANALYSIS_PSPT]: psptAnalysis,
+            timeSerieSelection,
             isLoading,
         } = this.state;
 
@@ -232,8 +306,30 @@ class StaticAnalysisContainer extends Component {
 
         } = this.state.configuration;
 
+        const {
+
+            [sharedConstants.ANALYSIS_DATASET]: datasetAnalysis,
+            [sharedConstants.ANALYSIS_PSPT]: psptAnalysis,
+        } = this.state.analyses;
+
+        const {
+
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+        } = this.state.heatMapSelection;
+
+        //get stats of the current selected field from dataset analysis
+        let selectedFieldStats;
+        if (datasetAnalysis && selectedField && selectedHeatMapType) {
+
+            selectedFieldStats = datasetAnalysis.fieldsStats.filter(e => e.field === selectedField).pop();
+        }
+
         let showContainers = false;
         if (selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) showContainers = true;
+
+        let showTimeSeriesCharts = false;
+        if (timeSerieSelection && Object.keys(timeSerieSelection).length > 0) showTimeSeriesCharts = true;
 
         const { connectionStatus } = this.props;
 
@@ -257,21 +353,35 @@ class StaticAnalysisContainer extends Component {
                         </Row>
                         <Row>
                             <Col xs={12}>
-                                <AnalysisContainer
+                                <HeatMapNavigatorContainer
                                     disabled={!showContainers}
-                                    datasetAnalysis={datasetAnalysis}
-                                    psptAnalysis={psptAnalysis}
+                                    configuration={configuration}
+                                    onError={this.handleError}
+                                    handleTimeSerieSelection={this.handleTimeSerieSelection}
                                 />
                             </Col>
                         </Row>
                         <Row>
                             <Col xs={12}>
-                                <HeatMapContainer
-                                    disabled={!showContainers}
+                                <TimeSeriesChartsContainer
+                                    disabled={!showTimeSeriesCharts}
                                     configuration={configuration}
-                                    onError={this.handleError}
+                                    mainField={selectedField}
+                                    sideFields={['n_jobs', 'n_tasks']}
+                                    fieldStats={selectedFieldStats}
+                                    timeSerieData={timeSerieSelection}
+                                    isLoading={isLoading}
                                 />
                             </Col>
+                        </Row>
+                        <Row>
+                            {/*<Col xs={12}>*/}
+                                {/*<AnalysisContainer*/}
+                                    {/*disabled={!showContainers}*/}
+                                    {/*datasetAnalysis={datasetAnalysis}*/}
+                                    {/*psptAnalysis={psptAnalysis}*/}
+                                {/*/>*/}
+                            {/*</Col>*/}
                         </Row>
                     </LoadingOverlay>
                     <Loader loading={isLoading}/>
