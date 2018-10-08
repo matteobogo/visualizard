@@ -3,10 +3,9 @@ import React from 'react';
 import * as localConstants from '../../utils/constants';
 import * as apiFetcher from "../../services/ApiFetcher";
 
-import { DropdownClassic, DropdownDateTime } from '../common/Dropdown';
+import { DropdownClassic } from '../common/Dropdown';
 
 import { Panel, Grid, Row, Col, Form, FormGroup, ControlLabel } from 'react-bootstrap';
-import {DropdownList} from "react-widgets";
 
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
@@ -341,121 +340,123 @@ export default class AnalysisContainer extends React.Component {
                         Points Stats per Timestamp
                     </Panel.Title>
                 </Panel.Heading>
-                <Panel.Body>
+                <Panel.Collapse>
+                    <Panel.Body>
 
-                    <LoadingOverlay className="loading-overlay-container">
+                        <LoadingOverlay className="loading-overlay-container">
 
-                        {datasetAnalysis ?
+                            {datasetAnalysis ?
 
-                            <div className="analysis-menu-container">
-                                <Form>
-                                    <Col xs={12} sm={6} md={3}>
-                                        <DropdownClassic
-                                            label="Fields"
-                                            id="fields-dropdowns"
-                                            placeholder="select field.."
-                                            loading={isLoading}
-                                            data={fields}
-                                            value={field}
-                                            type={localConstants._TYPE_SELECTED_FIELD}
-                                            onChange={this.onHandleDropdownSelection}
-                                            disabled={false}/>
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
-                                        <DropdownClassic
-                                            label="Statistics"
-                                            id="statistics-dropdowns"
-                                            placeholder="select statistic.."
-                                            loading={isLoading}
-                                            data={statistics}
-                                            value={statistic}
-                                            type={localConstants._TYPE_SELECTED_STATISTIC}
-                                            onChange={this.onHandleDropdownSelection}
-                                            disabled={false}/>
-                                    </Col>
-                                </Form>
-                            </div>
+                                <div className="analysis-menu-container">
+                                    <Form>
+                                        <Col xs={12} sm={6} md={3}>
+                                            <DropdownClassic
+                                                label="Fields"
+                                                id="fields-dropdowns"
+                                                placeholder="select field.."
+                                                loading={isLoading}
+                                                data={fields}
+                                                value={field}
+                                                type={localConstants._TYPE_SELECTED_FIELD}
+                                                onChange={this.onHandleDropdownSelection}
+                                                disabled={false}/>
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
+                                            <DropdownClassic
+                                                label="Statistics"
+                                                id="statistics-dropdowns"
+                                                placeholder="select statistic.."
+                                                loading={isLoading}
+                                                data={statistics}
+                                                value={statistic}
+                                                type={localConstants._TYPE_SELECTED_STATISTIC}
+                                                onChange={this.onHandleDropdownSelection}
+                                                disabled={false}/>
+                                        </Col>
+                                    </Form>
+                                </div>
 
-                            : null
-                        }
+                                : null
+                            }
 
-                        {timeRange && timeSeries ?
+                            {timeRange && timeSeries ?
 
-                            <Col xs={12}>
-                                <Resizable>
-                                    <ChartContainer
-                                        timeRange={timeRange}
-                                        minTime={startTime}
-                                        maxTime={endTime}
-                                        showGrid={false}
-                                        onTrackerChanged={this.handleTrackerChanged}
-                                        onBackgroundClick={() => this.setState({selection: null})}
-                                        enablePanZoom={true}
-                                        onTimeRangeChanged={this.handleTimeRangeChange}
-                                        onMouseMove={(x, y) => this.handleMouseMove(x, y)}
-                                        minDuration={1000 * 60 * 60 * 24 * 30}>
+                                <Col xs={12}>
+                                    <Resizable>
+                                        <ChartContainer
+                                            timeRange={timeRange}
+                                            minTime={startTime}
+                                            maxTime={endTime}
+                                            showGrid={false}
+                                            onTrackerChanged={this.handleTrackerChanged}
+                                            onBackgroundClick={() => this.setState({selection: null})}
+                                            enablePanZoom={true}
+                                            onTimeRangeChanged={this.handleTimeRangeChange}
+                                            onMouseMove={(x, y) => this.handleMouseMove(x, y)}
+                                            minDuration={1000 * 60 * 60 * 24 * 30}>
 
-                                        <ChartRow height={250}>
-                                            <YAxis
-                                                id="axis"
-                                                label="Usage (%)"
-                                                min={timeSeries[timeSerieIndex].min(statistic)}
-                                                max={timeSeries[timeSerieIndex].max(statistic)}
-                                                //showGrid
-                                                //hideAxisLine
-                                                //width="20"
-                                                //type="linear"
-                                                //format=",.6f"
-                                            />
-                                            <Charts>
-                                                <LineChart
-                                                    axis="axis"
-                                                    breakLine={false}
-                                                    series={timeSeries[timeSerieIndex]}
-                                                    columns={[statistic]}
-                                                    interpolation="curveBasis"
-                                                    //highlight={this.state.hightlight}
-                                                    //onHighLightChange={hightlight => this.setState({ hightlight })}
-                                                    //selection={this.state.selection}
-                                                    //onSelectionChange={selection => this.setState({ selection })}
+                                            <ChartRow height={250}>
+                                                <YAxis
+                                                    id="axis"
+                                                    label="Usage (%)"
+                                                    min={timeSeries[timeSerieIndex].min(statistic)}
+                                                    max={timeSeries[timeSerieIndex].max(statistic)}
+                                                    //showGrid
+                                                    //hideAxisLine
+                                                    //width="20"
+                                                    //type="linear"
+                                                    //format=",.6f"
                                                 />
-                                                {/*<CrossHairs x={this.state.x} y={this.state.y} />*/}
-                                                {this.renderMarker()}
-                                            </Charts>
-                                        </ChartRow>
-                                    </ChartContainer>
-                                </Resizable>
-                            </Col>
-                            : null
-                        }
+                                                <Charts>
+                                                    <LineChart
+                                                        axis="axis"
+                                                        breakLine={false}
+                                                        series={timeSeries[timeSerieIndex]}
+                                                        columns={[statistic]}
+                                                        interpolation="curveBasis"
+                                                        //highlight={this.state.hightlight}
+                                                        //onHighLightChange={hightlight => this.setState({ hightlight })}
+                                                        //selection={this.state.selection}
+                                                        //onSelectionChange={selection => this.setState({ selection })}
+                                                    />
+                                                    {/*<CrossHairs x={this.state.x} y={this.state.y} />*/}
+                                                    {this.renderMarker()}
+                                                </Charts>
+                                            </ChartRow>
+                                        </ChartContainer>
+                                    </Resizable>
+                                </Col>
+                                : null
+                            }
 
-                        {/*{categories ?*/}
+                            {/*{categories ?*/}
 
-                            {/*<Row>*/}
-                                {/*<Col xsOffset={2}>*/}
-                                {/*<span>*/}
-                                    {/*<Legend*/}
-                                        {/*style={styler}*/}
-                                        {/*type="line"*/}
-                                        {/*align="right"*/}
-                                        {/*//highlight={this.state.highlight}*/}
-                                        {/*//onHighlightChange={highlight => this.setState({ highlight })}*/}
-                                        {/*//selection={this.state.selection}*/}
-                                        {/*//onSelectionChange={selection => this.setState({ selection })}*/}
-                                        {/*categories={categories}*/}
-                                        {/*//stack={true}*/}
-                                    {/*/>*/}
-                                {/*</span>*/}
-                                {/*</Col>*/}
-                            {/*</Row>*/}
+                                {/*<Row>*/}
+                                    {/*<Col xsOffset={2}>*/}
+                                    {/*<span>*/}
+                                        {/*<Legend*/}
+                                            {/*style={styler}*/}
+                                            {/*type="line"*/}
+                                            {/*align="right"*/}
+                                            {/*//highlight={this.state.highlight}*/}
+                                            {/*//onHighlightChange={highlight => this.setState({ highlight })}*/}
+                                            {/*//selection={this.state.selection}*/}
+                                            {/*//onSelectionChange={selection => this.setState({ selection })}*/}
+                                            {/*categories={categories}*/}
+                                            {/*//stack={true}*/}
+                                        {/*/>*/}
+                                    {/*</span>*/}
+                                    {/*</Col>*/}
+                                {/*</Row>*/}
 
-                            {/*: null*/}
-                        {/*}*/}
+                                {/*: null*/}
+                            {/*}*/}
 
-                    </LoadingOverlay>
-                    <Loader loading={isLoading}/>
+                        </LoadingOverlay>
+                        <Loader loading={isLoading}/>
 
-                </Panel.Body>
+                    </Panel.Body>
+                </Panel.Collapse>
             </Panel>
 
         );
