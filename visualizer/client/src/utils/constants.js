@@ -9,6 +9,9 @@ export const _TYPE_STATISTICS                   = 'statistics';
 export const _TYPE_HEATMAP_ZOOMS                = 'heatMapZooms';
 export const _TYPE_N_MEASUREMENTS               = 'nMeasurements';
 
+export const _TYPE_TIMESERIE_DATA               = 'timeSerieData';
+export const _TYPE_ANALYSES                     = 'analyses';
+
 export const _TYPE_SELECTED_DATABASE            = 'database';
 export const _TYPE_SELECTED_POLICY              = 'policy';
 export const _TYPE_SELECTED_START_INTERVAL      = 'startInterval';
@@ -18,6 +21,12 @@ export const _TYPE_SELECTED_HEATMAP_TYPE        = 'heatMapType';
 export const _TYPE_SELECTED_FIELD               = 'field';
 export const _TYPE_SELECTED_STATISTIC           = 'statistic';
 export const _TYPE_SELECTED_HEATMAP_ZOOM        = 'heatMapZoom';
+
+export const _TYPE_SELECTED_FIELDS              = 'fields';
+export const _TYPE_SELECTED_TIMESERIE_INDEX     = 'timeSerieIndex';
+
+export const _TYPE_SELECTED_TIMESERIES_DATA     = 'timeSeriesData';
+export const _TYPE_SELECTED_ANALYSIS            = 'analysis';
 
 export const _TYPE_REQUESTS_QUEUE               = 'REQUESTS_QUEUE';
 export const _TYPE_RESPONSES_QUEUE              = 'RESPONSES_QUEUE';
