@@ -18,6 +18,24 @@ const getAnalysisStatistics = async (req, res) => {
     return ReS(res, {payload: statistics}, 200);
 };
 
+const getAnalysis = async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    let err, analysis;
+    [err, analysis] = await to(analysisService.getAnalysisCached({
+        database: req.query.database,
+        policy: req.query.policy,
+        startInterval: req.query.startInterval,
+        endInterval: req.query.endInterval,
+        type: req.query.type,
+        visualizationFlag: 'client',
+    }));
+
+    if (err) return ReE(res, `error retrieving ${req.query.type} analysis: ${err}`, 400);
+
+    return ReS(res, {payload: analysis}, 200);
+};
+
 const startDatasetAnalysis = async (req, res) => {
 
     let database = req.query.database;
@@ -43,4 +61,5 @@ const startDatasetAnalysis = async (req, res) => {
 module.exports = {
     startDatasetAnalysis: startDatasetAnalysis,
     getAnalysisStatistics: getAnalysisStatistics,
+    getAnalysis: getAnalysis,
 };

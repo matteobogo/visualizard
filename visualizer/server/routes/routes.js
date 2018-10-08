@@ -2,9 +2,10 @@ const express   = require('express')
     , router    = express.Router();
 
 const HomeController = require('../controllers/HomeController');
-const TimeSeriesController = require('../controllers/TimeseriesController');
+const InfluxDBController = require('../controllers/InfluxDBController');
 const AnalysisController = require('../controllers/AnalysisController');
 const HeatMapController = require('../controllers/HeatMapController');
+const TimeSeriesController = require('../controllers/TimeSeriesController');
 
 router.get('/', function(req, res, next) {
     res.json({
@@ -16,23 +17,24 @@ router.get('/', function(req, res, next) {
 
 router.get('/ping', HomeController.ping);
 
-router.get('/influx/ping', TimeSeriesController.ping);
-router.get('/influx/databases', TimeSeriesController.getDatabases);
-router.get('/influx/policies', TimeSeriesController.getAllPolicies);
-router.get('/influx/fields', TimeSeriesController.getAllFields);
-router.get('/influx/firstInterval', TimeSeriesController.getFirstInterval);
-router.get('/influx/lastInterval', TimeSeriesController.getLastInterval);
-router.get('/influx/intervals', TimeSeriesController.getFirstAndLastIntervals);
-router.get('/influx/periods', TimeSeriesController.getPeriods);
-router.get('/influx/measurements', TimeSeriesController.getMeasurements);
-router.get('/influx/measurements/number', TimeSeriesController.getNMeasurements);
-router.get('/influx/measurements/:policy/:name/time/:field', TimeSeriesController.getTimeIntervalByPolicyByNameByField);
-router.get('/influx/measurements/:policy/:name/data', TimeSeriesController.getDataByPolicyByName);
-router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', TimeSeriesController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);
-router.get('/influx/measurements/:tag_key/:tag_value', TimeSeriesController.getNamesByTagKeyByTagValue);
+router.get('/influx/ping', InfluxDBController.ping);
+router.get('/influx/databases', InfluxDBController.getDatabases);
+router.get('/influx/policies', InfluxDBController.getAllPolicies);
+router.get('/influx/fields', InfluxDBController.getAllFields);
+router.get('/influx/firstInterval', InfluxDBController.getFirstInterval);
+router.get('/influx/lastInterval', InfluxDBController.getLastInterval);
+router.get('/influx/intervals', InfluxDBController.getFirstAndLastIntervals);
+router.get('/influx/periods', InfluxDBController.getPeriods);
+router.get('/influx/measurements', InfluxDBController.getMeasurements);
+router.get('/influx/measurements/number', InfluxDBController.getNMeasurements);
+router.get('/influx/measurements/:policy/:name/time/:field', InfluxDBController.getTimeIntervalByPolicyByNameByField);
+router.get('/influx/measurements/:policy/:name/data', InfluxDBController.getDataByPolicyByName);
+router.get('/influx/measurements/:database/:policy/:name/data/:time_start/:time_end', InfluxDBController.getPointsBatchByDatabaseByPolicyByMultiNameByStartTimeByEndTime);
+router.get('/influx/measurements/:tag_key/:tag_value', InfluxDBController.getNamesByTagKeyByTagValue);
 
 router.post('/analysis', AnalysisController.startDatasetAnalysis);
 router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
+router.get('/analysis', AnalysisController.getAnalysis);
 
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
 router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
@@ -43,7 +45,8 @@ router.get('/heatmaps/status', HeatMapController.getHeatMapComputationStatus);
 router.post('/heatmaps/stop', HeatMapController.stopHeatMapComputation);
 
 router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
-router.get('/heatmaps', HeatMapController.buildResourceUsageHeatMaps);
+
+router.get('/timeseries/:heatMapType/:timeSerieIndex', TimeSeriesController.getDataByMachineIdxByHeatMapType);
 
 router.post('/admin/store-heatmap', HeatMapController.storeHeatMap);
 
