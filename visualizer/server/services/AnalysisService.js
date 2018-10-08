@@ -90,7 +90,7 @@ const analyzeDataset = async (
 
     //get measurements names list
     let measurements = await influxdb.fetchMeasurementsListFromHttpApi(database);
-    if (measurements === 0) throw Error('no measurements in the dataset');
+    if (measurements.length === 0) throw Error('no measurements in the dataset');
 
     //get first measurement (used for obtaining the list of field)
     const firstMeasurement = await
