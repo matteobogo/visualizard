@@ -174,7 +174,7 @@ const getNMeasurements = async (req, res) => {
     let err, nMeasurements;
     [err, nMeasurements] = await to(influx.fetchMeasurementsListFromHttpApi(dbname));
 
-    if (err) return ReE(res, `error retreving the number of measurements`);
+    if (err) return ReE(res, `error retrieving the number of measurements`);
 
     return ReS(res, {payload: nMeasurements.length}, 200);
 };
