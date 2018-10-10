@@ -40,6 +40,8 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_N_MEASUREMENTS]: null,
                 [localConstants._TYPE_FIRST_INTERVAL]: null,
                 [localConstants._TYPE_LAST_INTERVAL]: null,
+                [localConstants._TYPE_HEATMAP_TYPES]: [],
+                [localConstants._TYPE_HEATMAP_ZOOMS]: [],
             },
 
             [localConstants._TYPE_GROUP_CONFIGURATION]: {
@@ -50,17 +52,17 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
 
-            [localConstants._TYPE_GROUP_ANALYSES]: {
-
-                [sharedConstants.ANALYSIS_DATASET]: null,
-                [sharedConstants.ANALYSIS_PSPT]: null,
-            },
-
-            heatMapSelection: {
+            [localConstants._TYPE_GROUP_HEATMAP]: {
 
                 [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
                 [localConstants._TYPE_SELECTED_FIELD]: null,
                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: null,
+            },
+
+            [localConstants._TYPE_GROUP_ANALYSES]: {
+
+                [localConstants._TYPE_DATASET_ANALYSIS]: null,
+                [localConstants._TYPE_PSPT_ANALYSIS]: null,
             },
 
             timeSerieSelection: null,
@@ -125,22 +127,69 @@ class StaticAnalysisContainer extends Component {
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const {
+            [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
+            [localConstants._TYPE_FIELDS]: fields,
+            [localConstants._TYPE_HEATMAP_ZOOMS]: heatMapZooms,
+        } = this.state[localConstants._TYPE_GROUP_DATASET];
+
+        const {
             [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
             [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
-        } = this.state.configuration;
+        } = this.state[localConstants._TYPE_GROUP_CONFIGURATION];
 
-        //fetch dataset analysis when configuration changes
-        if (JSON.stringify(this.state.configuration) !== JSON.stringify(prevState.configuration) &&
-            selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) {
+        const {
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+            [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom,
+        } = this.state[localConstants._TYPE_GROUP_HEATMAP];
 
+        //guard
+        if (!selectedDatabase || !selectedPolicy || !selectedStartInterval || !selectedEndInterval) return;
+
+        //configuration (from configurator) is changed
+        if (JSON.stringify(this.state[localConstants._TYPE_GROUP_CONFIGURATION]) !==
+            JSON.stringify(prevState[localConstants._TYPE_GROUP_CONFIGURATION])) {
+
+            //fetch dataset analysis
             this.fetchData({
                 groupType: localConstants._TYPE_GROUP_ANALYSES,
-                type: localConstants._TYPE_ANALYSES,
+                type: localConstants._TYPE_DATASET_ANALYSIS,
                 args: {
-                    ...this.state.configuration,
+                    ...this.state[localConstants._TYPE_GROUP_CONFIGURATION],
                     [localConstants._TYPE_SELECTED_ANALYSIS]: sharedConstants.ANALYSIS_DATASET,
+                }
+            });
+
+            //fetch heatmap types
+            this.fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_HEATMAP_TYPES,
+                args: {}
+            });
+
+            //fetch heatmap zooms
+            this.fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_HEATMAP_ZOOMS,
+                args: {}
+            });
+        }
+
+        //guard
+        if (!heatMapTypes || !heatMapZooms || !fields ||
+            heatMapTypes.length === 0 || heatMapZooms.length === 0 || fields.length === 0) return;
+
+        //init heatmap configuration
+        if (!selectedHeatMapType && !selectedHeatMapZoom && !selectedField) {
+
+            this.setState({
+                [localConstants._TYPE_GROUP_HEATMAP]: {
+                    ...this.state[localConstants._TYPE_GROUP_HEATMAP],
+                    [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapTypes[0],
+                    [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZooms[0],
+                    [localConstants._TYPE_SELECTED_FIELD]: fields[0],
                 }
             });
         }
@@ -265,7 +314,7 @@ class StaticAnalysisContainer extends Component {
                     .then(data => {
 
                         this.setState({
-                            heatMapSelection: {
+                            [localConstants._TYPE_GROUP_HEATMAP]: {
                                 [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
                                 [localConstants._TYPE_SELECTED_FIELD]: fields[0],
                                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
@@ -298,6 +347,7 @@ class StaticAnalysisContainer extends Component {
         const {
             [localConstants._TYPE_GROUP_DATASET]: dataset,
             [localConstants._TYPE_GROUP_CONFIGURATION]: configuration,
+            [localConstants._TYPE_GROUP_HEATMAP]: heatmapConfiguration,
             [localConstants._TYPE_GROUP_ANALYSES]: analyses,
             timeSerieSelection,
             isLoading,
@@ -318,14 +368,14 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
 
-        } = this.state.heatMapSelection;
+        } = this.state[localConstants._TYPE_GROUP_HEATMAP];
 
         //get stats of the current selected field from dataset analysis
         let selectedFieldStats;
-        if (analyses[sharedConstants.ANALYSIS_DATASET] && selectedField && selectedHeatMapType) {
+        if (analyses[localConstants._TYPE_DATASET_ANALYSIS] && selectedField && selectedHeatMapType) {
 
             selectedFieldStats =
-                analyses[sharedConstants.ANALYSIS_DATASET]
+                analyses[localConstants._TYPE_DATASET_ANALYSIS]
                     .fieldsStats
                     .filter(e => e.field === selectedField)
                     .pop();
@@ -363,9 +413,12 @@ class StaticAnalysisContainer extends Component {
                             <Col xs={12}>
                                 <HeatMapNavigatorContainer
                                     disabled={!showContainers}
+                                    dataset={dataset}
                                     configuration={configuration}
-                                    onError={this.handleError}
+                                    heatMapConfiguration={heatmapConfiguration}
+                                    setItem={this.setItem}
                                     handleTimeSerieSelection={this.handleTimeSerieSelection}
+                                    onError={this.handleError}
                                 />
                             </Col>
                         </Row>
