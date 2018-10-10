@@ -66,23 +66,6 @@ export default class HeatMapNavigatorContainer extends Component {
 
         this.state = {
 
-            dataset: {
-
-                [localConstants._TYPE_HEATMAP_TYPES]: [],
-                [localConstants._TYPE_FIELDS]: [],
-                [localConstants._TYPE_HEATMAP_ZOOMS]: [],
-                [localConstants._TYPE_N_MEASUREMENTS]: null,
-                [localConstants._TYPE_FIRST_INTERVAL]: null,
-                [localConstants._TYPE_LAST_INTERVAL]: null,
-            },
-
-            configuration: {
-
-                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
-                [localConstants._TYPE_SELECTED_FIELD]: null,
-                [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: null,
-            },
-
             navigation: {   //(x,y)
 
                 nHorizontalTiles: 0,
@@ -104,74 +87,48 @@ export default class HeatMapNavigatorContainer extends Component {
                 machineIdx: 'No Data',
             },
 
-            width: window.innerWidth,
-            height: window.innerHeight,
+            clientWindowWidth: window.innerWidth,
+            clientWindowsHeight: window.innerHeight,
 
-            currentHeatMapWidth: window.innerWidth,
-            currentHeatMapHeight: window.innerHeight,
+            currentHeatMapContainerWidth: null,
+            currentHeatMapContainerHeight: null,
 
             isLoading: false,
         };
 
-        this.updateWindowDimensions = this.updateWindowDimensions.bind(this);
         this.handleDropdownSelection = this.handleDropdownSelection.bind(this);
         this.handleMenuNavigation = this.handleMenuNavigation.bind(this);
 
         this.handleTileMouseInteraction = this.handleTileMouseInteraction.bind(this);
+
+        this.updateClientWindowDimensions = this.updateClientWindowDimensions.bind(this);
+        this.heatMapContainerElement = React.createRef();
     }
 
     componentDidMount() {
 
-        const { onError } = this.props;
-
-        this.setState({ isLoading: true });
-
-        Promise.all([
-
-            apiFetcher.fetchData({itemType: localConstants._TYPE_HEATMAP_TYPES}),
-            apiFetcher.fetchData({itemType: localConstants._TYPE_HEATMAP_ZOOMS})
-
-        ]).then(result => {
-            const [heatMapTypes, heatMapZooms] = result;
-
-            if (!heatMapTypes || !heatMapZooms || heatMapTypes.length === 0 || heatMapZooms.length === 0)
-                throw Error(`data fetched from the API is invalid: HeatMap Types/Zooms`);
-
-            this.setState({
-                dataset: {
-                    ...this.state.dataset,
-                    [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
-                    [localConstants._TYPE_HEATMAP_ZOOMS]: heatMapZooms,
-                },
-                configuration: {    //first item as default selected value
-                    ...this.state.configuration,
-                    [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapTypes[0],
-                    [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZooms[0],
-                },
-                isLoading: false,
-            });
-        }).catch(err => {
-
-            onError({
-                message: 'Service is temporarily unavailable, Try later!',
-                type: localConstants._ERROR_FETCH_FAILED,
-            });
-
-            this.setState({ isLoading: false });
-        });
-
-        this.updateWindowDimensions();
-        window.addEventListener('resize', this.updateWindowDimensions);
+        window.addEventListener('resize', this.updateClientWindowDimensions);
     }
 
     componentWillUnmount() {
 
-        window.removeEventListener('resize', this.updateWindowDimensions);
+        window.removeEventListener('resize', this.updateClientWindowDimensions);
     }
 
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const { onError } = this.props;
+
+        const {
+            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
+            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
+        } = this.props.dataset;
+
+        const {
+            [localConstants._TYPE_FIRST_INTERVAL]: prevFirstInterval,
+            [localConstants._TYPE_LAST_INTERVAL]: prevLastInterval,
+        } = prevProps.dataset;
 
         const {
             [localConstants._TYPE_SELECTED_DATABASE]: database,
@@ -188,133 +145,25 @@ export default class HeatMapNavigatorContainer extends Component {
         } = prevProps.configuration;
 
         const {
-            [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
-            [localConstants._TYPE_FIELDS]: fields,
-            [localConstants._TYPE_HEATMAP_ZOOMS]: heatMapZooms,
-            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-        } = this.state.dataset;
-
-        const {
-            [localConstants._TYPE_HEATMAP_TYPES]: prevHeatMapTypes,
-            [localConstants._TYPE_FIELDS]: prevFields,
-            [localConstants._TYPE_HEATMAP_ZOOMS]: prevHeatMapZooms,
-            [localConstants._TYPE_N_MEASUREMENTS]: prevNMeasurements,
-            [localConstants._TYPE_FIRST_INTERVAL]: prevFirstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: prevLastInterval,
-        } = prevState.dataset;
-
-        const {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: field,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZoom,
-        } = this.state.configuration;
+        } = this.props.heatMapConfiguration;
 
         const {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: prevHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: prevField,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: prevHeatMapZoom,
-        } = prevState.configuration;
+        } = prevProps.heatMapConfiguration;
 
-        const { width, height, currentHeatMapWidth } = this.state;
-        const { width: prevWidth, height: prevHeight } = prevState;
+        const { clientWindowWidth: width, clientWindowsHeight: height } = this.state;
+        const { clientWindowsHeight: prevWidth, clientWindowsHeight: prevHeight } = prevState;
 
         const { tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
         const {
             tileIdCurrentInterval: prevTileIdCurrentInterval,
             tileIdCurrentMachineIndex: prevTileIdCurrentMachineIndex
         } = prevState.navigation;
-        
-        //fetch fields + number of machines (Y Axis cardinality) when database is given or when it changes
-        //then fetch first/last interval of database
-        if (database && policy && (database !== prevDatabase || policy !== prevPolicy)) {
-
-            this.setState({ isLoading: true });
-
-            Promise.all([
-
-                apiFetcher.fetchData({itemType: localConstants._TYPE_FIELDS, args: {database: database}}),
-                apiFetcher.fetchData({itemType: localConstants._TYPE_N_MEASUREMENTS, args: {database: database}}),
-
-            ]).then(result => {
-                const [fields, nMeasurements] = result;
-
-                if (!fields || !nMeasurements || fields.length === 0 || nMeasurements <= 0)
-                    throw Error(`data fetched from the API is invalid: fields/ #measurements`);
-
-                Promise.all([
-
-                    apiFetcher.fetchData({
-                        itemType: localConstants._TYPE_FIRST_INTERVAL,
-                        args: {database: database, policy: policy, field: fields[0]}
-                    }),
-                    apiFetcher.fetchData({
-                        itemType: localConstants._TYPE_LAST_INTERVAL,
-                        args: {database: database, policy: policy, field: fields[0]}
-                    })
-                ]).then(result => {
-                    const [firstInterval, lastInterval] = result;
-
-                    if (!firstInterval || !lastInterval)
-                        throw Error(`data fetched from the API is invalid: fist/last intervals`);
-
-                    this.setState({
-                        dataset: {
-                            ...this.state.dataset,
-                            [localConstants._TYPE_FIELDS]: fields,
-                            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
-                            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-                            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-                        },
-                        configuration: {    //first item as default selected value
-                            ...this.state.configuration,
-                            [localConstants._TYPE_SELECTED_FIELD]: fields[0],
-                        },
-                        isLoading: false,
-                    });
-                });
-
-            }).catch(err => {
-
-                onError({
-                    message: 'Service is temporarily unavailable, Try later!',
-                    type: localConstants._ERROR_FETCH_FAILED,
-                });
-
-                this.setState({ isLoading: false });
-            });
-        }
-
-        /* HEATMAP MENU (TYPES + FIELDS + ZOOMS) + FIRST/LAST INTERVALS + #MEASUREMENTS ARE CHANGED (AFTER THE INIT.) */
-
-        //validation
-        if (!heatMapTypes || !fields || !heatMapZooms || !nMeasurements || !firstInterval || !lastInterval ||
-            heatMapTypes.length === 0 || fields.length === 0 || heatMapZooms.length === 0) return;
-
-        if (JSON.stringify(heatMapTypes) !== JSON.stringify(prevHeatMapTypes) ||
-            JSON.stringify(fields) !== JSON.stringify(prevFields) ||
-            JSON.stringify(heatMapZooms) !== JSON.stringify(prevHeatMapZooms) ||
-            nMeasurements !== prevNMeasurements ||
-            firstInterval !== prevFirstInterval ||
-            lastInterval !== prevLastInterval) {
-
-            //update the state and configure the first item on the dropdowns
-            this.setState({
-                dataset: {
-                    ...this.state.dataset,
-                    [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
-                    [localConstants._TYPE_FIELDS]: fields,
-                    [localConstants._TYPE_HEATMAP_ZOOMS]: heatMapZooms,
-                },
-                configuration: {
-                    ...this.state.configuration,
-                    [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapTypes[0],
-                    [localConstants._TYPE_SELECTED_FIELD]: fields[0],
-                    [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZooms[0],
-                }
-            });
-        }
 
         //the configuration fetched from props is changed or a different heatmap configuration is triggered
         if (database && policy && startInterval && endInterval &&
@@ -337,7 +186,7 @@ export default class HeatMapNavigatorContainer extends Component {
 
             const yIDend = Math.floor(nMeasurements / config.TILE_SIZE);
 
-            this.computeHeatMapTiles({
+            this.computeHeatMapTiles({      //TODO change baseURI with selected field (when the tile generation is ok)
                 baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
                 zoom: heatMapZoom,
                 startX: xIDstart,
@@ -351,12 +200,12 @@ export default class HeatMapNavigatorContainer extends Component {
 
         //the window has been resized
         let resized = false;
-        if (prevWidth !== width || prevHeight !== height) {
-
-            //window resized
-            const resizeDiff = Math.abs((width - currentHeatMapWidth));
-            if (resizeDiff >= config.TILE_SIZE) resized = true;
-        }
+        // if (prevWidth !== width || prevHeight !== height) {
+        //
+        //     //window resized
+        //     const resizeDiff = Math.abs((width - prevWidth));
+        //     if (resizeDiff >= config.TILE_SIZE) resized = true;
+        // }
 
         //user has triggered the heatmap navigation
         if (tileIdCurrentInterval !== null && tileIdCurrentMachineIndex !== null &&
@@ -379,10 +228,11 @@ export default class HeatMapNavigatorContainer extends Component {
         startY = null, currentY, endY = null
     }) {
 
-        const { width } = this.state;
+        const { clientWindowWidth, clientWindowsHeight } = this.state;
 
         //compute the number of tiles according to window size
-        const nHorizontalTiles = Math.floor((width - _PANEL_GAP) / (config.TILE_SIZE));
+        //we "virtually" remove a tile to fill the gap of left/right navigators and bootstrap panel
+        const nHorizontalTiles = Math.floor((clientWindowWidth) / (config.TILE_SIZE)) - 1;
 
         //computes tiles URLs
         let tileRows = [];
@@ -427,15 +277,15 @@ export default class HeatMapNavigatorContainer extends Component {
 
                 tileRowsURLs: tileRows,
             },
-
-            currentHeatMapWidth: window.innerWidth,
-            currentHeatMapHeight: window.innerHeight,
         });
     }
 
-    updateWindowDimensions() {
+    updateClientWindowDimensions() {
 
-        this.setState({ width: window.innerWidth, height: window.innerHeight });
+        this.setState({
+            clientWindowWidth: window.innerWidth,
+            clientWindowsHeight: window.innerHeight
+        });
     }
 
     handleDropdownSelection({value, type}) {
@@ -528,14 +378,18 @@ export default class HeatMapNavigatorContainer extends Component {
         type,
     }) {
 
+        const { setItem } = this.props;
+
         const {
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-        } = this.state.dataset;
+            [localConstants._TYPE_HEATMAP_ZOOMS]: zooms,
+        } = this.props.dataset;
+
+        const {
+            [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
+        } = this.props.heatMapConfiguration;
 
         if (type === localConstants._TYPE_MOUSE_WHEEL) {
-
-            const { [localConstants._TYPE_HEATMAP_ZOOMS]: zooms } = this.state.dataset;
-            const { [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom } = this.state.configuration;
 
             let oldZoomIdx = zooms.indexOf(selectedZoom);
             let newZoomIdx;
@@ -545,11 +399,10 @@ export default class HeatMapNavigatorContainer extends Component {
             else if (zoomTick < 0 && oldZoomIdx < zooms.length - 1) newZoomIdx = ++oldZoomIdx;
             else return;
 
-            this.setState({
-                configuration: {
-                    ...this.state.configuration,
-                    [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zooms[newZoomIdx],
-                }
+            setItem({
+                groupType: localConstants._TYPE_GROUP_HEATMAP,
+                item: zooms[newZoomIdx],
+                type: [localConstants._TYPE_SELECTED_HEATMAP_ZOOM],
             });
         }
         else if (type === localConstants._TYPE_MOUSE_HOOVER) {
@@ -575,7 +428,7 @@ export default class HeatMapNavigatorContainer extends Component {
                 [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
                 [localConstants._TYPE_SELECTED_FIELD]: selectedField,
                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
-            } = this.state.configuration;
+            } = this.props.heatMapConfiguration;
 
             const [ timestamp, timeSerieIdx ] = convertTileCoordinates({
                 genesis: firstInterval,
@@ -605,14 +458,12 @@ export default class HeatMapNavigatorContainer extends Component {
         const {
             [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
             [localConstants._TYPE_FIELDS]: fields,
-            [localConstants._TYPE_HEATMAP_ZOOMS]: zooms,
-        } = this.state.dataset;
+        } = this.props.dataset;
 
         const {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: field,
-            [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
-        } = this.state.configuration;
+        } = this.props.heatMapConfiguration;
 
         const { tileIdCurrentInterval, tileIdCurrentMachineIndex, tileRowsURLs } = this.state.navigation;
 
@@ -635,7 +486,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                 <Form>
                                     <Col xs={12} sm={6} md={3}>
                                         <DropdownClassic
-                                            label="Heat Map Types"
+                                            label="Heat Map Type"
                                             id="heatmap-types-dropdown"
                                             placeholder="select heatmap type.."
                                             loading={isLoading}
@@ -647,7 +498,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                     </Col>
                                     <Col xs={12} sm={6} md={3}>
                                         <DropdownClassic
-                                            label="Fields"
+                                            label="Field"
                                             id="fields-dropdown"
                                             placeholder="select field.."
                                             loading={isLoading}
@@ -657,19 +508,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                             onChange={this.handleDropdownSelection}
                                             disabled={false}/>
                                     </Col>
-                                    <Col xs={12} sm={6} md={3}>
-                                        <DropdownClassic
-                                            label="Zoom"
-                                            id="zooms-dropdown"
-                                            placeholder="select zoom.."
-                                            loading={isLoading}
-                                            data={zooms}
-                                            value={zoom}
-                                            type={localConstants._TYPE_SELECTED_HEATMAP_ZOOM}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={false}/>
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
+                                    <Col xs={12} sm={9} md={6}>
                                         <HeatMapSelectionBox
                                             label="Selection"
                                             timestamp={timestamp}
@@ -694,7 +533,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                         </button>
                                     </div>
 
-                                    <div className="tiles-container">
+                                    <div className="tiles-container" ref={this.heatMapContainerElement}>
                                         {
                                             tileRowsURLs.length > 0 &&
 

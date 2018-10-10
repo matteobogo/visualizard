@@ -72,7 +72,7 @@ img {
 
 .tiles-container {
     grid-area: main;
-    border: 1px #3072AC solid;
+    border: 2px grey solid;
     display: grid;
     cursor: crosshair;
 }
