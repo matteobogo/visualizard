@@ -93,7 +93,11 @@ export const fetchData = ({itemType, args = {}}) => {
             _URL = _URL_TIMESERIE_DATA(args);
             break;
 
-        case localConstants._TYPE_ANALYSES:
+        case localConstants._TYPE_DATASET_ANALYSIS:
+            _URL = _URL_ANALYSES(args);
+            break;
+
+        case localConstants._TYPE_PSPT_ANALYSIS:
             _URL = _URL_ANALYSES(args);
             break;
 

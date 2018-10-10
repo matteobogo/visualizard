@@ -10,7 +10,8 @@ export const _TYPE_HEATMAP_ZOOMS                = 'heatMapZooms';
 export const _TYPE_N_MEASUREMENTS               = 'nMeasurements';
 
 export const _TYPE_TIMESERIE_DATA               = 'timeSerieData';
-export const _TYPE_ANALYSES                     = 'analyses';
+export const _TYPE_DATASET_ANALYSIS             = 'datasetAnalysis';
+export const _TYPE_PSPT_ANALYSIS                = 'psptAnalysis';
 
 export const _TYPE_SELECTED_DATABASE            = 'database';
 export const _TYPE_SELECTED_POLICY              = 'policy';
@@ -47,4 +48,5 @@ export const _TYPE_MOUSE_WHEEL                  = 'MOUSE_WHEEL';
 
 export const _TYPE_GROUP_DATASET                = 'dataset';
 export const _TYPE_GROUP_CONFIGURATION          = 'configuration';
+export const _TYPE_GROUP_HEATMAP                = 'heatmapConfiguration';
 export const _TYPE_GROUP_ANALYSES               = 'analyses';
