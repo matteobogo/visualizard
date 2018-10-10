@@ -32,7 +32,17 @@ class StaticAnalysisContainer extends Component {
 
         this.state = {
 
-            configuration: {
+            [localConstants._TYPE_GROUP_DATASET]: {
+
+                [localConstants._TYPE_DATABASES]: [],
+                [localConstants._TYPE_POLICIES]: [],
+                [localConstants._TYPE_FIELDS]: null,
+                [localConstants._TYPE_N_MEASUREMENTS]: null,
+                [localConstants._TYPE_FIRST_INTERVAL]: null,
+                [localConstants._TYPE_LAST_INTERVAL]: null,
+            },
+
+            [localConstants._TYPE_GROUP_CONFIGURATION]: {
 
                 [localConstants._TYPE_SELECTED_DATABASE]: null,
                 [localConstants._TYPE_SELECTED_POLICY]: null,
@@ -40,7 +50,7 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
 
-            analyses: {
+            [localConstants._TYPE_GROUP_ANALYSES]: {
 
                 [sharedConstants.ANALYSIS_DATASET]: null,
                 [sharedConstants.ANALYSIS_PSPT]: null,
@@ -61,24 +71,18 @@ class StaticAnalysisContainer extends Component {
             isLoading: false,
         };
 
-        this.setConfigurationItem = this.setConfigurationItem.bind(this);
+        this.fetchData = this.fetchData.bind(this);
+        this.setItem = this.setItem.bind(this);
         this.handleError = this.handleError.bind(this);
         this.handleTimeSerieSelection = this.handleTimeSerieSelection.bind(this);
     }
 
     componentDidMount() {
 
-        //TEST
-        // setTimeout(() => {
-        //     console.log('simulate selection heatmap')
-        //     this.handleTimeSerieSelection({
-        //         machineIdx: 0,
-        //         timestamp: 0,
-        //         heatMapType: 'Machine ID',
-        //         fields: ['mean_cpu_usage_rate', 'n_jobs', 'n_tasks'],
-        //         actionType: 'selection',
-        //     })
-        // }, 15000)
+        this.fetchData({
+            groupType: localConstants._TYPE_GROUP_DATASET,
+            type: localConstants._TYPE_DATABASES,
+        });
     }
 
     static getDerivedStateFromProps(nextProps, prevState) {
@@ -131,7 +135,14 @@ class StaticAnalysisContainer extends Component {
         if (JSON.stringify(this.state.configuration) !== JSON.stringify(prevState.configuration) &&
             selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) {
 
-            this.fetchAnalysis(sharedConstants.ANALYSIS_DATASET);
+            this.fetchData({
+                groupType: localConstants._TYPE_GROUP_ANALYSES,
+                type: localConstants._TYPE_ANALYSES,
+                args: {
+                    ...this.state.configuration,
+                    [localConstants._TYPE_SELECTED_ANALYSIS]: sharedConstants.ANALYSIS_DATASET,
+                }
+            });
         }
     }
 
@@ -141,26 +152,22 @@ class StaticAnalysisContainer extends Component {
         this.socket.close();
     }
 
-    fetchAnalysis(type) {
+    fetchData({groupType, type, args = {}}) {
 
         const { notify } = this.props;
 
         this.setState({isLoading: true});
 
-        //fetch dataset analysis when configuration changes
         apiFetcher.fetchData({
-            itemType: localConstants._TYPE_ANALYSES,
-            args: {
-                ...this.state.configuration,
-                [localConstants._TYPE_SELECTED_ANALYSIS]: type,
-            }
+            itemType: type,
+            args: args,
         })
-            .then(analysis => {
+            .then(result => {
 
                 this.setState({
-                    analyses: {
-                        ...this.state.analyses,
-                        [type]: analysis,
+                    [groupType]: {
+                        ...this.state[groupType],
+                        [type]: result,
                     }
                 });
             })
@@ -176,14 +183,14 @@ class StaticAnalysisContainer extends Component {
             .then(() => this.setState({isLoading: false}));
     }
 
-    setConfigurationItem({item, itemType}) {
+    setItem({groupType, item, type}) {
 
         if (item instanceof Date) item = item.toISOString();
 
         this.setState({
-            configuration: {
-                ...this.state.configuration,
-                [itemType]: item,
+            [groupType]: {
+                ...this.state[groupType],
+                [type]: item,
             }
         });
     }
@@ -232,9 +239,6 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.state.configuration;
-
-        console.log(timeSerieIdx, timestamp, heatMapType, fields, actionType)
-        console.log(selectedDatabase, selectedPolicy, selectedStartInterval, selectedEndInterval)
 
         switch (actionType) {
 
@@ -292,9 +296,12 @@ class StaticAnalysisContainer extends Component {
         console.log(this.state)
 
         const {
-            configuration,
+            [localConstants._TYPE_GROUP_DATASET]: dataset,
+            [localConstants._TYPE_GROUP_CONFIGURATION]: configuration,
+            [localConstants._TYPE_GROUP_ANALYSES]: analyses,
             timeSerieSelection,
             isLoading,
+
         } = this.state;
 
         const {
@@ -304,25 +311,24 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
 
-        } = this.state.configuration;
-
-        const {
-
-            [sharedConstants.ANALYSIS_DATASET]: datasetAnalysis,
-            [sharedConstants.ANALYSIS_PSPT]: psptAnalysis,
-        } = this.state.analyses;
+        } = this.state[localConstants._TYPE_GROUP_CONFIGURATION];
 
         const {
 
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+
         } = this.state.heatMapSelection;
 
         //get stats of the current selected field from dataset analysis
         let selectedFieldStats;
-        if (datasetAnalysis && selectedField && selectedHeatMapType) {
+        if (analyses[sharedConstants.ANALYSIS_DATASET] && selectedField && selectedHeatMapType) {
 
-            selectedFieldStats = datasetAnalysis.fieldsStats.filter(e => e.field === selectedField).pop();
+            selectedFieldStats =
+                analyses[sharedConstants.ANALYSIS_DATASET]
+                    .fieldsStats
+                    .filter(e => e.field === selectedField)
+                    .pop();
         }
 
         let showContainers = false;
@@ -345,8 +351,10 @@ class StaticAnalysisContainer extends Component {
                         <Row>
                             <Col xs={12}>
                                 <ConfiguratorContainer
+                                    dataset={dataset}
                                     configuration={configuration}
-                                    setConfigurationItem={this.setConfigurationItem}
+                                    fetchData={this.fetchData}
+                                    setItem={this.setItem}
                                     onError={this.handleError}
                                 />
                             </Col>
