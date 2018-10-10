@@ -14,13 +14,16 @@
     height: 24px;
     width: 24px;
     align-self: center;
+    justify-content: left;
     margin: 0 10px 0 0;
 }
 
 .property-box {
     height: 24px;
+    width: 180px;
     display: flex;
     align-items: center;
+    justify-content: left;
 }
 
 .property-box p {
