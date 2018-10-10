@@ -25,11 +25,21 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
             timeRange: null,
             timeSeries: null,
+
+            tracker: null,
+            trackerValue: "--",
+            trackerEvent: null,
+
+            x: null,
+            y: null,
+
             max: 0,          //max value over the different timeseries (need to calibrate the yAxis in the chart)
             min: 0,          //as above with min
             colors: [],      //colors associated to timeseries
             isLoading: false,
         };
+
+        this.handleTrackerChanged = this.handleTrackerChanged.bind(this);
     }
 
     componentDidUpdate(prevProps, prevState, prevContext) {
@@ -116,6 +126,11 @@ export default class TimeSeriesChartsContainer extends React.Component {
         });
     };
 
+    handleTrackerChanged(tracker) {
+
+
+    }
+
     render() {
 
         console.log(this.state)
@@ -124,6 +139,30 @@ export default class TimeSeriesChartsContainer extends React.Component {
         const { timeRange, timeSeries, max, min, colors, isLoading } = this.state;
 
         if (disabled) return null;
+
+        let legendCategs = [];
+        let legendStyle = null;
+        if (timeSeries) {
+
+            let styles = [];
+
+            //build categories for the legend
+            Object.keys(timeSeries).forEach((k, idx) => {
+                if (timeSeries.hasOwnProperty(k)) {
+
+                    legendCategs.push({
+                        key: timeSeries[k].name(),
+                        label: timeSeries[k].name(),
+                    });
+
+                    styles.push({
+                        key: timeSeries[k].name(), color: colors[idx],
+                    });
+                }
+            });
+
+            legendStyle = styler(styles);
+        }
 
         return(
 
@@ -193,9 +232,8 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                 <Legend
                                                     type="line"
                                                     align="right"
-                                                    categories={
-                                                        [{ key: 'a', label: 'AAA'}]
-                                                    }
+                                                    style={legendStyle}
+                                                    categories={legendCategs}
                                                 />
                                             </span>
                                         </Col>
