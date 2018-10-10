@@ -20,19 +20,14 @@ export default class ConfiguratorContainer extends Component {
 
         this.state = {
 
-            dataset: {
-
-                [localConstants._TYPE_DATABASES]: [],
-                [localConstants._TYPE_POLICIES]: [],
-                [localConstants._TYPE_FIELDS]: [],
-                [localConstants._TYPE_FIRST_INTERVAL]: null,
-                [localConstants._TYPE_LAST_INTERVAL]: null,
-            },
+            lastSelectedDatabase: null,
+            lastSelectedPolicy: null,
+            lastSelectedStartInterval: null,
+            lastSelectedEndInterval: null,
 
             isLoading: false,
         };
 
-        this.fetchDataFromApi = this.fetchDataFromApi.bind(this);
         this.handleDropdownSelection = this.handleDropdownSelection.bind(this);
     }
 
@@ -40,12 +35,13 @@ export default class ConfiguratorContainer extends Component {
     //obtaining from props the configuration elements and comparing them with the last element selected
     static getDerivedStateFromProps(nextProps, prevState) { //render phase (may be slow, no good for async)
 
-        const { configuration } = nextProps;
+        const { dataset, configuration } = nextProps;
 
         const {
             lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
         } = prevState;
 
+        //update the last selected database in the local state, reset others
         if (configuration[localConstants._TYPE_SELECTED_DATABASE] !== lastSelectedDatabase) {
 
             return {
@@ -56,6 +52,7 @@ export default class ConfiguratorContainer extends Component {
             }
         }
 
+        // update the last selected policy in the local state
         if (configuration[localConstants._TYPE_SELECTED_POLICY] !== lastSelectedPolicy) {
 
             return {
@@ -63,14 +60,30 @@ export default class ConfiguratorContainer extends Component {
             }
         }
 
+        //init the last selected start interval (if dataset's first interval is available)
+        if (!lastSelectedStartInterval && dataset[localConstants._TYPE_FIRST_INTERVAL]) {
+
+            return {
+                lastSelectedStartInterval: dataset[localConstants._TYPE_FIRST_INTERVAL],
+            }
+        }
+
+        //init the last selected end interval (if dataset's last interval is available)
+        if (!lastSelectedEndInterval && dataset[localConstants._TYPE_LAST_INTERVAL]) {
+
+            return {
+                lastSelectedEndInterval: dataset[localConstants._TYPE_LAST_INTERVAL],
+            }
+        }
+
         //user has make empty the datetime picker or has changed the value through the menu (start interval)
-        //datetime pickers will push a new value to the setConfigurationItem callback within handleDropdownSelection.
+        //datetime pickers will push a new value to the setItem callback within handleDropdownSelection.
         //During the next render phase we will receive the new configuration prop with the new value in the StartInterval
         //(or EndInterval), because this new value is different from the last one saved in the component's state, the
         //state is also updated with the new value (assigned to lastSelectedStartInterval).
         //This strategy is useful because during the commit phase (componentDidUpdate) we will check for the updates
         //of the state and, in the case of startInterval/endInterval, we will check if the new (lastSelected-) value is null.
-        //In the latter scenario, we will trigger again the setConfigurationItem callback, assigning the value of the
+        //In the latter scenario, we will trigger again the setItem callback, assigning the value of the
         //firstInterval/lastInterval previously fetched from the api. This workaround is necessary to re-populate the
         //datetime picker when an user tries to delete the current value (behaviour not handled by the component).
         if (configuration[localConstants._TYPE_SELECTED_START_INTERVAL] !== lastSelectedStartInterval) {
@@ -91,14 +104,15 @@ export default class ConfiguratorContainer extends Component {
         return null;
     }
 
-    componentDidMount() {   //commit phase
-
-        this.fetchDataFromApi({ itemType: localConstants._TYPE_DATABASES });
-    }
+    componentDidMount() { }
 
     componentDidUpdate(prevProps, prevState, prevContext) { //commit phase (fast, best for async)
 
-        const { configuration, setConfigurationItem } = this.props;
+        const {
+            configuration,
+            fetchData,
+            setItem,
+        } = this.props;
 
         const {
             lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
@@ -108,13 +122,14 @@ export default class ConfiguratorContainer extends Component {
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
             [localConstants._TYPE_FIELDS]: fields,
-        } = this.state.dataset;
+        } = this.props.dataset;
 
         if (prevState.lastSelectedDatabase !== lastSelectedDatabase) {
 
             //update policies
-            this.fetchDataFromApi({
-                itemType: localConstants._TYPE_POLICIES,
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_POLICIES,
                 args: {
                     database: configuration[localConstants._TYPE_SELECTED_DATABASE]
                 }
@@ -124,19 +139,29 @@ export default class ConfiguratorContainer extends Component {
             //InfluxDB Issue: we cannot retrieve first/last timestamp of the database without
             //specifies at least a field and a measurement.
             //This list will be used in other analysis components
-            this.fetchDataFromApi({
-                itemType: localConstants._TYPE_FIELDS,
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_FIELDS,
                 args: {
                     database: configuration[localConstants._TYPE_SELECTED_DATABASE]
                 }
             });
+
+            //update the number of timeseries available on the server (i.e. number of measurements)
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_N_MEASUREMENTS,
+                args: { database: lastSelectedDatabase}
+            });
         }
 
-        if (prevState.lastSelectedPolicy !== lastSelectedPolicy && fields.length > 0) {
+        //update first and last interval when the selected policy changes
+        if (prevState.lastSelectedPolicy !== lastSelectedPolicy) {
 
             //update first and last intervals
-            this.fetchDataFromApi({
-                itemType: localConstants._TYPE_FIRST_INTERVAL,
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_FIRST_INTERVAL,
                 args: {
                     database: configuration[localConstants._TYPE_SELECTED_DATABASE],
                     policy: configuration[localConstants._TYPE_SELECTED_POLICY],
@@ -144,8 +169,9 @@ export default class ConfiguratorContainer extends Component {
                 }
             });
 
-            this.fetchDataFromApi({
-                itemType: localConstants._TYPE_LAST_INTERVAL,
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_LAST_INTERVAL,
                 args: {
                     database: configuration[localConstants._TYPE_SELECTED_DATABASE],
                     policy: configuration[localConstants._TYPE_SELECTED_POLICY],
@@ -154,87 +180,42 @@ export default class ConfiguratorContainer extends Component {
             });
         }
 
-        //re-initialize start/end interval default values if first/last interval values change
-        if (prevState.dataset.firstInterval !== firstInterval) {
-
-            setConfigurationItem({ item: firstInterval, itemType: localConstants._TYPE_SELECTED_START_INTERVAL });
-        }
-
-        if (prevState.dataset.lastInterval !== lastInterval) {
-
-            setConfigurationItem({ item: lastInterval, itemType: localConstants._TYPE_SELECTED_END_INTERVAL });
-        }
+        //guard
+        if (!lastSelectedDatabase || !lastSelectedPolicy || !firstInterval || !lastInterval) return;
 
         //as we said before, in this block we will check if the current datetime pickers values are changed and if they
         //are null. If they are null then they are re-initialized with first/last interval values (if they exist).
         if (prevState.lastSelectedStartInterval !== lastSelectedStartInterval) {
 
-            if (!lastSelectedStartInterval &&
-                !(lastSelectedStartInterval instanceof Date) &&
-                firstInterval) {
-
-                setConfigurationItem({
-                    item: firstInterval,
-                    itemType: localConstants._TYPE_SELECTED_START_INTERVAL
-                });
-            }
+            setItem({
+                groupType: localConstants._TYPE_GROUP_CONFIGURATION,
+                item: firstInterval,
+                type: localConstants._TYPE_SELECTED_START_INTERVAL,
+            });
         }
 
         if (prevState.lastSelectedEndInterval !== lastSelectedEndInterval) {
 
-            if (!lastSelectedEndInterval &&
-                !(lastSelectedEndInterval instanceof Date) &&
-                lastInterval) {
-
-                setConfigurationItem({
-                    item: lastInterval,
-                    itemType: localConstants._TYPE_SELECTED_END_INTERVAL
-                });
-            }
+            setItem({
+                groupType: localConstants._TYPE_GROUP_CONFIGURATION,
+                item: lastInterval,
+                type: localConstants._TYPE_SELECTED_END_INTERVAL,
+            });
         }
-    }
-
-    fetchDataFromApi({itemType, args = {}}) {
-
-        const { onError } = this.props;
-
-        return apiFetcher
-            .fetchData({ itemType: itemType, args: args })
-            .then((data) => {
-                this.setState({ isLoading: true });
-                return data;
-            })
-            .then(data => {
-                this.setState({
-                    dataset: {
-                        ...this.state.dataset,
-                        [itemType]: data,  //ES6 computed property name
-                    }
-                });
-            })
-            .catch(err => {
-
-                const options = {
-                    itemType: itemType,
-                    error: err.message,
-                    ...args
-                };
-
-                onError({
-                    message: 'Service is temporarily unavailable, Try later!',
-                    type: localConstants._ERROR_FETCH_FAILED,
-                    ...options
-                });
-            })
-            .then(() => this.setState({ isLoading: false }));
     }
 
     handleDropdownSelection({value, type}) {
 
-        this.props.setConfigurationItem({ item: value, itemType: type });
+        this.props.setItem({
+            groupType: localConstants._TYPE_GROUP_CONFIGURATION,
+            item: value,
+            type: type
+        });
     }
 
     render() {
+
+        console.log(this.state)
 
         const { configuration } = this.props;
 
@@ -243,10 +224,12 @@ export default class ConfiguratorContainer extends Component {
         const {
             [localConstants._TYPE_DATABASES]: databases,
             [localConstants._TYPE_POLICIES]: policies,
+            [localConstants._TYPE_FIELDS]: fields,
+            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
 
-        } = this.state.dataset;
+        } = this.props.dataset;
 
         //dropdowns unlocking
         let unlockPoliciesDropdown = false;
