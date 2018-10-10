@@ -25,7 +25,6 @@ export const _TYPE_SELECTED_HEATMAP_ZOOM        = 'heatMapZoom';
 export const _TYPE_SELECTED_FIELDS              = 'fields';
 export const _TYPE_SELECTED_TIMESERIE_INDEX     = 'timeSerieIndex';
 
-export const _TYPE_SELECTED_TIMESERIES_DATA     = 'timeSeriesData';
 export const _TYPE_SELECTED_ANALYSIS            = 'analysis';
 
 export const _TYPE_REQUESTS_QUEUE               = 'REQUESTS_QUEUE';
@@ -45,3 +44,7 @@ export const NOTIFICATION_DELAY                 = 5000;
 export const _TYPE_MOUSE_CLICK                  = 'MOUSE_CLICK';
 export const _TYPE_MOUSE_HOOVER                 = 'MOUSE_HOOVER';
 export const _TYPE_MOUSE_WHEEL                  = 'MOUSE_WHEEL';
+
+export const _TYPE_GROUP_DATASET                = 'dataset';
+export const _TYPE_GROUP_CONFIGURATION          = 'configuration';
+export const _TYPE_GROUP_ANALYSES               = 'analyses';
