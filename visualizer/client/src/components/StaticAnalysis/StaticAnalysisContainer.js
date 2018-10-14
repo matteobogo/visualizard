@@ -20,6 +20,8 @@ import TimeSeriesChartsContainer from './TimeSeriesChartsContainer';
 
 import { Grid, Row, Col } from 'react-bootstrap';
 
+import { TimeSeries, TimeRange } from 'pondjs';
+
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
@@ -321,20 +323,32 @@ class StaticAnalysisContainer extends Component {
                             },
                             timeSerieSelection: {
                                 ...this.state.timeSerieSelection,
-                                [timeSerieIdx]: {
-                                    //the first is the time, the second the main field, the other are the side fields
-                                    name: data.name,        //'timeserie_name'
-                                    fields: data.fields,    //[ 'time', 'field1', 'field2', ..]
-                                    points: data.points,    //[ [time, value1, value2, ..], ..]
-                                },
+                                [timeSerieIdx]: data,
                             },
                             isLoading: false,
+                        });
+                    })
+                    .catch(() => {
+                        this.setState({isLoading: false});
+                        this.handleError({
+                            message: "an error occurred while fetching data",
+                            type: localConstants._ERROR_FETCH_FAILED,
                         });
                     });
 
                 break;
 
-            case 'unselection':
+            case 'deselection':
+
+                const timeseries = this.state.timeSerieSelection;
+
+                if (!timeseries || !(timeSerieIdx in timeseries)) return;
+
+                delete timeseries[timeSerieIdx];
+
+                this.setState({
+                   timeSerieSelection: timeseries,
+                });
 
                 break;
         }
@@ -381,6 +395,18 @@ class StaticAnalysisContainer extends Component {
                     .pop();
         }
 
+        //get only the index in the heatmap and the name of the timeseries selected
+        let selectedTimeSeries = [];
+        if (timeSerieSelection) {
+            Object.keys(timeSerieSelection).forEach((k, idx) => {
+                if (timeSerieSelection.hasOwnProperty(k))
+                    selectedTimeSeries.push({
+                        index: k,
+                        name: timeSerieSelection[k].name
+                    });
+            });
+        }
+
         let showContainers = false;
         if (selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) showContainers = true;
 
@@ -416,6 +442,7 @@ class StaticAnalysisContainer extends Component {
                                     dataset={dataset}
                                     configuration={configuration}
                                     heatMapConfiguration={heatmapConfiguration}
+                                    timeSeries={timeSerieSelection}
                                     setItem={this.setItem}
                                     handleTimeSerieSelection={this.handleTimeSerieSelection}
                                     onError={this.handleError}
@@ -430,7 +457,7 @@ class StaticAnalysisContainer extends Component {
                                     mainField={selectedField}
                                     sideFields={['n_jobs', 'n_tasks']}
                                     fieldStats={selectedFieldStats}
-                                    timeSerieData={timeSerieSelection}
+                                    timeSeriesData={timeSerieSelection}
                                     isLoading={isLoading}
                                 />
                             </Col>
