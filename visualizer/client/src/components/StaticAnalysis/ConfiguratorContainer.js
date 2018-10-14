@@ -215,8 +215,6 @@ export default class ConfiguratorContainer extends Component {
 
     render() {
 
-        console.log(this.state)
-
         const { configuration } = this.props;
 
         const { isLoading } = this.state;
