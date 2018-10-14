@@ -16,6 +16,10 @@ const chroma = require('chroma-js');
 
 import './TimeSeriesChartsContainer.css';
 
+const NullMarker = props => {
+    return <g />
+};
+
 export default class TimeSeriesChartsContainer extends React.Component {
 
     constructor() {
@@ -23,8 +27,10 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
         this.state = {
 
+            lastTimeSerieIndexes: [],
+
             timeRange: null,
-            timeSeries: null,
+            timeSerie: null,
 
             tracker: null,
             trackerValue: "--",
@@ -40,24 +46,27 @@ export default class TimeSeriesChartsContainer extends React.Component {
         };
 
         this.handleTrackerChanged = this.handleTrackerChanged.bind(this);
+        this.handleTimeRangeChange = this.handleTimeRangeChange.bind(this);
+        this.handleMouseMove = this.handleMouseMove.bind(this);
     }
 
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const {
-            timeSerieData,  //contains the data of the timeseries
+            timeSeriesData, //contains the data of the timeseries
             mainField,      //the selected field of the timeserie to show in the chart (same for all timeseries)
             fieldStats,     //stats about the selected field (min, max, mean, std) over all the dataset
             sideFields,     //other fields to show in the highlight menu when charts are navigated
         } = this.props;
 
-        const { timeSerieData: prevTimeSerieData } = prevProps;
+        const { timeSeriesData: prevTimeSeriesData } = prevProps;
 
         //if time range is changed, then rebuild the x-axis of the chart
         //data has the following structure:
         //{ machineIdx: { time: .., field1: .., field2: .., .. }, machineIdx: { .. }, .. }
-        if (timeSerieData && mainField && fieldStats && sideFields &&
-            JSON.stringify(timeSerieData) !== JSON.stringify(prevTimeSerieData)) {
+        if (timeSeriesData && mainField && fieldStats && sideFields && (
+            JSON.stringify(timeSeriesData) !== JSON.stringify(prevTimeSeriesData) ||
+            this.state.lastTimeSerieIndexes.length !== Object.keys(timeSeriesData).length)) {
 
             this.buildTimeSeriesCharts();
         }
@@ -65,7 +74,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     buildTimeSeriesCharts = () => {
 
-        const { configuration, mainField, timeSerieData } = this.props;
+        const { configuration, mainField, timeSeriesData } = this.props;
         const { max , min } = this.state;
 
         //max/min over all the timeseries
@@ -75,29 +84,24 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
         this.setState({isLoading: true});
 
-        //build timeseries
-        //timeseries data are stored as
-        //idx: { name: xxx, fields: ['time', 'field1',  .. ], points: [ [time, value1, ..], .. ] }
         let timeSeries = {};
-        Object.keys(timeSerieData).forEach(k => {
-            if (timeSerieData.hasOwnProperty(k)) {
+        Object.keys(timeSeriesData).forEach((k, idx) => {
+            if (timeSeriesData.hasOwnProperty(k)) {
 
-                //timeserie configuration
-                //columns: [field1, field2, ..]
-                //points: [ [ value1, value2, .. ], .. ]
-                const data = {
-                    name: timeSerieData[k].name,
-                    columns: timeSerieData[k].fields,
-                    points: timeSerieData[k].points,
-                };
+                //build the timeserie object
+                const timeserie = new TimeSeries({
+                    name: timeSeriesData[k].name,        //'timeserie_name'
+                    columns: timeSeriesData[k].fields,   //[ 'time', 'field1', 'field2', ..]
+                    points: timeSeriesData[k].points,    //[ [time, value1, value2, ..], ..]
+                });
 
-                timeSeries[k] = new TimeSeries(data);
+                timeSeries[k] = timeserie;
 
                 //check max/min of the field(s) of the current timeserie
                 //if there are multiple fields we need to specify as argument the field(s)
                 //if multiple fields are specified, pondjs returns a map field->value
-                let tsMax = timeSeries[k].max(mainField);
-                let tsMin = timeSeries[k].min(mainField);
+                let tsMax = timeserie.max(mainField);
+                let tsMin = timeserie.min(mainField);
                 if (tsMax > newMax) newMax = tsMax;
                 if (tsMin < newMin) newMin = tsMin;
             }
@@ -117,6 +121,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
             .colors(Object.keys(timeSeries).length);
 
         this.setState({
+            lastTimeSerieIndexes: Object.keys(timeSeriesData),
             timeRange: timeRange,
             timeSeries: timeSeries,
             max: newMax,
@@ -128,7 +133,62 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     handleTrackerChanged(tracker) {
 
+        const { timeSeries } = this.state;
 
+        const { mainField, sideFields } = this.props;
+
+        if (!tracker) {
+            this.setState({ tracker: null, trackerValue: null, trackerEvent: null, x: null, y: null });
+        }
+        else {
+
+            //access the time-series array using the index of the selected field
+            //the time-series have been generated following the order of the fields fetched from the api
+            // const fieldIndex = fields.indexOf(field);
+            // const timeSerie = timeSeries[fieldIndex];
+            //
+            // //
+            // const e = timeSerie.atTime(tracker);
+            // const eventTime = new Date(e.begin().getTime() + (e.end().getTime() - e.begin().getTime()) / 2 );
+            // const eventValue = e.get(statistic);
+            // const v = `${eventValue}`;
+            //
+            // this.setState({ tracker: eventTime, trackerValue: v, trackerEvent: e });
+        }
+    }
+
+    handleTimeRangeChange (timeRange) {
+        this.setState({ timeRange });
+    }
+
+    handleMouseMove (x, y) {
+        this.setState({ x, y });
+    }
+
+    renderMarker () {
+
+        const {
+            [localConstants._TYPE_SELECTED_STATISTIC]: statistic
+        } = this.state.configuration;
+
+        if (!this.state.tracker) {
+
+            return <NullMarker/>;
+        }
+
+        return (
+            <EventMarker
+                type="flag"
+                axis="axis"
+                event={this.state.trackerEvent}
+                column={statistic}
+                info={[{ label: "Value", value: this.state.trackerValue }]}
+                //infoTimeFormat={}
+                infoWidth={100}
+                markerRadius={2}
+                markerStyle={{ fill: "black" }}
+            />
+        );
     }
 
     render() {
@@ -136,7 +196,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
         console.log(this.state)
 
         const { disabled, isLoading: isLoadingParent, mainField, sideFields, fieldStats } = this.props;
-        const { timeRange, timeSeries, max, min, colors, isLoading } = this.state;
+        const { timeSeries, timeRange, max, min, colors, isLoading } = this.state;
 
         if (disabled) return null;
 
@@ -152,7 +212,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
                     legendCategs.push({
                         key: timeSeries[k].name(),
-                        label: timeSeries[k].name(),
+                        label: `${timeSeries[k].name()} (${k})`,
                     });
 
                     styles.push({
@@ -184,7 +244,12 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                             <Resizable>
                                                 <ChartContainer
                                                     timeRange={timeRange}
+                                                    showGrid={false}
+                                                    onTrackerChanged={this.handleTrackerChanged}
+                                                    onBackgroundClick={() => this.setState({selection: null})}
                                                     enablePanZoom={true}
+                                                    onTimeRangeChanged={this.handleTimeRangeChange}
+                                                    onMouseMove={(x, y) => this.handleMouseMove(x, y)}
                                                 >
                                                     <ChartRow height="250">
                                                         <YAxis
