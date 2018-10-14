@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from 'prop-types';
-import { Clock, Server } from 'react-feather';
+import { Clock, Activity } from 'react-feather';
 import { ControlLabel } from 'react-bootstrap';
 
 import './HeatMapSelectionBox.css';
@@ -18,7 +18,7 @@ export const HeatMapSelectionBox = (props) => {
                     <p>{props.timestamp}</p>
                 </div>
                 <div className="icon-box">
-                    <Server/>
+                    <Activity/>
                 </div>
                 <div className="property-box">
                     <p>{props.machine}</p>
