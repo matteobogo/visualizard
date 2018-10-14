@@ -19,9 +19,14 @@
     justify-content: center;
     width: 100%;
     height: 100%;
-    grid-template-areas:    "hd hd hd"
-                            "lsd main rsd"
-                            "ft ft ft"
+    grid-template-areas:    "hd hd hd hd"
+                            "lsd tlvertic main rsd"
+                            "ft ft ft ft"
+}
+
+.wrapper p {
+    font-size: x-small;
+    color: black;
 }
 
 .menu-area-clickable {
@@ -43,9 +48,59 @@
 }
 
 img {
-
     width: 15px;
     height: 15px;
+}
+
+line {
+    stroke: black;
+    stroke-width: 1px;
+}
+
+/* Timeline Horizontal */
+.timeline-horizontal-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;  /* the layer behind the overlay is clickable */
+    opacity: 0.5;
+}
+
+.timeline-horizontal-label {
+    height: 100%;
+    width: 140px;
+}
+
+.timeline-horizontal-label p {
+    margin: auto;
+    text-align: center;
+    height: 15px;
+}
+
+.timeline-top-left-label {
+    float: left;
+}
+
+.timeline-top-left-label svg {
+    float: left;
+}
+
+.timeline-top-left-label p {
+    float: left;
+}
+
+.timeline-top-right-label {
+    float: right;
+}
+
+.timeline-top-right-label svg {
+    float: right;
+}
+
+.timeline-top-right-label p {
+    float: right;
 }
 
 .header {
@@ -70,11 +125,15 @@ img {
     justify-content: center;
 }
 
+.tiles-container-bordering {
+    border: 2px grey solid;
+}
+
 .tiles-container {
     grid-area: main;
-    border: 2px grey solid;
     display: grid;
     cursor: crosshair;
+    position: relative;
 }
 
 .footer {
@@ -87,12 +146,43 @@ img {
 }
 
 .tiles-col {
-
     width: 256px;
 }
 
 .tile {
-
     width: 256px;
     height: 256px;
+}
+
+.timeserie-closable-area {
+    width: 100%;
+}
+
+.timeserie-closable-box {
+    float: left;
+    height: 15px;
+    margin: 10px 0 0 0;
+}
+
+.timeserie-closable-icon {
+    float: left;
+    height: 15px;
+}
+
+.timeserie-closable-icon button {
+    background: transparent no-repeat;
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    transition: 0.5s;
+}
+
+.timeserie-closable-content {
+    float: left;
+}
+
+.timeserie-closable-content p {
+    margin: 0 10px 0 0;
+    font-size: small;
 }
