@@ -68,6 +68,7 @@ class StaticAnalysisContainer extends Component {
             },
 
             timeSerieSelection: null,
+            timeSerieTimestampSelection: null,
 
             pendingRequests: {},    //map of pending requests in process through redux
             pendingDeletion: [],    //uuid list of pending requests consumed (need to be deleted from redux store)
@@ -325,6 +326,7 @@ class StaticAnalysisContainer extends Component {
                                 ...this.state.timeSerieSelection,
                                 [timeSerieIdx]: data,
                             },
+                            timeSerieTimestampSelection: timestamp,
                             isLoading: false,
                         });
                     })
@@ -364,6 +366,7 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_GROUP_HEATMAP]: heatmapConfiguration,
             [localConstants._TYPE_GROUP_ANALYSES]: analyses,
             timeSerieSelection,
+            timeSerieTimestampSelection,
             isLoading,
 
         } = this.state;
@@ -458,6 +461,7 @@ class StaticAnalysisContainer extends Component {
                                     sideFields={['n_jobs', 'n_tasks']}
                                     fieldStats={selectedFieldStats}
                                     timeSeriesData={timeSerieSelection}
+                                    timestampFocus={timeSerieTimestampSelection}
                                     isLoading={isLoading}
                                 />
                             </Col>

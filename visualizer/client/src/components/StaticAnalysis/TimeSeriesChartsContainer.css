@@ -1,0 +1,19 @@
+.tracker-info-container {
+    height: 30px;
+    margin: 0 0 5px 0;
+}
+
+.tracker-info-box {
+    width: 100%;
+    height: 15px;
+}
+
+.tracker-info-box svg {
+    float: left;
+}
+
+.tracker-info-box p {
+    float: left;
+    font-size: x-small;
+    margin: 0 0 0 5px;
+}
