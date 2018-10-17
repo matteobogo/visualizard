@@ -1,7 +1,7 @@
 const webpack = require("webpack");
 
 const path = require('path');
-//const Dotenv = require('dotenv-webpack');
+const Dotenv = require('dotenv-webpack');
 
 /*
  * The plugin will generate an HTML5 file for you that includes all your webpack bundles in the body using script tags.
@@ -42,7 +42,10 @@ module.exports = {
         publicPath: "/"
     },
     plugins: [
-        //new Dotenv(),
+        new Dotenv({
+            path: './.env',
+            safe: false,
+        }),
         new HtmlWebpackPlugin({
             template: 'src/index.html', //load an existing index.html
             //tells the plugin to inject any js script into the bottom of the page, just before the </body> tag

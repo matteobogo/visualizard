@@ -1,9 +1,8 @@
 const webpack = require("webpack");
 
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 const OpenBrowserPlugin = require('open-browser-webpack-plugin');
 const path = require('path');
-//const Dotenv = require('dotenv-webpack');
+const Dotenv = require('dotenv-webpack');
 
 module.exports = {
     entry: ["babel-polyfill", "./src/index.js"],
@@ -13,20 +12,16 @@ module.exports = {
         publicPath: "assets"
     },
     plugins: [
-        new OpenBrowserPlugin({url: 'http://localhost:4800'}),
-        new HtmlWebpackPlugin({
-            template: 'src/index.html', //load an existing index.html
-            //tells the plugin to inject any js script into the bottom of the page, just before the </body> tag
-            inject: 'body',
-        }),
-        //new Dotenv()
+        //new OpenBrowserPlugin({url: 'http://localhost:4800'}),
+        new Dotenv()
     ],
     devServer: {
-        host: '0.0.0.0',
-        inline: true,
+        //host: '0.0.0.0', //when deploy
         contentBase: './dist',
-        hot: true,  //live-reload
-        port: 4800
+        port: 4800,
+        compress: true,
+        disableHostCheck: true,
+        historyApiFallback: true,
     },
     module: {
         rules: [
@@ -34,7 +29,7 @@ module.exports = {
                 test: /\.(js|jsx)$/,
                 exclude: /(node_modules)/,
                 loader: 'babel-loader',
-                resolve: { extensions: [".js", ".jsx"]}
+                resolve: {extensions: [".js", ".jsx"]}
             },
             {
                 test: /\.css$/,
