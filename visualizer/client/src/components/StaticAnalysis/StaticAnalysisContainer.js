@@ -25,7 +25,7 @@ import { TimeSeries, TimeRange } from 'pondjs';
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
-import '../../styles/styles.css';
+import '../../styles.css';
 
 class StaticAnalysisContainer extends Component {
 

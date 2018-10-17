@@ -9,7 +9,7 @@ import WebSocketManager from './components/WebSocketManager';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/css/bootstrap-theme.min.css';
 
-import './styles/styles.css';
+import './styles.css';
 
 export default class App extends Component {
 
