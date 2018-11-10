@@ -358,8 +358,6 @@ class StaticAnalysisContainer extends Component {
 
     render() {
 
-        console.log(this.state)
-
         const {
             [localConstants._TYPE_GROUP_DATASET]: dataset,
             [localConstants._TYPE_GROUP_CONFIGURATION]: configuration,

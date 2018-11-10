@@ -170,8 +170,6 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     render() {
 
-        console.log(this.state)
-
         const { disabled, isLoading: isLoadingParent, mainField, sideFields, fieldStats, timestampFocus } = this.props;
         const { timeSeries, timeRange, max, min, colors, isLoading } = this.state;
 
