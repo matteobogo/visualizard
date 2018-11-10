@@ -57,7 +57,7 @@ class CSVParser(threading.Thread):
                  dbname,
                  n_cpu=4,
                  skip_first=False,
-                 replace_strategy='REMOVE'):
+                 replace_strategy='REPLACE_REMOVE'):
 
         super(CSVParser, self).__init__()
 
