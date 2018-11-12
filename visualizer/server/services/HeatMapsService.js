@@ -13,7 +13,7 @@ const analysisService = require('../services/AnalysisService');
 
 const util = require('util');
 const fs = require('fs');
-const path = require('path');
+const pathjs = require('path');
 const mkdirp = require('mkdirp');   //recursively mkdir in Node.js
 
 const readFile = util.promisify(fs.readFile);
@@ -91,34 +91,49 @@ const canvasToImage = async (
         path,
     }) => {
 
-    const finishMsg = `Storing ${path+filename}.${imageType}`;
+    return new Promise((resolve, reject) => {
 
-    switch (imageType) {
+        const finishMsg = `Storing ${path+filename}.${imageType}`;
 
-        case constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT:
+        switch (imageType) {
 
-            return canvas
-                .createPNGStream()
-                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
-                .on('finish', () => logger.log('info', finishMsg));
+            case constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT:
 
-        case constants.IMAGE_EXTENSIONS.IMAGE_JPEG_EXT:
+                canvas
+                    .createPNGStream()
+                    .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
+                    .on('finish', () => {
+                        logger.log('info', finishMsg);
+                        resolve();
+                    });
+                break;
 
-            return canvas
-                .createJPEGStream()
-                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
-                .on('finish', () => logger.log('info', finishMsg));
+            case constants.IMAGE_EXTENSIONS.IMAGE_JPEG_EXT:
 
-        case constants.IMAGE_EXTENSIONS.IMAGE_PDF_EXT:
+                canvas
+                    .createJPEGStream()
+                    .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
+                    .on('finish', () => {
+                        logger.log('info', finishMsg);
+                        resolve();
+                    });
+                break;
 
-            return canvas
-                .createPDFStream()
-                .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
-                .on('finish', () => logger.log('info', finishMsg));
+            case constants.IMAGE_EXTENSIONS.IMAGE_PDF_EXT:
 
-        default:
-            throw Error(`media type not supported: ${imageType}`);
-    }
+                canvas
+                    .createPDFStream()
+                    .pipe(fs.createWriteStream(path + `${filename}.${imageType}`))
+                    .on('finish', () => {
+                        logger.log('info', finishMsg);
+                        resolve();
+                    });
+                break;
+
+            default:
+                reject(`media type not supported: ${imageType}`);
+        }
+    })
 };
 
 const colorize = ( //value must be standardized first
@@ -250,16 +265,16 @@ const tileStorage = async (
     //x (timestamp => ID starting from 0, according to TMS standard
     //y (# machines => ID starting from 0, according to TMS standard)
     const pathTilesDir =
-        process.cwd() +
-        constants.PATH_HEATMAPS_IMAGES +
-        `/TILES` +
-        `/${request.database}` +
-        `/${request.policy}` +
-        `/${request.heatMapType}` +
-        `/${request.fields[0]}` +
-        `/${zoom}` +
-        `/${xID}` +
-        `/${yID}`;
+        pathjs.join(
+            process.cwd(),
+            constants.PATH_HEATMAPS_TILES,
+            request.database,
+            request.policy,
+            request.heatMapType,
+            request.fields[0],
+            zoom,
+            xID,
+            yID);
 
     //check if directory exists, otherwise creates it
     if (!fs.existsSync(pathTilesDir)) {
@@ -267,7 +282,7 @@ const tileStorage = async (
     }
 
     //stores original tile
-    await canvasToImage({
+    return canvasToImage({
         canvas: canvas,
         filename: filename,
         imageType: imageType,
@@ -283,11 +298,35 @@ const heatMapTilesBuilder = async (
         datasetStd,         //from dataset analysis
         imageType,
         tileSize,
-        zoomLevels
+        zoomInLevels
     }) => {
 
     const intervals =
         (Date.parse(request.endInterval) - Date.parse(request.startInterval)) / (request.period * 1000) + 1;
+
+    //check if the number of intervals is a power of two
+    //this is necessary to generate zooms levels according to max horizontal tiles
+    //e.g. 8192 intervals is 2^13. 8192 / 512 = 16. we have the max level of zooming is 16:1 for maintaining the 512px
+    if (!gf.checkIfPowerOfTwo(intervals)) throw Error(`the number of intervals must be a power of two: ${intervals}`);
+
+    //max width of the minimum zoom (parent) for the heatmap
+    //it is computed using the size of the tiles and the max nr. of tiles in width
+    const minZoomOutWidth = config.HEATMAPS.TILE_SIZE * config.HEATMAPS.MIN_ZOOM_OUT_NR_TILES;
+
+    //computing the minimum out zoom level (e.g. 16:1)
+    if (!gf.checkIfPowerOfTwo(minZoomOutWidth))
+        throw Error(`the size of the tiles and the max nr. of tiles for minimum zoom must produce a power of two`);
+
+    const minimumZoomLevel = intervals / minZoomOutWidth;
+
+    logger.log('info',`Computed the minimum out zoom level: [${minimumZoomLevel}] according to TILE_SIZE: ` +
+        `[${config.HEATMAPS.TILE_SIZE}] and NR_TILES_WIDTH: [${config.HEATMAPS.MIN_ZOOM_OUT_NR_TILES}]`);
+
+    //computing the range of out zoom levels, starting from the previously computed minimum until the zero
+    let powerOfTwoGen = gf.generatePowerOfTwoRangeBackward(minimumZoomLevel);
+    const zoomOutLevels = [...powerOfTwoGen].map(v => -Math.abs(v));
+
+    logger.log('info',`Computed the out zoom levels range: ${zoomOutLevels}`);
 
     //seconds in a time interval (i.e. the width of the tile)
     const tileTimeRangeWidth = (request.period * tileSize) - request.period;
@@ -295,6 +334,8 @@ const heatMapTilesBuilder = async (
     let currentStartInterval = new Date(request.startInterval);
     let currentEndInterval = new Date(request.startInterval);
     currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+
+    logger.log('info', `Start generating tiles for the zoom level [0]`);
 
     for (let i = 0, xIDsrc = 0; i < intervals; i += tileSize, ++xIDsrc) {                 //xID is used for TMS x ID
 
@@ -308,8 +349,10 @@ const heatMapTilesBuilder = async (
             if (currentEndInterval > Date.parse(request.endInterval))
                 formattedCurrentEndInterval = (new Date(request.endInterval)).toISOString();
 
-            //fetches points batch
-            const originalCanvas = await influx.fetchPointsFromHttpApi({
+            const originalCanvas =
+
+                //fetches points batch
+                await influx.fetchPointsFromHttpApi({
                     database: request.database,
                     policy: request.policy,
                     measurements: slicedMeasurements,
@@ -357,15 +400,15 @@ const heatMapTilesBuilder = async (
 
             //zooms
             //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-            for (let i = 0; i < zoomLevels.length; ++i) {
+            for (let i = 0; i < zoomInLevels.length; ++i) {
 
-                const zoom = Number(zoomLevels[i]);
+                const zoom = Number(zoomInLevels[i]);
                 const availableZooms = config.HEATMAPS.TILE_ZOOMS.split(',').map(Number);
 
                 //skip 1x zoom (i.e. the original canvas)
                 if (availableZooms.includes(zoom)) {
 
-                    logger.log('info', `Start Generating tiles with zoom: ${`@${zoom}x`} ` +
+                    logger.log('info', `Start Generating tiles with IN zoom: ${`@${zoom}x`} ` +
                         `- original: [${xIDsrc},${yIDsrc}]`);
 
                     const subTileSize = tileSize / zoom;
@@ -403,6 +446,151 @@ const heatMapTilesBuilder = async (
         //advance with time interval
         currentStartInterval.setSeconds(currentStartInterval.getSeconds() + tileTimeRangeWidth);
         currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+    }
+
+    /* Generating the OUT zoom levels */
+
+    //reverse the order of out zoom levels (e.g. 16,8,4,2  => 2,4,8,16), also added the level 0 as init
+    //we use the tiles generated for a zoom level to generate the tiles of the next level
+    zoomOutLevels.push(0);
+    zoomOutLevels.sort((a,b) => b - a);
+
+    for (let i = 1; i < zoomOutLevels.length; ++i) {
+        
+        const previousZoomLevel = zoomOutLevels[i-1];
+        const currentZoomLevel = zoomOutLevels[i];
+        //const nTilesToBeCombined = Math.abs(currentZoomLevel);
+        const nTilesToBeCombined = 2;
+
+        const _ERR_NOT_GEN = `tiles of level [${previousZoomLevel}] has not been generated, tiles of level ` +
+            `[${currentZoomLevel}] cannot be generated`;
+
+        logger.log('info', `Start generating tiles for the OUT zoom level: [${currentZoomLevel}]`);
+
+        //check if tiles of previous zoom level have been generated
+        const zoomDirPath =
+            pathjs.join(
+                process.cwd(),
+                constants.PATH_HEATMAPS_TILES,
+                request.database,
+                request.policy,
+                request.heatMapType,
+                request.fields[0],
+                previousZoomLevel.toString());    //previous zoom level
+        
+        //check if folder containing tiles of the previous zoom level exists
+        if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
+
+        //get the list of subdirs corresponding to the ID X of TMS (remark TMS: zoom/x/y/file.ext)
+        const dirsIdX =
+            fs.readdirSync(zoomDirPath).filter(
+                f => fs.statSync(pathjs.join(zoomDirPath, f)).isDirectory())
+                    .map(e => parseInt(e, 10))
+                    .sort((a,b) => a - b ); //converts str to int and sorts in ascending order
+
+        //check if the folder of the previous zoom level is not empty (i.e. tiles have been generated)
+        if (dirsIdX.length === 0) throw Error(_ERR_NOT_GEN + `(X coords directory)`);
+
+        let xID = 0;
+
+        for (let j = 0; j < dirsIdX.length; j += nTilesToBeCombined) {
+
+            //check if we are near the end (i.e. we don't have a sufficient number of tiles to combine according to the
+            //zoom level to be generated. In that case we need to generate a "dummy" canvas to cover the missing area
+            let missingXIds = 0;
+            if ((j + nTilesToBeCombined) > dirsIdX.length)
+                missingXIds = Math.abs(dirsIdX.length - (j + nTilesToBeCombined));
+
+            //collect the lists of all sub-folders of each xID folder
+            //we need only the first one for processing tiles, but is recommended to check the existence of all
+            //sub-folders before start the tiles generation process
+            let dirsIdYList = [];
+            for (let z = 0; z < nTilesToBeCombined - missingXIds; ++z) {
+
+                //get the path of the xID folder
+                const xDirPath = pathjs.join(zoomDirPath, (j+z).toString());
+
+                //get the list of sub-folders corresponding to the ID Y of TMS for the selected xID folder
+                const dirsIdY =
+                    fs.readdirSync(xDirPath).filter(
+                        f => fs.statSync(pathjs.join(xDirPath, f)).isDirectory());
+
+                //existence check
+                if (dirsIdY.length === 0) throw Error(_ERR_NOT_GEN + `(Y coords directory)`);
+
+                dirsIdYList.push(dirsIdY);
+            }
+
+            if (dirsIdYList.length === 0 || dirsIdYList.length < (nTilesToBeCombined - missingXIds))
+                throw Error(`cannot find any sub-folders of Y coordinate, during zoom out level [${currentZoomLevel}]` +
+                    ` tiles processing`);
+
+            //take the first list of Y sub-folders (assuming it's always exists) for processing tiles
+            //also in the case we'are at the boarder of the heatmap
+            const firstDirIdY = dirsIdYList[0];
+
+            let yID = 0;
+            for (let w = 0; w < firstDirIdY.length; w += nTilesToBeCombined) {
+
+                //check if we are near the end (vertically) as done previously for the X ids (horizontally)
+                let missingYIds = 0;
+                if ((w + nTilesToBeCombined) > firstDirIdY.length)
+                    missingYIds = Math.abs(firstDirIdY.length - (w + nTilesToBeCombined));
+
+                //create a "big" canvas to include the tiles to be combined of the previous zoom level
+                const canvas = Canvas.createCanvas(tileSize * 2, tileSize * 2);
+                const ctx = canvas.getContext("2d");
+
+                let xStartCoord = 0;
+
+                for (let x = 0; x < nTilesToBeCombined - missingXIds; ++x) {
+
+                    const xDirPath = pathjs.join(zoomDirPath, (j+x).toString());
+
+                    let yStartCoord = 0;
+
+                    for (let y = 0; y < nTilesToBeCombined - missingYIds; ++y) {
+
+                        const yDirPath = pathjs.join(xDirPath, (w+y).toString());
+
+                        await Canvas.loadImage(pathjs.join(yDirPath, `tile.${imageType}`))
+                            .then((image) => {
+
+                                ctx.drawImage(image, xStartCoord, yStartCoord);
+                            });
+
+                        yStartCoord += tileSize;
+                    }
+
+                    xStartCoord += tileSize;
+                }
+
+                //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+                //canvas/image, dx, dy, dWidth, dHeight
+                const scaledCanvas = Canvas.createCanvas(tileSize, tileSize);
+                const scaledCtx = scaledCanvas.getContext("2d");
+
+                scaledCtx.drawImage(canvas, 0, 0, tileSize, tileSize);
+
+                await tileStorage({
+                    request: request,
+                    canvas: scaledCanvas,
+                    zoom: currentZoomLevel.toString(),
+                    xID: xID.toString(),
+                    yID: yID.toString(),
+                    imageType: imageType,
+                })
+                    .then(() => {
+
+                        logger.log('info', `Generated tile of OUT zoom level: [${currentZoomLevel}] with ID: ` +
+                            `[${xID},${yID}]`);
+                    });
+
+                ++yID;
+            }
+
+            ++xID;
+        }
     }
 
     return 'OK';
@@ -591,13 +779,15 @@ const heatMapMeasurementsSorting = async (
     return measurementsAnalysisSorted;
 };
 
+const getZoomInLevels = () => config.HEATMAPS.TILE_ZOOMS.split(',');
+
 const heatMapBuildAndStore = async (
     {
         request = gf.checkParam`HeatMap request`,
         imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,       //png
         mode = constants.HEATMAPS.MODES.TILES,                      //single | tiles
         tileSize = config.HEATMAPS.TILE_SIZE,                       //fetch default from config
-        zoomLevels = () => config.HEATMAPS.TILE_ZOOMS.split(','),   //fetch default from config
+        zoomInLevels = getZoomInLevels(),                           //fetch default from config
     }) => {
 
     //sets computation in progress (global)
@@ -710,7 +900,7 @@ const heatMapBuildAndStore = async (
                         datasetStd: datasetStd,
                         imageType: imageType,
                         tileSize: tileSize,
-                        zoomLevels: zoomLevels,
+                        zoomInLevels: zoomInLevels,
                     })
                     .catch(err => {
                         logger.log('error', `Failing to build the HeatMap Image Tiles: ${err.message}`);
