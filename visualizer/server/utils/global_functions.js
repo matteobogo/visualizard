@@ -53,4 +53,27 @@ getRandomFloat = (min,max) => {
     return Math.random() * (max - min) + min;
 };
 
-exports.checkParam = p => { throw new Error(`Missing parameter: ${p}`) };
+const checkIfPowerOfTwo = (n) => {
+
+    if (typeof n !== 'number') throw Error(`Not a number: ${n}`);
+
+    return n && (n & (n - 1)) === 0;
+};
+
+function* generatePowerOfTwoRangeBackward(startValue) {
+
+    if (!checkIfPowerOfTwo(startValue)) throw Error(`the start value must be a power of two: ${startValue}`);
+
+        while(startValue > 1) {
+            yield startValue;
+            startValue /= 2;
+        }
+}
+
+const checkParam = p => { throw new Error(`Missing parameter: ${p}`) };
+
+module.exports = {
+    checkParam: checkParam,
+    checkIfPowerOfTwo: checkIfPowerOfTwo,
+    generatePowerOfTwoRangeBackward: generatePowerOfTwoRangeBackward,
+};
