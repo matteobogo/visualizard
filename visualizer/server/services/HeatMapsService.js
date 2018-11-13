@@ -19,6 +19,31 @@ const mkdirp = require('mkdirp');   //recursively mkdir in Node.js
 const readFile = util.promisify(fs.readFile);
 const Canvas = require('canvas');
 
+const getDirsListByPath = (path, flags) => {
+
+    flags.toInt = !flags.toInt ? true : flags.toInt;
+    flags.sort = !flags.sort || !['asc', 'desc', 'none'].includes(flags.sort) ? 'asc' : flags.sort;
+
+    if (!fs.existsSync(path)) throw Error(`path [${path}] not exist`);
+
+    const dirs = fs.readdirSync(path).filter(f => fs.statSync(pathjs.join(path, f)).isDirectory());
+
+    if (dirs.length === 0) {
+
+        logger.log('warn', `during dirs fetching of path [${path}] any sub-folder have been found`);
+        return [];
+    }
+
+    if (flags.toInt) dirs.map(e => parseInt(e, 10)) ;
+
+    let fsort;
+    if (flags.sort === 'asc') fsort = (a, b) => a - b;
+    else if (flags.sort === 'desc') fsort = (a, b) => b - a;
+    else return dirs;
+
+    return dirs.sort(fsort);
+};
+
 const getPalettesRGB = (palette) => {
 
     if (constants.PALETTES.hasOwnProperty(palette)) {
@@ -49,13 +74,18 @@ const getHeatMapTypes = () => {
     return Object.keys(constants.HEATMAPS.TYPES);
 };
 
-const getZoomLevels = () => {
+const getZoomLevels = ({ database, policy, heatMapType, field }) => {
 
-    //zoom levels plus the level 0 (no zoom)
-    let zoomLevels = config.HEATMAPS.TILE_ZOOMS.split(',');
-    zoomLevels.unshift('0');
+    const path = pathjs.join(
+        process.cwd(),
+        constants.PATH_HEATMAPS_TILES,
+        database,
+        policy,
+        heatMapType,
+        field
+    );
 
-    return zoomLevels;
+    return getDirsListByPath(path, {toInt: true, sort: 'asc'});
 };
 
 //Feature Scaling: Standardization => https://en.wikipedia.org/wiki/Standard_score
@@ -482,11 +512,7 @@ const heatMapTilesBuilder = async (
         if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
 
         //get the list of subdirs corresponding to the ID X of TMS (remark TMS: zoom/x/y/file.ext)
-        const dirsIdX =
-            fs.readdirSync(zoomDirPath).filter(
-                f => fs.statSync(pathjs.join(zoomDirPath, f)).isDirectory())
-                    .map(e => parseInt(e, 10))
-                    .sort((a,b) => a - b ); //converts str to int and sorts in ascending order
+        const dirsIdX = getDirsListByPath(zoomDirPath, {toInt: true, sort: 'asc'});
 
         //check if the folder of the previous zoom level is not empty (i.e. tiles have been generated)
         if (dirsIdX.length === 0) throw Error(_ERR_NOT_GEN + `(X coords directory)`);
@@ -511,9 +537,7 @@ const heatMapTilesBuilder = async (
                 const xDirPath = pathjs.join(zoomDirPath, (j+z).toString());
 
                 //get the list of sub-folders corresponding to the ID Y of TMS for the selected xID folder
-                const dirsIdY =
-                    fs.readdirSync(xDirPath).filter(
-                        f => fs.statSync(pathjs.join(xDirPath, f)).isDirectory());
+                const dirsIdY = getDirsListByPath(xDirPath, {toInt: true, sort: 'asc'});
 
                 //existence check
                 if (dirsIdY.length === 0) throw Error(_ERR_NOT_GEN + `(Y coords directory)`);
