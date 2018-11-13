@@ -8,9 +8,9 @@ const path = require('path');
 module.exports = {
     entry: ["babel-polyfill", "./src/index.js"],
     output: {
-        path: path.resolve("dist/assets"),
+        path: path.resolve("dist"),
         filename: "bundle.js",
-        publicPath: "assets"
+        publicPath: "/"
     },
     plugins: [
         new OpenBrowserPlugin({url: 'http://localhost:4800'}),
@@ -30,6 +30,15 @@ module.exports = {
     },
     module: {
         rules: [
+            {
+                test: /\.html$/,
+                use: [
+                    {
+                        loader: "html-loader",
+                        options: { minimize: true }
+                    }
+                ]
+            },
             {
                 test: /\.(js|jsx)$/,
                 exclude: /(node_modules)/,
