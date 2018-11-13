@@ -176,7 +176,10 @@ class StaticAnalysisContainer extends Component {
             this.fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
                 type: localConstants._TYPE_HEATMAP_ZOOMS,
-                args: {}
+                args: {
+                    database: selectedDatabase,
+                    policy: selectedPolicy,
+                }
             });
         }
 

@@ -12,7 +12,8 @@ const _URL_LAST_INTERVAL     = (database, policy, field) =>
 
 const _URL_STATISTICS = `/analysis/statistics`;
 const _URL_HEATMAP_TYPES = `/heatmaps/types`;
-const _URL_HEATMAP_ZOOMS = `/heatmaps/zooms`;
+const _URL_HEATMAP_ZOOMS = (database, policy) =>
+    `/heatmaps/zooms?database=${database}&policy=${policy}`;
 
 const _URL_N_MEASUREMENTS = (database) => `/influx/measurements/number?dbname=${database}`;
 
@@ -78,7 +79,7 @@ export const fetchData = ({itemType, args = {}}) => {
             break;
 
         case localConstants._TYPE_HEATMAP_ZOOMS:
-            _URL = _URL_HEATMAP_ZOOMS;
+            _URL = _URL_HEATMAP_ZOOMS(args.database, args.policy);
             break;
 
         case localConstants._TYPE_N_MEASUREMENTS:
