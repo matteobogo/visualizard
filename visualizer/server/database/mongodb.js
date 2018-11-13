@@ -36,5 +36,6 @@ exports.moongoseConfig = () => {
     /* Moongose - Schema registration */
     require('../models/DatasetAnalysis');
     require('../models/MeasurementsStats');
-    require('../models/PointsStatsPerTimestamp')
+    require('../models/PointsStatsPerTimestamp');
+    require('../models/Configurations');
 };
