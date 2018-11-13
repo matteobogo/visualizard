@@ -76,18 +76,22 @@ const getHeatMapTypes = () => {
     return Object.keys(constants.HEATMAPS.TYPES);
 };
 
-const getZoomLevels = ({ database, policy, heatMapType, field }) => {
+const getZoomLevels = ({database, policy}) => {   //TODO use also heatMapType and field for granularity?
 
-    const path = pathjs.join(
-        process.cwd(),
-        constants.PATH_HEATMAPS_TILES,
-        database,
-        policy,
-        heatMapType,
-        field
-    );
+    const query = {database: database, policy: policy};
 
-    return getDirsListByPath(path, {toInt: true, sort: 'asc'});
+    return new Promise((resolve, reject) => {
+
+        ConfigurationsModel.findOne(query, 'heatMapZooms', (err, result) => {
+
+            if (err) {
+                logger.log('error', `Failed during gotcha zoom levels in any heatmap config: ${err}`);
+                reject(`cannot find zoom levels`);
+            }
+
+            resolve(result.heatMapZooms);
+        });
+    });
 };
 
 //Feature Scaling: Standardization => https://en.wikipedia.org/wiki/Standard_score

@@ -21,14 +21,10 @@ const getZoomLevels = async (req, res) => {
 
     const database = req.query.database;
     const policy = req.query.policy;
-    const heatMapType = req.query.heatMapType;
-    const field = req.query.field;
 
-    const zoomLevels = heatMapsService.getZoomLevels({
+    const zoomLevels = await heatMapsService.getZoomLevels({
         database: database,
         policy: policy,
-        heatMapType: heatMapType,
-        field: field
     });
 
     if (!zoomLevels || zoomLevels.length === 0) return ReE(res, 'no zoom levels available');
