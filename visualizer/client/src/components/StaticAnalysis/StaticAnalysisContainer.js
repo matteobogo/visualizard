@@ -12,7 +12,7 @@ import {addItem, removeItem} from '../../store/actions/webSocketAction';
 
 import { getConnectionStatus, getResponsesByUUID } from '../../store/selectors/webSocketSelector';
 
-import { FakePreview } from './FakePreview';
+import FakePreview from './FakePreview';
 import ConfiguratorContainer from './ConfiguratorContainer';
 import AnalysisContainer from './AnalysisContainer';
 import HeatMapNavigatorContainer from './HeatMapNavigatorContainer';

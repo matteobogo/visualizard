@@ -10,6 +10,8 @@ import { X } from 'react-feather';
 
 import './HeatMapNavigatorContainer.css';
 
+import { TimeLine } from './TimeLine';
+
 import { DropdownClassic } from '../common/Dropdown';
 import { HeatMapSelectionBox } from './HeatMapSelectionBox';
 
@@ -32,12 +34,25 @@ const _MENU_NAVIGATION = {
     _LEFT: 'LEFT',
 };
 
-const convertTimestampToID = (genesis, current, period = 300) => {
+const convertTimestampToID = (genesis, current, period = 300, zoom) => {
 
     let start = Date.parse(genesis);    //converts to unix epoch time (ms)
     let end = Date.parse(current);
 
-    return Math.floor((end - start) / (period * 1000 * config.TILE_SIZE));
+    let interval = period * 1000 * config.TILE_SIZE;
+    if (zoom < 0) interval *= Math.abs(zoom);
+    if (zoom > 0) interval /= Math.abs(zoom);
+
+    return Math.floor((end - start) / interval);
+};
+
+const convertMeasurementIdxToID = (value, zoom) => {
+
+    let interval = config.TILE_SIZE;
+    if (zoom < 0) interval *= Math.abs(zoom);
+    if (zoom > 0) interval /= Math.abs(zoom);
+
+    return Math.floor(value / interval);
 };
 
 const convertTileCoordinates = ({ genesis, tileIds, tileCoords, zoom, period = 300 }) => {
@@ -47,20 +62,48 @@ const convertTileCoordinates = ({ genesis, tileIds, tileCoords, zoom, period = 3
 
     let timestamp = new Date(genesis);
     let tileInterval = period * config.TILE_SIZE;
+    let pixelInterval = period * tileCoordX;
 
     let timeserieIdx = (config.TILE_SIZE * tileIdY) + tileCoordY;
 
     if (zoom > 0) {
-        tileInterval = tileInterval / zoom;
-        timeserieIdx = Math.floor(timeserieIdx / zoom);
+        tileInterval /= Math.abs(zoom);
+        timeserieIdx = Math.floor(timeserieIdx / Math.abs(zoom));
+        pixelInterval /= Math.abs(zoom);
+    }
+    if (zoom < 0) {
+        tileInterval *= Math.abs(zoom);
+        timeserieIdx = Math.floor(timeserieIdx * Math.abs(zoom));
+        pixelInterval *= Math.abs(zoom);
     }
 
     timestamp.setSeconds(
-        timestamp.getSeconds() +
+        timestamp.getSeconds() +        //get the genesis timestamp
         (tileInterval * tileIdX) +      //get the start timestamp of the tile identified by the ID
-        (period * tileCoordX));         //get the timestamp associated with the pixel within the tile
+        pixelInterval                   //get the timestamp associated with the pixel within the tile
+    );
 
     return [timestamp.toISOString(), `${timeserieIdx}`];
+};
+
+const computeTimelineData = (startTimestamp, endTimestamp, period, zoom) => {
+
+    let start = Date.parse(startTimestamp); //unix epoch time
+    let end = Date.parse(endTimestamp);
+
+    let tileInterval = period * 1000 * config.TILE_SIZE;    //s => ms
+    if (zoom > 0) tileInterval /= Math.abs(zoom);
+    if (zoom < 0) tileInterval *= Math.abs(zoom);
+
+    let timestamps = [];
+
+    while (start < end) {
+        timestamps.push(new Date(start));
+        start += tileInterval;
+    }
+    timestamps.push(new Date(end));
+
+    return timestamps.map(e => e.toISOString());
 };
 
 export default class HeatMapNavigatorContainer extends Component {
@@ -82,6 +125,8 @@ export default class HeatMapNavigatorContainer extends Component {
                 timelineEndTimestamp: null,
                 timelineStartTimeserieIndex: null,
                 timelineEndTimeserieIndex: null,
+
+                timelineData: null,
 
                 tileIdStartMachineIndex: null,
                 tileIdCurrentMachineIndex: null,
@@ -166,10 +211,21 @@ export default class HeatMapNavigatorContainer extends Component {
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: prevHeatMapZoom,
         } = prevProps.heatMapConfiguration;
 
-        const { clientWindowWidth: width, clientWindowsHeight: height } = this.state;
-        const { clientWindowsHeight: prevWidth, clientWindowsHeight: prevHeight } = prevState;
+        const { clientWindowWidth, clientWindowsHeight } = this.state;
+        const {
+            clientWindowsHeight: prevClientWindowWidth,
+            clientWindowsHeight: prevClientWindowsHeight
+        } = prevState;
 
-        const { tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
+        const {
+            tileIdStartInterval,
+            tileIdCurrentInterval,
+            tileIdEndInterval,
+            tileIdStartMachineIndex,
+            tileIdCurrentMachineIndex,
+            tileIdEndMachineIndex,
+        } = this.state.navigation;
+
         const {
             tileIdCurrentInterval: prevTileIdCurrentInterval,
             tileIdCurrentMachineIndex: prevTileIdCurrentMachineIndex
@@ -177,83 +233,96 @@ export default class HeatMapNavigatorContainer extends Component {
 
         //the configuration fetched from props is changed or a different heatmap configuration is triggered
         if (database && policy && startInterval && endInterval &&
-            heatMapType && field && heatMapZoom && nMeasurements > 0 && firstInterval && lastInterval &&
+            heatMapType && field && nMeasurements > 0 && firstInterval && lastInterval &&
+            heatMapZoom !== null && heatMapZoom !== undefined &&
             (
-                database !== prevDatabase ||                                //configuration change
-                policy !== prevPolicy ||
-                firstInterval !== prevFirstInterval ||
-                lastInterval !== prevLastInterval ||
-                startInterval !== prevStartInterval ||
-                endInterval !== prevEndInterval ||
-                heatMapType !== prevHeatMapType ||                          //dropdown selection change
-                field !== prevField ||
-                heatMapZoom !== prevHeatMapZoom
+                database !== prevDatabase                               //configuration change
+                || policy !== prevPolicy
+                || firstInterval !== prevFirstInterval
+                || lastInterval !== prevLastInterval
+                || startInterval !== prevStartInterval
+                || endInterval !== prevEndInterval
+                || heatMapType !== prevHeatMapType                      //dropdown selection change
+                || field !== prevField
             )) {
-
-            //init the tiles according to configuration fetched from props and heatmap menu selection
-            const xIDstart = convertTimestampToID(firstInterval, startInterval, 300);
-            const xIDend = convertTimestampToID(firstInterval, endInterval, 300);
-
-            const yIDend = Math.floor(nMeasurements / config.TILE_SIZE);
 
             this.computeHeatMapTiles({      //TODO change baseURI with selected field (when the tile generation is ok)
                 baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
                 zoom: heatMapZoom,
-                startX: xIDstart,               //ids timestamps
-                currentX: xIDstart,
-                endX: xIDend,
-                startY: 0,                      //ids timeseries indexes
-                currentY: 0,
-                endY: yIDend,
+                isUpdate: false,
             });
         }
 
-        //the window has been resized
-        let resized = false;
-        // if (prevWidth !== width || prevHeight !== height) {
-        //
-        //     //window resized
-        //     const resizeDiff = Math.abs((width - prevWidth));
-        //     if (resizeDiff >= config.TILE_SIZE) resized = true;
-        // }
+        //guard
+        if (tileIdCurrentInterval === null || tileIdCurrentMachineIndex === null) return;
 
-        //user has triggered the heatmap navigation
-        if (tileIdCurrentInterval !== null && tileIdCurrentMachineIndex !== null &&
-            (resized || tileIdCurrentInterval !== prevTileIdCurrentInterval ||
-            tileIdCurrentMachineIndex !== prevTileIdCurrentMachineIndex)) {
+        //user has triggered the heatmap navigation, resizing or zooming
+        if (heatMapZoom !== null && heatMapZoom !== undefined &&
+            heatMapZoom !== prevHeatMapZoom ||
+            tileIdCurrentInterval !== prevTileIdCurrentInterval ||
+            tileIdCurrentMachineIndex !== prevTileIdCurrentMachineIndex) {
 
-            //compute tiles according to heatmap navigation changes or window resizing
+            //note: start/end ids (both interval and machineIdx) are already updated here
+            //e.g. in case of zooming the logic of mouse wheel will update them according to the new zoom and
+            //heatmap is re-computed with the zoomed tile in top-left corner
             this.computeHeatMapTiles({
                 baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
                 zoom: heatMapZoom,
-                currentX: tileIdCurrentInterval,
-                currentY: tileIdCurrentMachineIndex,
+                isUpdate: true,
             });
         }
     }
 
-    computeHeatMapTiles({
-        baseURI, zoom,
-        startX = null, currentX, endX = null,
-        startTs = null, currentTs, endTs = null,
-        startY = null, currentY, endY = null,
-    }) {
+    computeHeatMapTiles({ baseURI, zoom, isUpdate }) {
 
+        const {
+            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
+        } = this.props.dataset;
+
+        const {
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+        } = this.props.configuration;
+
+        const {
+            tileIdCurrentInterval,
+            tileIdCurrentMachineIndex,
+        } = this.state.navigation;
+
+        /* COMPUTE NR. TILES ACCORDING TO CLIENT WINDOW */
         const { clientWindowWidth, clientWindowsHeight } = this.state;
 
         //compute the number of tiles according to window size
         //we "virtually" remove a tile to fill the gap of left/right navigators and bootstrap panel
         const nHorizontalTiles = Math.floor((clientWindowWidth) / (config.TILE_SIZE)) - 1;
 
-        //computes tiles URLs
+        /* TILES IDs INTERVALS (BOUNDARIES ACCORDING TO CURRENT ZOOM */
+        const xIDstart = convertTimestampToID(firstInterval, startInterval, 300, zoom);
+        const xIDend = convertTimestampToID(firstInterval, endInterval, 300, zoom);
+
+        const yIDstart = 0;
+        const yIDend = convertMeasurementIdxToID(nMeasurements, zoom);
+
+        //current view (top-left corner)
+        let xIDcurrent = tileIdCurrentInterval;
+        let yIDcurrent = tileIdCurrentMachineIndex;
+
+        //when the heatmap is built for the first time, the top-left corner starts from tile (0,0)
+        if (!isUpdate) {
+            xIDcurrent = xIDstart;
+            yIDcurrent = yIDstart;
+        }
+
+        /* COMPUTE TILES URLS */
         let tileRows = [];
 
-        let timestampID = currentX;
+        let timestampID = xIDcurrent;
         for (let i = 0; i < nHorizontalTiles; ++i) {
 
             let cols = [];
 
-            let machineIndexID = currentY;
+            let machineIndexID = yIDcurrent;
             for (let j = 0; j < _FIXED_TILES_HEIGHT; ++j) {
 
                 //URI + zoom level (z) + timestamp (x) + machine index (y)
@@ -271,13 +340,12 @@ export default class HeatMapNavigatorContainer extends Component {
             ++timestampID;
         }
 
-        //compute heatmap timeline
-        const { startInterval } = this.props.configuration;
+        /* COMPUTE THE TIMELINE */
 
         //start timestamp + start timeserie index of the current heatmap view
         const [startTimestamp, startTimeserieIndex] = convertTileCoordinates({
             genesis: startInterval,
-            tileIds: [currentX, currentY],
+            tileIds: [xIDcurrent, yIDcurrent],
             tileCoords: [0,0],
             zoom: zoom,
         });
@@ -285,17 +353,15 @@ export default class HeatMapNavigatorContainer extends Component {
         //end timestamp + end timeserie index of the current heatmap view
         let [endTimestamp, endTimeserieIndex] = convertTileCoordinates({
             genesis: startInterval,
-            tileIds: [currentX + nHorizontalTiles - 1, currentY],
+            tileIds: [xIDcurrent + nHorizontalTiles - 1, yIDcurrent],
             tileCoords: [config.TILE_SIZE, config.TILE_SIZE],
             zoom: zoom,
         });
 
-        // endTimeserieIndex = endTimeserieIndex * (_FIXED_TILES_HEIGHT);
+        const timelineData = computeTimelineData(startTimestamp, endTimestamp, 300, zoom);
 
-        const {
-            tileIdStartInterval, tileIdEndInterval,
-            tileIdStartMachineIndex, tileIdEndMachineIndex
-        } = this.state.navigation;
+        console.log(startTimestamp, endTimestamp, zoom)
+        console.log(timelineData)
 
         this.setState({
 
@@ -304,18 +370,20 @@ export default class HeatMapNavigatorContainer extends Component {
 
                 nHorizontalTiles: nHorizontalTiles,
 
-                tileIdStartInterval: startX !== null ? startX : tileIdStartInterval,
-                tileIdCurrentInterval: currentX,
-                tileIdEndInterval: endX !== null ? endX : tileIdEndInterval,
+                tileIdStartInterval: xIDstart,
+                tileIdCurrentInterval: xIDcurrent,
+                tileIdEndInterval: xIDend,
+
+                tileIdStartMachineIndex: yIDstart,
+                tileIdCurrentMachineIndex: yIDcurrent,
+                tileIdEndMachineIndex: yIDend,
 
                 timelineStartTimestamp: startTimestamp,
                 timelineEndTimestamp: endTimestamp,
                 //timelineStartTimeserieIndex: startTimeserieIndex,
                 //timelineEndTimeserieIndex: endTimeserieIndex - 1,
 
-                tileIdStartMachineIndex: startY !== null ? startY : tileIdStartMachineIndex,
-                tileIdCurrentMachineIndex: currentY,
-                tileIdEndMachineIndex: endY !== null ? endY : tileIdEndMachineIndex,
+                timelineData: timelineData,
 
                 tileRowsURLs: tileRows,
             },
@@ -359,7 +427,7 @@ export default class HeatMapNavigatorContainer extends Component {
             case _MENU_NAVIGATION._UP:
 
                 value = tileIdCurrentMachineIndex - 1;
-                result = (value < 0 || value < tileIdStartMachineIndex) ? tileIdStartMachineIndex : value;
+                result = (value < 0) ? tileIdStartMachineIndex : value;
 
                 this.setState({
                     navigation: {
@@ -421,65 +489,99 @@ export default class HeatMapNavigatorContainer extends Component {
     }) {
 
         const { setItem } = this.props;
-        const { startInterval } = this.props.configuration;
+        const { startInterval, endInterval } = this.props.configuration;
 
         const {
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_HEATMAP_ZOOMS]: zooms,
+            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
         } = this.props.dataset;
 
         const { handleTimeSerieSelection } = this.props;
+
         const {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
         } = this.props.heatMapConfiguration;
 
+        const {
+            tileIdStartInterval,
+            tileIdEndInterval,
+            tileIdStartMachineIndex,
+            tileIdEndMachineIndex,
+        } = this.state.navigation;
+
+        //
+        const [ tileTimestamp, timeSerieIdx ] = convertTileCoordinates({
+            genesis: startInterval,
+            tileIds: [tileX, tileY],
+            tileCoords: [imgX, imgY],
+            zoom: selectedZoom,
+        });
+
         if (type === localConstants._TYPE_MOUSE_WHEEL) {
 
             let oldZoomIdx = zooms.indexOf(selectedZoom);
-            let newZoomIdx;
+            let newZoomIdx = oldZoomIdx;
 
             //out
-            if (zoomTick > 0 && oldZoomIdx > 0) newZoomIdx = --oldZoomIdx;
-            else if (zoomTick < 0 && oldZoomIdx < zooms.length - 1) newZoomIdx = ++oldZoomIdx;
+            if (zoomTick > 0 && oldZoomIdx > 0) --newZoomIdx;
+            else if (zoomTick < 0 && oldZoomIdx < zooms.length - 1) ++newZoomIdx;
             else return;
 
+            //zoomed tile coordinates
+            //we will put the next zoom level tiles in the top-left corner of the heatmap
+            let xIDcurrent = tileX;
+            let yIDcurrent = tileY;
+
+            //(2,2) =/2=> (1,1) //Example
+            //(3,2) =/2=> (1,1)
+            //(2,3) =/2=> (1,1)
+            //(3,3) =/2=> (1,1)
+            if (newZoomIdx < oldZoomIdx) { //we have a zoom out or we are at max out zoom
+                xIDcurrent = Math.floor(tileX / 2);
+                yIDcurrent = Math.floor(tileY / 2);
+            }
+            else if (newZoomIdx > oldZoomIdx) {
+                xIDcurrent *= 2;
+                yIDcurrent *= 2;
+            }
+
+            //change the zoom level
             setItem({
                 groupType: localConstants._TYPE_GROUP_HEATMAP,
                 item: zooms[newZoomIdx],
                 type: [localConstants._TYPE_SELECTED_HEATMAP_ZOOM],
             });
+
+            //update the heatmap, focusing on the zoomed tile
+            //the tiles fetched for the next/previous zoom level will be placed starting on top-left corner
+            this.setState({
+                navigation: {
+                    ...this.state.navigation,
+
+                    tileIdCurrentInterval: xIDcurrent,
+                    tileIdCurrentMachineIndex: yIDcurrent,
+                }
+            });
         }
         else if (type === localConstants._TYPE_MOUSE_HOOVER) {
-
-            const [ timestamp, timeSerieIdx ] = convertTileCoordinates({
-                genesis: startInterval,
-                tileIds: [tileX, tileY],
-                tileCoords: [imgX, imgY],
-                zoom: selectedZoom,
-            });
 
             this.setState({
                 selection: {
                     ...this.state.selection,
-                    timestamp: timestamp,
+                    timestamp: tileTimestamp,
                     timeserieIdx: timeSerieIdx,
                 }
             });
         }
         else if (type === localConstants._TYPE_MOUSE_CLICK) {
 
-            const [ timestamp, timeSerieIdx ] = convertTileCoordinates({
-                genesis: startInterval,
-                tileIds: [tileX, tileY],
-                tileCoords: [imgX, imgY],
-                zoom: selectedZoom,
-            });
-
             //send back the selection
             handleTimeSerieSelection({
                 timeSerieIdx: timeSerieIdx,
-                timestamp: timestamp,
+                timestamp: tileTimestamp,
                 heatMapType: selectedHeatMapType,
                 fields: [selectedField, 'n_jobs', 'n_tasks'], //TODO make other fields selectable
                 zoom: selectedZoom,
@@ -495,6 +597,8 @@ export default class HeatMapNavigatorContainer extends Component {
 
     render() {
 
+        console.log(this.state)
+
         const { disabled, timeSeries } = this.props;
         const { isLoading } = this.state;
 
@@ -509,6 +613,7 @@ export default class HeatMapNavigatorContainer extends Component {
         } = this.props.heatMapConfiguration;
 
         const {
+            nHorizontalTiles,
             tileIdCurrentInterval,
             tileIdCurrentMachineIndex,
             tileRowsURLs,
@@ -516,6 +621,7 @@ export default class HeatMapNavigatorContainer extends Component {
             timelineEndTimestamp,
             timelineStartTimeserieIndex,
             timelineEndTimeserieIndex,
+            timelineData,
         } = this.state.navigation;
 
         const { timestamp, timeserieIdx } = this.state.selection;
@@ -644,6 +750,19 @@ export default class HeatMapNavigatorContainer extends Component {
                                            onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._DOWN})}>
                                             <img id="arrow-down-svg" src={ArrowDownSvg}/>
                                         </button>
+                                    </div>
+                                    <div className="timeline">
+
+                                        {
+                                            timelineData &&
+
+                                            <TimeLine
+                                                width={nHorizontalTiles * config.TILE_SIZE}
+                                                nTiles={nHorizontalTiles}
+                                                data={timelineData}
+                                            />
+                                        }
+
                                     </div>
                                 </div>
                             </div>
