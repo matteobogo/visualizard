@@ -22,6 +22,7 @@
     grid-template-areas:    "hd hd hd hd"
                             "lsd tlvertic main rsd"
                             "ft ft ft ft"
+                            "tl tl tl tl"
 }
 
 .wrapper p {
@@ -143,6 +144,13 @@ line {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.timeline {
+    grid-area: tl;
+    height: 100px;
+    margin: 20px 35px 0 35px;
+    display: flex;
 }
 
 .tiles-col {
