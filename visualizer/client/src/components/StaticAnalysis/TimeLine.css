@@ -1,0 +1,24 @@
+.timeline-area {
+    width: 100%;
+}
+
+.timestamp-boxes-area {
+
+}
+
+.timestamp-box {
+    height: 50px;
+    float: left;
+}
+
+.timestamp-box svg {
+    float: left;
+}
+
+.timestamp-box-middle {
+    text-align: center;
+}
+
+line {
+    stroke: rgb(0,0,0);
+}
