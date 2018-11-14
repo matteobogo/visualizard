@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import FakeTile from '../../../public/images/something-went-wrong.svg';
+import FakePreview from '../../components/StaticAnalysis/FakePreview';
 
 import * as localConstants from '../../utils/constants';
 
@@ -99,9 +99,15 @@ export default class Tile extends Component {
 
     onMouseWheel(event) {
 
-        const { handleTileMouseInteraction } = this.props;
+        const { tileID, handleTileMouseInteraction } = this.props;
 
         handleTileMouseInteraction({
+            coordinates: {
+                tileX: tileID[0],
+                tileY: tileID[1],
+                imgX: 0,
+                imgY: 0,
+            },
             zoomTick: event.deltaY,
             type: localConstants._TYPE_MOUSE_WHEEL,
         });
@@ -131,9 +137,7 @@ export default class Tile extends Component {
                                 }
                             </div>
                                 :
-                            <div>
-                                <img className="tile" src={FakeTile}/>
-                            </div>
+                            <FakePreview/>
                     }
                     <Loader loading={isLoading}/>
                 </LoadingOverlay>
