@@ -360,9 +360,6 @@ export default class HeatMapNavigatorContainer extends Component {
 
         const timelineData = computeTimelineData(startTimestamp, endTimestamp, 300, zoom);
 
-        console.log(startTimestamp, endTimestamp, zoom)
-        console.log(timelineData)
-
         this.setState({
 
             navigation: {

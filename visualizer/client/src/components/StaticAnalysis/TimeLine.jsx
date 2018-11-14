@@ -32,7 +32,7 @@ export const TimeLine = (props) => {
     return(
         <div className="timeline-area" style={{width: props.width}}>
 
-            <svg width={props.width} height="20">
+            <svg width={props.width} height="5">
                 <line className="horizontal-line" x1="0" y1="0" x2={props.width} y2="0"/>
                 {
                     props.data.map((k,idx) => (
