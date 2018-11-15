@@ -704,9 +704,6 @@ export default class HeatMapNavigatorContainer extends Component {
 
     render() {
 
-        console.log(this.state)
-        console.log(this.props)
-
         const { disabled, timeSeries } = this.props;
         const { isLoading } = this.state;
 
