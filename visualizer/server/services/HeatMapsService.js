@@ -308,9 +308,10 @@ const tileStorage = async (
             request.policy,
             request.heatMapType,
             request.fields[0],
-            zoom,
-            xID,
-            yID);
+            zoom.toString(),
+            xID.toString(),
+            yID.toString()
+        );
 
     //check if directory exists, otherwise creates it
     if (!fs.existsSync(pathTilesDir)) {
@@ -423,7 +424,7 @@ const heatMapTilesBuilder = async (
 
             logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]`);
 
-            //save the original tile (level 1)
+            //save the original tile (level 0)
             await tileStorage({
                 request: request,
                 canvas: originalCanvas,
@@ -432,7 +433,9 @@ const heatMapTilesBuilder = async (
                 yID: yIDsrc,
                 imageType: imageType,
             })
-                .catch(err => logger.log('error', `Failed to store the original canvas: ${err.message}`));
+                .catch(err => {
+                    throw Error(`Failed to store the original canvas: ${err.message}`);
+                });
 
             //zooms
             //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
@@ -512,7 +515,7 @@ const heatMapTilesBuilder = async (
                 request.policy,
                 request.heatMapType,
                 request.fields[0],
-                previousZoomLevel.toString());    //previous zoom level
+                previousZoomLevel);    //previous zoom level
         
         //check if folder containing tiles of the previous zoom level exists
         if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
@@ -605,9 +608,9 @@ const heatMapTilesBuilder = async (
                 await tileStorage({
                     request: request,
                     canvas: scaledCanvas,
-                    zoom: currentZoomLevel.toString(),
-                    xID: xID.toString(),
-                    yID: yID.toString(),
+                    zoom: currentZoomLevel,
+                    xID: xID,
+                    yID: yID,
                     imageType: imageType,
                 })
                     .then(() => {
