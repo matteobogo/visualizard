@@ -59,7 +59,7 @@ line {
 }
 
 /* Timeline Horizontal */
-.timeline-horizontal-overlay {
+.timeline-overlay {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -69,40 +69,7 @@ line {
     opacity: 0.5;
 }
 
-.timeline-horizontal-label {
-    height: 100%;
-    width: 140px;
-}
-
-.timeline-horizontal-label p {
-    margin: auto;
-    text-align: center;
-    height: 15px;
-}
-
-.timeline-top-left-label {
-    float: left;
-}
-
-.timeline-top-left-label svg {
-    float: left;
-}
-
-.timeline-top-left-label p {
-    float: left;
-}
-
-.timeline-top-right-label {
-    float: right;
-}
-
-.timeline-top-right-label svg {
-    float: right;
-}
-
-.timeline-top-right-label p {
-    float: right;
-}
+/* Heatmap Grid */
 
 .header {
     grid-area: hd;

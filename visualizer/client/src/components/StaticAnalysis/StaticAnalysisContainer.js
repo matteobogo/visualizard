@@ -285,6 +285,8 @@ class StaticAnalysisContainer extends Component {
             heatMapType = null,
             fields = null,
             zoom = null,
+            tileIds = null,
+            pointCoords = null,
             actionType
         }) {
 
@@ -318,6 +320,16 @@ class StaticAnalysisContainer extends Component {
                     }
                 })
                     .then(data => {
+
+                        //add data correlated to the tile and the point within it selected
+                        //it will be used for the overlay highlight on the heatmap
+                        data["selection"] = {
+                            tileIds: {x: tileIds[0], y: tileIds[1]},
+                            pointCoords: {x: pointCoords[0], y: pointCoords[1]},
+                            tileZoom: zoom,
+                            timestamp: timestamp,
+                            timeSerieIdx: timeSerieIdx,
+                        };
 
                         this.setState({
                             [localConstants._TYPE_GROUP_HEATMAP]: {

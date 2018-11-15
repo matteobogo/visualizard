@@ -8,6 +8,8 @@ import 'react-widgets/dist/css/react-widgets.css';
 
 import { X } from 'react-feather';
 
+const chroma = require('chroma-js');
+
 import './HeatMapNavigatorContainer.css';
 
 import { TimeLine } from './TimeLine';
@@ -53,6 +55,35 @@ const convertMeasurementIdxToID = (value, zoom) => {
     if (zoom > 0) interval /= Math.abs(zoom);
 
     return Math.floor(value / interval);
+};
+
+const getTilePointCoordinates = (
+    tileStartTimestamp,
+    tileStartTimeSerieIdx,
+    timestamp,
+    timeSerieIdx,
+    period = 300,
+    zoom) => {
+
+    let start = Date.parse(tileStartTimestamp); //unix epoch in ms
+    let end = Date.parse(timestamp);
+
+    let timeInterval = period * 1000;   //period is in sec
+    let idxInterval = 1;
+
+    if (zoom < 0) {
+        timeInterval *= Math.abs(zoom);
+        idxInterval *= Math.abs(zoom);
+    }
+    if (zoom > 0) {
+        timeInterval /= Math.abs(zoom);
+        idxInterval /= Math.abs(zoom);
+    }
+
+    return [
+        Math.floor((end - start) / timeInterval),
+        Math.floor((timeSerieIdx - tileStartTimeSerieIdx) / idxInterval)
+    ];
 };
 
 const convertTileCoordinates = ({ genesis, tileIds, tileCoords, zoom, period = 300 }) => {
@@ -217,14 +248,7 @@ export default class HeatMapNavigatorContainer extends Component {
             clientWindowsHeight: prevClientWindowsHeight
         } = prevState;
 
-        const {
-            tileIdStartInterval,
-            tileIdCurrentInterval,
-            tileIdEndInterval,
-            tileIdStartMachineIndex,
-            tileIdCurrentMachineIndex,
-            tileIdEndMachineIndex,
-        } = this.state.navigation;
+        const { tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
 
         const {
             tileIdCurrentInterval: prevTileIdCurrentInterval,
@@ -377,7 +401,7 @@ export default class HeatMapNavigatorContainer extends Component {
 
                 timelineStartTimestamp: startTimestamp,
                 timelineEndTimestamp: endTimestamp,
-                //timelineStartTimeserieIndex: startTimeserieIndex,
+                //timelineStartTimeserieIndex: startTimeserieIndex, //TODO may be useful when limiting the vertical sel.
                 //timelineEndTimeserieIndex: endTimeserieIndex - 1,
 
                 timelineData: timelineData,
@@ -486,14 +510,8 @@ export default class HeatMapNavigatorContainer extends Component {
     }) {
 
         const { setItem } = this.props;
-        const { startInterval, endInterval } = this.props.configuration;
-
-        const {
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-            [localConstants._TYPE_HEATMAP_ZOOMS]: zooms,
-            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
-        } = this.props.dataset;
-
+        const { startInterval } = this.props.configuration;
+        const { [localConstants._TYPE_HEATMAP_ZOOMS]: zooms } = this.props.dataset;
         const { handleTimeSerieSelection } = this.props;
 
         const {
@@ -501,13 +519,6 @@ export default class HeatMapNavigatorContainer extends Component {
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
         } = this.props.heatMapConfiguration;
-
-        const {
-            tileIdStartInterval,
-            tileIdEndInterval,
-            tileIdStartMachineIndex,
-            tileIdEndMachineIndex,
-        } = this.state.navigation;
 
         //
         const [ tileTimestamp, timeSerieIdx ] = convertTileCoordinates({
@@ -582,6 +593,8 @@ export default class HeatMapNavigatorContainer extends Component {
                 heatMapType: selectedHeatMapType,
                 fields: [selectedField, 'n_jobs', 'n_tasks'], //TODO make other fields selectable
                 zoom: selectedZoom,
+                tileIds: [tileX, tileY],
+                pointCoords: [imgX, imgY],
                 actionType: 'selection',
             });
         }
@@ -592,9 +605,108 @@ export default class HeatMapNavigatorContainer extends Component {
         this.props.handleTimeSerieSelection({timeSerieIdx: timeserieIdx, actionType: 'deselection'});
     }
 
+    renderHighlights() {
+
+        const { timeSeries } = this.props;
+        const { [localConstants._TYPE_FIRST_INTERVAL]: firstInterval } = this.props.dataset;
+        const { [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval } = this.props.configuration;
+        const { [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom } = this.props.heatMapConfiguration;
+
+        const { nHorizontalTiles, tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
+
+        let data = [];
+
+        for (let i = 0; i < Object.keys(timeSeries).length; ++i) {
+            if (timeSeries.hasOwnProperty(Object.keys(timeSeries)[i])) {
+
+                const selection = timeSeries[Object.keys(timeSeries)[i]].selection;
+
+                //compute or re-compute highlight lines (vertical + horizontal) according to current zoom level
+
+                //get new tile ids according with the new zoom
+                const newTileIdX = convertTimestampToID(firstInterval, selection.timestamp, 300, selectedHeatMapZoom);
+                const newTileIdY = convertMeasurementIdxToID(selection.timeSerieIdx, selectedHeatMapZoom);
+
+                //get start timestamp and start timeserie idx of new tile
+                const [startTimestamp, startTimeserieIdx] = convertTileCoordinates({
+                    genesis: startInterval,
+                    tileIds: [newTileIdX, newTileIdY],
+                    tileCoords: [0,0],
+                    zoom: selectedHeatMapZoom,
+                });
+
+                //get new point coords within the tile
+                const [newPosX, newPosY] = getTilePointCoordinates(
+                    startTimestamp,
+                    startTimeserieIdx,
+                    selection.timestamp,
+                    selection.timeSerieIdx,
+                    300,
+                    selectedHeatMapZoom
+                );
+
+                const coords = {x: null, y: null};
+
+                //check if the VERTICAL line is in the current heatmap view (using tile ids)
+                if (newTileIdX >= tileIdCurrentInterval || newTileIdX < tileIdCurrentInterval + nHorizontalTiles) {
+
+                    coords.x =
+                        (newTileIdX - tileIdCurrentInterval) * config.TILE_SIZE       //x start coordinate of tile
+                        + newPosX                                                     //x point coordinate within tile
+                    ;
+                }
+
+                //check if the HORIZONTAL line is in the current heatmap view (using tile ids)
+                if (newTileIdY >= tileIdCurrentMachineIndex ||
+                    newTileIdY < tileIdCurrentMachineIndex + _FIXED_TILES_HEIGHT) {
+
+                    coords.y =
+                        (newTileIdY - tileIdCurrentMachineIndex) * config.TILE_SIZE   //y start coordinate of tile
+                        + newPosY                                                     //y point coordinate within tile
+                    ;
+                }
+
+                data.push(coords);
+            }
+        }
+
+        //assign colors to lines
+        const colors = chroma
+            .scale(['orange', 'red', 'black'])   //TODO make configurable externally
+            .mode('lch')
+            .colors(data.length);
+
+        //generate svg paths (horizontal + vertical lines)
+        //https://css-tricks.com/svg-path-syntax-illustrated-guide/
+        let paths = [];
+        data.forEach((k,idx) => {
+
+            if (k.x)
+                paths.push(
+                    <path
+                        key={idx+k.x}
+                        d={`M ${k.x},0 V ${_FIXED_TILES_HEIGHT * config.TILE_SIZE}`}
+                        stroke={colors[idx]}
+                    />
+                );
+
+            if (k.y)
+                paths.push(
+                    <path
+                        key={idx+k.y}
+                        d={`M 0,${k.y} H ${nHorizontalTiles * config.TILE_SIZE}`}
+                        stroke={colors[idx]}
+                    />
+                );
+        });
+
+        return paths;
+    }
+
     render() {
 
         console.log(this.state)
+        console.log(this.props)
 
         const { disabled, timeSeries } = this.props;
         const { isLoading } = this.state;
@@ -614,10 +726,6 @@ export default class HeatMapNavigatorContainer extends Component {
             tileIdCurrentInterval,
             tileIdCurrentMachineIndex,
             tileRowsURLs,
-            timelineStartTimestamp,
-            timelineEndTimestamp,
-            timelineStartTimeserieIndex,
-            timelineEndTimeserieIndex,
             timelineData,
         } = this.state.navigation;
 
@@ -718,19 +826,18 @@ export default class HeatMapNavigatorContainer extends Component {
                                                 ))
                                             }
 
-                                            <div className="timeline-horizontal-overlay">
-                                                <div className="timeline-horizontal-label timeline-top-left-label">
-                                                    <svg height="15" width="5">
-                                                        <line x1="0" y1="0" x2="0" y2="13"/>
-                                                    </svg>
-                                                    <p>{timelineStartTimestamp && timelineStartTimestamp}</p>
-                                                </div>
-                                                <div className="timeline-horizontal-label timeline-top-right-label">
-                                                    <svg height="15" width="5">
-                                                        <line x1="5" y1="0" x2="5" y2="13"/>
-                                                    </svg>
-                                                    <p>{timelineEndTimestamp && timelineEndTimestamp}</p>
-                                                </div>
+                                            <div className="timeline-overlay">
+                                                <svg
+                                                    height={config.TILE_SIZE * _FIXED_TILES_HEIGHT}
+                                                    width={config.TILE_SIZE * nHorizontalTiles}
+                                                >
+
+                                                    {
+                                                        timeSeries &&
+                                                        this.renderHighlights().map((k) => k)
+                                                    }
+
+                                                </svg>
                                             </div>
 
                                         </div>
@@ -775,7 +882,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                             </button>
                                         </div>
                                         <div className="timeserie-closable-content">
-                                            <p>{timeSeries[k].name}</p>
+                                            <p>{timeSeries[k].name} ({k})</p>
                                         </div>
                                     </div>
                                 ))
