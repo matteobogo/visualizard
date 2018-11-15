@@ -37,6 +37,7 @@ export const TimeLine = (props) => {
                 {
                     props.data.map((k,idx) => (
                         <line
+                            key={idx}
                             className="vertical-line"
                             x1={config.TILE_SIZE * idx}
                             y1="0"
@@ -63,7 +64,7 @@ export const TimeLine = (props) => {
                     timelineData.length !== 0 &&
 
                     timelineData.map((k,idx) => (
-                        <div className="timestamp-box-middle">
+                        <div key={idx} className="timestamp-box-middle">
                             {
                                 timestampBox({id: idx + 1, value: k, width: config.TILE_SIZE})
                             }
