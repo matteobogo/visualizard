@@ -14,7 +14,6 @@ import { getConnectionStatus, getResponsesByUUID } from '../../store/selectors/w
 
 import FakePreview from './FakePreview';
 import ConfiguratorContainer from './ConfiguratorContainer';
-import AnalysisContainer from './AnalysisContainer';
 import HeatMapNavigatorContainer from './HeatMapNavigatorContainer';
 import TimeSeriesChartsContainer from './TimeSeriesChartsContainer';
 

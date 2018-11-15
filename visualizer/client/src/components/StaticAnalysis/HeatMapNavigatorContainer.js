@@ -38,6 +38,9 @@ const _MENU_NAVIGATION = {
 
 const convertTimestampToID = (genesis, current, period = 300, zoom) => {
 
+    //TODO need to be re-thinked, strange behaviour when used to compute the id end of interval
+    //TODO probably something wrong in the time interval computation, consider to use the last interval data
+
     let start = Date.parse(genesis);    //converts to unix epoch time (ms)
     let end = Date.parse(current);
 
@@ -543,10 +546,6 @@ export default class HeatMapNavigatorContainer extends Component {
             let xIDcurrent = tileX;
             let yIDcurrent = tileY;
 
-            //(2,2) =/2=> (1,1) //Example
-            //(3,2) =/2=> (1,1)
-            //(2,3) =/2=> (1,1)
-            //(3,3) =/2=> (1,1)
             if (newZoomIdx < oldZoomIdx) { //we have a zoom out or we are at max out zoom
                 xIDcurrent = Math.floor(tileX / 2);
                 yIDcurrent = Math.floor(tileY / 2);
@@ -684,7 +683,7 @@ export default class HeatMapNavigatorContainer extends Component {
             if (k.x)
                 paths.push(
                     <path
-                        key={idx+k.x}
+                        key={`vert_${k.x}`}
                         d={`M ${k.x},0 V ${_FIXED_TILES_HEIGHT * config.TILE_SIZE}`}
                         stroke={colors[idx]}
                     />
@@ -693,7 +692,7 @@ export default class HeatMapNavigatorContainer extends Component {
             if (k.y)
                 paths.push(
                     <path
-                        key={idx+k.y}
+                        key={`horiz_${k.y}`}
                         d={`M 0,${k.y} H ${nHorizontalTiles * config.TILE_SIZE}`}
                         stroke={colors[idx]}
                     />
