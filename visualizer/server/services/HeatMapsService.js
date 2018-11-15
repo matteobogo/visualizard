@@ -434,7 +434,7 @@ const heatMapTilesBuilder = async (
                 imageType: imageType,
             })
                 .catch(err => {
-                    throw Error(`Failed to store the original canvas: ${err.message}`);
+                    throw Error(`Failed to store the original canvas: ${err}`);
                 });
 
             //zooms
