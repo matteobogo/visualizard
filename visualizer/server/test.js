@@ -12,6 +12,8 @@ const influxdb = require('./database/influxdb');
 
 //tip: passing arrow functions to Mocha is discouraged
 
+//
+
 describe('Dataset Analysis Service', function() {
 
     this.timeout(3600000);  //60min
@@ -180,8 +182,6 @@ describe('Dataset Analysis Service', function() {
                      request: request,
                      imageType: constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
                      mode: constants.HEATMAPS.MODES.TILES,
-                     tileWidth: 256,
-                     tileHeight: 256,
                  }
              )
                  .then(res => console.log(res))

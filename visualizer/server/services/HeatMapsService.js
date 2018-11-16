@@ -308,9 +308,9 @@ const tileStorage = async (
             request.policy,
             request.heatMapType,
             request.fields[0],
-            zoom.toString(),
-            xID.toString(),
-            yID.toString()
+            String(zoom),
+            String(xID),
+            String(yID),
         );
 
     //check if directory exists, otherwise creates it
@@ -496,7 +496,7 @@ const heatMapTilesBuilder = async (
 
     for (let i = 1; i < zoomOutLevels.length; ++i) {
         
-        const previousZoomLevel = zoomOutLevels[i-1];
+        const previousZoomLevel = String(zoomOutLevels[i-1]);
         const currentZoomLevel = zoomOutLevels[i];
         //const nTilesToBeCombined = Math.abs(currentZoomLevel);
         const nTilesToBeCombined = 2;
