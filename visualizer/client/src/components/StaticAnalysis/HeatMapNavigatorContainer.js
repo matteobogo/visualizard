@@ -8,8 +8,6 @@ import 'react-widgets/dist/css/react-widgets.css';
 
 import { X } from 'react-feather';
 
-const chroma = require('chroma-js');
-
 import './HeatMapNavigatorContainer.css';
 
 import { TimeLine } from './TimeLine';
@@ -606,105 +604,91 @@ export default class HeatMapNavigatorContainer extends Component {
 
     renderHighlights() {
 
-        const { timeSeries } = this.props;
+        const { timeSeriesMap } = this.props;
         const { [localConstants._TYPE_FIRST_INTERVAL]: firstInterval } = this.props.dataset;
         const { [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval } = this.props.configuration;
         const { [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom } = this.props.heatMapConfiguration;
 
         const { nHorizontalTiles, tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
 
-        let data = [];
-
-        for (let i = 0; i < Object.keys(timeSeries).length; ++i) {
-            if (timeSeries.hasOwnProperty(Object.keys(timeSeries)[i])) {
-
-                const selection = timeSeries[Object.keys(timeSeries)[i]].selection;
-
-                //compute or re-compute highlight lines (vertical + horizontal) according to current zoom level
-
-                //get new tile ids according with the new zoom
-                const newTileIdX = convertTimestampToID(firstInterval, selection.timestamp, 300, selectedHeatMapZoom);
-                const newTileIdY = convertMeasurementIdxToID(selection.timeSerieIdx, selectedHeatMapZoom);
-
-                //get start timestamp and start timeserie idx of new tile
-                const [startTimestamp, startTimeserieIdx] = convertTileCoordinates({
-                    genesis: startInterval,
-                    tileIds: [newTileIdX, newTileIdY],
-                    tileCoords: [0,0],
-                    zoom: selectedHeatMapZoom,
-                });
-
-                //get new point coords within the tile
-                const [newPosX, newPosY] = getTilePointCoordinates(
-                    startTimestamp,
-                    startTimeserieIdx,
-                    selection.timestamp,
-                    selection.timeSerieIdx,
-                    300,
-                    selectedHeatMapZoom
-                );
-
-                const coords = {x: null, y: null};
-
-                //check if the VERTICAL line is in the current heatmap view (using tile ids)
-                if (newTileIdX >= tileIdCurrentInterval || newTileIdX < tileIdCurrentInterval + nHorizontalTiles) {
-
-                    coords.x =
-                        (newTileIdX - tileIdCurrentInterval) * config.TILE_SIZE       //x start coordinate of tile
-                        + newPosX                                                     //x point coordinate within tile
-                    ;
-                }
-
-                //check if the HORIZONTAL line is in the current heatmap view (using tile ids)
-                if (newTileIdY >= tileIdCurrentMachineIndex ||
-                    newTileIdY < tileIdCurrentMachineIndex + _FIXED_TILES_HEIGHT) {
-
-                    coords.y =
-                        (newTileIdY - tileIdCurrentMachineIndex) * config.TILE_SIZE   //y start coordinate of tile
-                        + newPosY                                                     //y point coordinate within tile
-                    ;
-                }
-
-                data.push(coords);
-            }
-        }
-
-        //assign colors to lines
-        const colors = chroma
-            .scale(['orange', 'red', 'black'])   //TODO make configurable externally
-            .mode('lch')
-            .colors(data.length);
-
-        //generate svg paths (horizontal + vertical lines)
-        //https://css-tricks.com/svg-path-syntax-illustrated-guide/
         let paths = [];
-        data.forEach((k,idx) => {
 
-            if (k.x)
+        for (let [key, value] of timeSeriesMap) {
+
+            const color = value.color;
+            const selection = value.selection;
+
+            //compute or re-compute highlight lines (vertical + horizontal) according to current zoom level
+
+            //get new tile ids according with the new zoom
+            const newTileIdX = convertTimestampToID(firstInterval, selection.timestamp, 300, selectedHeatMapZoom);
+            const newTileIdY = convertMeasurementIdxToID(selection.timeSerieIdx, selectedHeatMapZoom);
+
+            //get start timestamp and start timeserie idx of new tile
+            const [startTimestamp, startTimeserieIdx] = convertTileCoordinates({
+                genesis: startInterval,
+                tileIds: [newTileIdX, newTileIdY],
+                tileCoords: [0,0],
+                zoom: selectedHeatMapZoom,
+            });
+
+            //get new point coords within the tile
+            const [newPosX, newPosY] = getTilePointCoordinates(
+                startTimestamp,
+                startTimeserieIdx,
+                selection.timestamp,
+                selection.timeSerieIdx,
+                300,
+                selectedHeatMapZoom
+            );
+
+            const coords = {x: null, y: null};
+
+            //check if the VERTICAL line is in the current heatmap view (using tile ids)
+            if (newTileIdX >= tileIdCurrentInterval || newTileIdX < tileIdCurrentInterval + nHorizontalTiles) {
+
+                coords.x =
+                    (newTileIdX - tileIdCurrentInterval) * config.TILE_SIZE       //x start coordinate of tile
+                    + newPosX                                                     //x point coordinate within tile
+                ;
+            }
+
+            //check if the HORIZONTAL line is in the current heatmap view (using tile ids)
+            if (newTileIdY >= tileIdCurrentMachineIndex ||
+                newTileIdY < tileIdCurrentMachineIndex + _FIXED_TILES_HEIGHT) {
+
+                coords.y =
+                    (newTileIdY - tileIdCurrentMachineIndex) * config.TILE_SIZE   //y start coordinate of tile
+                    + newPosY                                                     //y point coordinate within tile
+                ;
+            }
+
+            //generate svg paths (horizontal + vertical lines)
+            //https://css-tricks.com/svg-path-syntax-illustrated-guide/s
+            if (coords.x)
                 paths.push(
                     <path
-                        key={`vert_${k.x}`}
-                        d={`M ${k.x},0 V ${_FIXED_TILES_HEIGHT * config.TILE_SIZE}`}
-                        stroke={colors[idx]}
+                        key={`vert_${coords.x}`}
+                        d={`M ${coords.x},0 V ${_FIXED_TILES_HEIGHT * config.TILE_SIZE}`}
+                        stroke={color}
                     />
                 );
 
-            if (k.y)
+            if (coords.y)
                 paths.push(
                     <path
-                        key={`horiz_${k.y}`}
-                        d={`M 0,${k.y} H ${nHorizontalTiles * config.TILE_SIZE}`}
-                        stroke={colors[idx]}
+                        key={`horiz_${coords.y}`}
+                        d={`M 0,${coords.y} H ${nHorizontalTiles * config.TILE_SIZE}`}
+                        stroke={color}
                     />
                 );
-        });
-
+        }
         return paths;
     }
 
     render() {
 
-        const { disabled, timeSeries } = this.props;
+        const { disabled, timeSeriesMap } = this.props;
         const { isLoading } = this.state;
 
         const {
@@ -829,7 +813,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                                 >
 
                                                     {
-                                                        timeSeries &&
+                                                        timeSeriesMap &&
                                                         this.renderHighlights().map((k) => k)
                                                     }
 
@@ -869,8 +853,8 @@ export default class HeatMapNavigatorContainer extends Component {
 
                             <div className="timeserie-closable-area">
                             {
-                                timeSeries &&
-                                Object.keys(timeSeries).map((k, idx) => (
+                                timeSeriesMap &&
+                                Array.from(timeSeriesMap.keys()).map((k, idx) => (
                                     <div className="timeserie-closable-box" key={idx}>
                                         <div className="timeserie-closable-icon">
                                             <button onClick={() => this.handleTimeSerieDeselection(k)}>
@@ -878,7 +862,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                             </button>
                                         </div>
                                         <div className="timeserie-closable-content">
-                                            <p>{timeSeries[k].name} ({k})</p>
+                                            <p>{timeSeriesMap.get(k).name} ({k})</p>
                                         </div>
                                     </div>
                                 ))

@@ -20,8 +20,6 @@ import {
     styler,
 } from "react-timeseries-charts";
 
-const chroma = require('chroma-js');
-
 import './TimeSeriesChartsContainer.css';
 
 const trackerStyle = {
@@ -49,7 +47,6 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
             max: 0,          //max value over the different timeseries (need to calibrate the yAxis in the chart)
             min: 0,          //as above with min
-            colors: [],      //colors associated to timeseries
 
             isLoading: false,
         };
@@ -61,21 +58,21 @@ export default class TimeSeriesChartsContainer extends React.Component {
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const {
-            timeSeriesData, //contains the data of the timeseries
+            timeSeriesMap, //contains the data of the timeseries
             mainField,      //the selected field of the timeserie to show in the chart (same for all timeseries)
             fieldStats,     //stats about the selected field (min, max, mean, std) over all the dataset
             sideFields,     //other fields to show in the highlight menu when charts are navigated
             timestampFocus,
         } = this.props;
 
-        const { timeSeriesData: prevTimeSeriesData, timestampFocus: prevTimestampFocus } = prevProps;
+        const { timeSeriesMap: prevTimeSeriesMap } = prevProps;
 
         //if time range is changed, then rebuild the x-axis of the chart
         //data has the following structure:
         //{ machineIdx: { time: .., field1: .., field2: .., .. }, machineIdx: { .. }, .. }
-        if (timeSeriesData && mainField && fieldStats && sideFields && timestampFocus && (
-            JSON.stringify(timeSeriesData) !== JSON.stringify(prevTimeSeriesData) ||
-            this.state.lastTimeSerieIndexes.length !== Object.keys(timeSeriesData).length)) {
+        if (timeSeriesMap && mainField && fieldStats && sideFields && timestampFocus && (
+            timeSeriesMap.size !== prevTimeSeriesMap.size) ||
+            this.state.lastTimeSerieIndexes.length !== timeSeriesMap.size) {
 
             this.buildTimeSeriesCharts();
         }
@@ -83,7 +80,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     buildTimeSeriesCharts = () => {
 
-        const { configuration, mainField, timeSeriesData } = this.props;
+        const { configuration, mainField, timeSeriesMap } = this.props;
         const { max , min } = this.state;
 
         //max/min over all the timeseries
@@ -93,28 +90,27 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
         this.setState({isLoading: true});
 
-        let timeSeries = {};
-        Object.keys(timeSeriesData).forEach((k, idx) => {
-            if (timeSeriesData.hasOwnProperty(k)) {
+        let timeSeries = new Map();
+        for (let [key, value] of timeSeriesMap) {
 
-                //build the timeserie object
-                const timeserie = new TimeSeries({
-                    name: timeSeriesData[k].name,        //'timeserie_name'
-                    columns: timeSeriesData[k].fields,   //[ 'time', 'field1', 'field2', ..]
-                    points: timeSeriesData[k].points,    //[ [time, value1, value2, ..], ..]
-                });
+            //build the timeserie object
+            const timeserie = new TimeSeries({
+                name: value.name,        //'timeserie_name'
+                columns: value.fields,   //[ 'time', 'field1', 'field2', ..]
+                points: value.points,    //[ [time, value1, value2, ..], ..]
+            });
 
-                timeSeries[k] = timeserie;
+            //assign the timeserie obj
+            timeSeries.set(key, timeserie);
 
-                //check max/min of the field(s) of the current timeserie
-                //if there are multiple fields we need to specify as argument the field(s)
-                //if multiple fields are specified, pondjs returns a map field->value
-                let tsMax = timeserie.max(mainField);
-                let tsMin = timeserie.min(mainField);
-                if (tsMax > newMax) newMax = tsMax;
-                if (tsMin < newMin) newMin = tsMin;
-            }
-        });
+            //check max/min of the field(s) of the current timeserie
+            //if there are multiple fields we need to specify as argument the field(s)
+            //if multiple fields are specified, pondjs returns a map field->value
+            let tsMax = timeserie.max(mainField);
+            let tsMin = timeserie.min(mainField);
+            if (tsMax > newMax) newMax = tsMax;
+            if (tsMin < newMin) newMin = tsMin;
+        }
 
         //build the Time Range (Y-Axis)
         const timeRange = new TimeRange([
@@ -122,20 +118,12 @@ export default class TimeSeriesChartsContainer extends React.Component {
             configuration[localConstants._TYPE_SELECTED_END_INTERVAL],
         ]);
 
-        //assign colors to the timeseries
-        //colors are built through a scale and based on the number of timeseries generated
-        const colors = chroma
-            .scale(['orange', 'red', 'black'])   //TODO make configurable externally
-            .mode('lch')
-            .colors(Object.keys(timeSeries).length);
-
         this.setState({
-            lastTimeSerieIndexes: Object.keys(timeSeriesData),
+            lastTimeSerieIndexes: Array.from(timeSeriesMap.keys()),
             timeRange: timeRange,
             timeSeries: timeSeries,
             max: newMax,
             min: newMin,
-            colors: colors,
             isLoading: false,
         });
     };
@@ -152,11 +140,9 @@ export default class TimeSeriesChartsContainer extends React.Component {
         }
 
         let trackerEvents = [];
-        Object.keys(timeSeries).forEach((k, idx) => {
-            if (timeSeries.hasOwnProperty(k)) {
-                trackerEvents.push(timeSeries[k].at(timeSeries[k].bisect(tracker)));
-            }
-        });
+        for (let [key, value] of timeSeries) {
+            trackerEvents.push(value.at(value.bisect(tracker)));
+        }
 
         this.setState({
             tracker: tracker,
@@ -170,34 +156,37 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     render() {
 
-        const { disabled, isLoading: isLoadingParent, mainField, sideFields, fieldStats, timestampFocus } = this.props;
-        const { timeSeries, timeRange, max, min, colors, isLoading } = this.state;
+        const {
+            disabled, isLoading: isLoadingParent, mainField, sideFields, fieldStats, timeSeriesMap,
+        } = this.props;
+
+        const { timeSeries, timeRange, max, min, isLoading } = this.state;
 
         if (disabled) return null;
 
         let legendCategs = [];
         let legendStyle = null;
-        if (timeSeries) {
+        if (timeSeries && timeSeriesMap) {
 
             let styles = [];
 
             //build categories for the legend
-            Object.keys(timeSeries).forEach((k, idx) => {
-                if (timeSeries.hasOwnProperty(k)) {
+            for (let [key, value] of timeSeries) {
+                legendCategs.push({
+                    key: value.name(),
+                    label: `${value.name()} (${key})`,
+                });
 
-                    legendCategs.push({
-                        key: timeSeries[k].name(),
-                        label: `${timeSeries[k].name()} (${k})`,
-                    });
-
-                    styles.push({
-                        key: timeSeries[k].name(), color: colors[idx],
-                    });
-                }
-            });
+                styles.push({
+                    key: value.name(), color: timeSeriesMap.get(key).color,
+                });
+            }
 
             legendStyle = styler(styles);
         }
+
+        console.log(this.state)
+        console.log(this.props)
 
         return(
 
@@ -227,7 +216,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                                     <svg height="5" width="15">
                                                                         <line
                                                                             x1="0" y1="4" x2="10" y2="4"
-                                                                            style={{stroke: colors[idx]}}
+                                                                            style={{stroke: Array.from(timeSeriesMap.keys())[idx].color}}
                                                                         />
                                                                     </svg>
                                                                     <p>{mainField}: {e.get(mainField)}</p>
@@ -279,15 +268,15 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                             />
 
                                                             {
-                                                                Object.keys(timeSeries).map((k, idx) => (
+                                                                Array.from(timeSeries.keys()).map((k, idx) => (
                                                                     <LineChart
                                                                         key={idx}
                                                                         axis="usage"
                                                                         breakLine={false}
-                                                                        series={timeSeries[k]}
+                                                                        series={timeSeries.get(k)}
                                                                         columns={[mainField]}
                                                                         style={styler([
-                                                                            {key: mainField, color: colors[idx]}
+                                                                            {key: mainField, color: timeSeriesMap.get(k).color}
                                                                         ])}
                                                                         interpolation="curveBasis"
                                                                     />

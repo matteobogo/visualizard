@@ -4,6 +4,8 @@ import sharedConstants from '../../commons/constants';
 import * as localConstants from '../../utils/constants';
 import * as apiFetcher from "../../services/ApiFetcher";
 
+import { config } from '../../config/config';
+
 const uuidv4 = require('uuid/v4');
 
 import { connect } from 'react-redux';
@@ -24,6 +26,8 @@ import { TimeSeries, TimeRange } from 'pondjs';
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
+const chroma = require('chroma-js');
+
 import '../../styles.css';
 
 class StaticAnalysisContainer extends Component {
@@ -32,6 +36,8 @@ class StaticAnalysisContainer extends Component {
         super();
 
         this.state = {
+
+            colorMap: null,
 
             [localConstants._TYPE_GROUP_DATASET]: {
 
@@ -66,7 +72,7 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_PSPT_ANALYSIS]: null,
             },
 
-            timeSerieSelection: null,
+            timeSeriesMap: new Map(),
             timeSerieTimestampSelection: null,
 
             pendingRequests: {},    //map of pending requests in process through redux
@@ -83,6 +89,17 @@ class StaticAnalysisContainer extends Component {
 
     componentDidMount() {
 
+        //generate the color map (chroma)
+        this.setState({
+            colorMap:
+                chroma
+                    .scale(config.COLOR_SCALE)
+                    .mode(config.INTERPOLATION_TYPE)
+                    .colors(config.MAX_TIMESERIES)
+                    .map(e => { return {color: e, busy: 0} })
+        });
+
+        //fetch databases list
         this.fetchData({
             groupType: localConstants._TYPE_GROUP_DATASET,
             type: localConstants._TYPE_DATABASES,
@@ -296,9 +313,26 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.state.configuration;
 
+        const { timeSeriesMap } = this.state;
+
+        const { notify } = this.props;
+
         switch (actionType) {
 
             case 'selection':
+
+                //check max number of timeseries that can be viewed (notify to the user if exceed)
+                if (timeSeriesMap.size === config.MAX_TIMESERIES) {
+
+                    notify({
+                        enable: true,
+                        message: `Reached the limit of visible timeseries`,
+                        type: localConstants.NOTIFICATION_TYPE_ERROR,
+                        delay: localConstants.NOTIFICATION_DELAY,
+                    });
+
+                    return;
+                }
 
                 if (!selectedDatabase || !selectedPolicy || !selectedStartInterval || !selectedEndInterval ||
                     !heatMapType || !fields || fields.length === 0 ||
@@ -330,16 +364,16 @@ class StaticAnalysisContainer extends Component {
                             timeSerieIdx: timeSerieIdx,
                         };
 
+                        //assign color to timeserie
+                        data["color"] = this.colorMapping();
+
                         this.setState({
                             [localConstants._TYPE_GROUP_HEATMAP]: {
                                 [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
                                 [localConstants._TYPE_SELECTED_FIELD]: fields[0],
                                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
                             },
-                            timeSerieSelection: {
-                                ...this.state.timeSerieSelection,
-                                [timeSerieIdx]: data,
-                            },
+                            timeSeriesMap: timeSeriesMap.set(timeSerieIdx, data),
                             timeSerieTimestampSelection: timestamp,
                             isLoading: false,
                         });
@@ -356,18 +390,35 @@ class StaticAnalysisContainer extends Component {
 
             case 'deselection':
 
-                const timeseries = this.state.timeSerieSelection;
+                if (!timeSeriesMap || !timeSeriesMap.has(timeSerieIdx)) return;
 
-                if (!timeseries || !(timeSerieIdx in timeseries)) return;
-
-                delete timeseries[timeSerieIdx];
-
-                this.setState({
-                   timeSerieSelection: timeseries,
-                });
+                //unmapping color, remove entry and re-assign the new map
+                this.colorUnMapping(timeSeriesMap.get(timeSerieIdx).color);
+                timeSeriesMap.delete(timeSerieIdx);
+                this.setState({ timeSeriesMap: timeSeriesMap });
 
                 break;
         }
+    }
+
+    colorMapping() {
+
+        const { colorMap } = this.state;
+
+        let color = null;
+        for (let i = 0; i < colorMap.length; ++i) {
+            if (!colorMap[i].busy) {
+                colorMap[i].busy = 1;
+                color = colorMap[i].color;
+                break;
+            }
+        }
+        return color;
+    }
+
+    colorUnMapping(color) {
+
+        (this.state.colorMap.find((el) => el.color === color)).busy = 0;
     }
 
     render() {
@@ -377,8 +428,7 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_GROUP_CONFIGURATION]: configuration,
             [localConstants._TYPE_GROUP_HEATMAP]: heatmapConfiguration,
             [localConstants._TYPE_GROUP_ANALYSES]: analyses,
-            timeSerieSelection,
-            timeSerieTimestampSelection,
+            timeSeriesMap,
             isLoading,
 
         } = this.state;
@@ -410,23 +460,11 @@ class StaticAnalysisContainer extends Component {
                     .pop();
         }
 
-        //get only the index in the heatmap and the name of the timeseries selected
-        let selectedTimeSeries = [];
-        if (timeSerieSelection) {
-            Object.keys(timeSerieSelection).forEach((k, idx) => {
-                if (timeSerieSelection.hasOwnProperty(k))
-                    selectedTimeSeries.push({
-                        index: k,
-                        name: timeSerieSelection[k].name
-                    });
-            });
-        }
-
         let showContainers = false;
         if (selectedDatabase && selectedPolicy && selectedStartInterval && selectedEndInterval) showContainers = true;
 
         let showTimeSeriesCharts = false;
-        if (timeSerieSelection && Object.keys(timeSerieSelection).length > 0) showTimeSeriesCharts = true;
+        if (timeSeriesMap && timeSeriesMap.size > 0) showTimeSeriesCharts = true;
 
         const { connectionStatus } = this.props;
 
@@ -457,7 +495,7 @@ class StaticAnalysisContainer extends Component {
                                     dataset={dataset}
                                     configuration={configuration}
                                     heatMapConfiguration={heatmapConfiguration}
-                                    timeSeries={timeSerieSelection}
+                                    timeSeriesMap={timeSeriesMap}
                                     setItem={this.setItem}
                                     handleTimeSerieSelection={this.handleTimeSerieSelection}
                                     onError={this.handleError}
@@ -472,20 +510,10 @@ class StaticAnalysisContainer extends Component {
                                     mainField={selectedField}
                                     sideFields={['n_jobs', 'n_tasks']}
                                     fieldStats={selectedFieldStats}
-                                    timeSeriesData={timeSerieSelection}
-                                    timestampFocus={timeSerieTimestampSelection}
+                                    timeSeriesMap={timeSeriesMap}
                                     isLoading={isLoading}
                                 />
                             </Col>
-                        </Row>
-                        <Row>
-                            {/*<Col xs={12}>*/}
-                                {/*<AnalysisContainer*/}
-                                    {/*disabled={!showContainers}*/}
-                                    {/*datasetAnalysis={datasetAnalysis}*/}
-                                    {/*psptAnalysis={psptAnalysis}*/}
-                                {/*/>*/}
-                            {/*</Col>*/}
                         </Row>
                     </LoadingOverlay>
                     <Loader loading={isLoading}/>
