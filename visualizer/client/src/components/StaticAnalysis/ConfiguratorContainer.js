@@ -6,7 +6,7 @@ import * as apiFetcher from "../../services/ApiFetcher";
 import { DropdownClassic, DropdownDateTime } from '../common/Dropdown';
 import { ConfiguratorOptions } from './ConfiguratorOptions';
 
-import { Col, Panel, Form } from 'react-bootstrap';
+import { Row, Col, Panel, Form } from 'react-bootstrap';
 
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
@@ -22,6 +22,8 @@ export default class ConfiguratorContainer extends Component {
 
             lastSelectedDatabase: null,
             lastSelectedPolicy: null,
+            lastSelectedHeatMapType: null,
+            lastSelectedField: null,
             lastSelectedStartInterval: null,
             lastSelectedEndInterval: null,
 
@@ -35,10 +37,10 @@ export default class ConfiguratorContainer extends Component {
     //obtaining from props the configuration elements and comparing them with the last element selected
     static getDerivedStateFromProps(nextProps, prevState) { //render phase (may be slow, no good for async)
 
-        const { dataset, configuration } = nextProps;
+        const { configuration } = nextProps;
 
         const {
-            lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
+            lastSelectedDatabase, lastSelectedPolicy, lastSelectedHeatMapType, lastSelectedField,
         } = prevState;
 
         //update the last selected database in the local state, reset others
@@ -47,12 +49,11 @@ export default class ConfiguratorContainer extends Component {
             return {
                 lastSelectedDatabase: configuration[localConstants._TYPE_SELECTED_DATABASE],
                 lastSelectedPolicy: null,
-                lastSelectedStartInterval: null,
-                lastSelectedEndInterval: null,
+                lastSelectedHeatMapType: null,
+                lastSelectedField: null,
             }
         }
 
-        // update the last selected policy in the local state
         if (configuration[localConstants._TYPE_SELECTED_POLICY] !== lastSelectedPolicy) {
 
             return {
@@ -60,44 +61,17 @@ export default class ConfiguratorContainer extends Component {
             }
         }
 
-        //init the last selected start interval (if dataset's first interval is available)
-        if (!lastSelectedStartInterval && dataset[localConstants._TYPE_FIRST_INTERVAL]) {
+        if (configuration[localConstants._TYPE_SELECTED_HEATMAP_TYPE] !== lastSelectedHeatMapType) {
 
             return {
-                lastSelectedStartInterval: dataset[localConstants._TYPE_FIRST_INTERVAL],
+                lastSelectedHeatMapType: configuration[localConstants._TYPE_SELECTED_HEATMAP_TYPE],
             }
         }
 
-        //init the last selected end interval (if dataset's last interval is available)
-        if (!lastSelectedEndInterval && dataset[localConstants._TYPE_LAST_INTERVAL]) {
+        if (configuration[localConstants._TYPE_SELECTED_FIELD] !== lastSelectedField) {
 
             return {
-                lastSelectedEndInterval: dataset[localConstants._TYPE_LAST_INTERVAL],
-            }
-        }
-
-        //user has make empty the datetime picker or has changed the value through the menu (start interval)
-        //datetime pickers will push a new value to the setItem callback within handleDropdownSelection.
-        //During the next render phase we will receive the new configuration prop with the new value in the StartInterval
-        //(or EndInterval), because this new value is different from the last one saved in the component's state, the
-        //state is also updated with the new value (assigned to lastSelectedStartInterval).
-        //This strategy is useful because during the commit phase (componentDidUpdate) we will check for the updates
-        //of the state and, in the case of startInterval/endInterval, we will check if the new (lastSelected-) value is null.
-        //In the latter scenario, we will trigger again the setItem callback, assigning the value of the
-        //firstInterval/lastInterval previously fetched from the api. This workaround is necessary to re-populate the
-        //datetime picker when an user tries to delete the current value (behaviour not handled by the component).
-        if (configuration[localConstants._TYPE_SELECTED_START_INTERVAL] !== lastSelectedStartInterval) {
-
-            return {
-                lastSelectedStartInterval: configuration[localConstants._TYPE_SELECTED_START_INTERVAL],
-            }
-        }
-
-        //user has make empty the datetime picker or has changed the value through the menu (end interval)
-        if (configuration[localConstants._TYPE_SELECTED_END_INTERVAL] !== lastSelectedEndInterval) {
-
-            return {
-                lastSelectedEndInterval: configuration[localConstants._TYPE_SELECTED_END_INTERVAL],
+                lastSelectedField: configuration[localConstants._TYPE_SELECTED_FIELD],
             }
         }
 
@@ -111,95 +85,66 @@ export default class ConfiguratorContainer extends Component {
         const {
             configuration,
             fetchData,
-            setItem,
         } = this.props;
 
         const {
-            lastSelectedDatabase, lastSelectedPolicy, lastSelectedStartInterval, lastSelectedEndInterval
+            lastSelectedDatabase, lastSelectedPolicy, lastSelectedHeatMapType, lastSelectedField,
         } = this.state;
 
         const {
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-            [localConstants._TYPE_FIELDS]: fields,
-        } = this.props.dataset;
+        } = this.props.dataset.heatMapBounds;
 
         if (prevState.lastSelectedDatabase !== lastSelectedDatabase) {
 
-            //update policies
             fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
                 type: localConstants._TYPE_POLICIES,
                 args: {
-                    database: configuration[localConstants._TYPE_SELECTED_DATABASE]
+                    [localConstants._TYPE_SELECTED_DATABASE]: configuration[localConstants._TYPE_SELECTED_DATABASE]
                 }
             });
+        }
 
-            //update fields (required for obtaining first/last intervals)
-            //InfluxDB Issue: we cannot retrieve first/last timestamp of the database without
-            //specifies at least a field and a measurement.
-            //This list will be used in other analysis components
+        if (prevState.lastSelectedPolicy !== lastSelectedPolicy) {
+
+            //TODO update fetcher and API to require database/policy to fetch
+            //TODO associated heatmap types of heatmaps generated
+
+            fetchData({
+                groupType: localConstants._TYPE_GROUP_DATASET,
+                type: localConstants._TYPE_HEATMAP_TYPES,
+                args: {}
+            });
+        }
+
+        if (prevState.lastSelectedHeatMapType !== lastSelectedHeatMapType) {
+
+            //TODO update fetcher and API to require database/policy/heatmaptype to fetch
+            //TODO associated fields of heatmaps generated
+
             fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
                 type: localConstants._TYPE_FIELDS,
                 args: {
-                    database: configuration[localConstants._TYPE_SELECTED_DATABASE]
+                    [localConstants._TYPE_SELECTED_DATABASE]: configuration[localConstants._TYPE_SELECTED_DATABASE]
                 }
-            });
-
-            //update the number of timeseries available on the server (i.e. number of measurements)
-            fetchData({
-                groupType: localConstants._TYPE_GROUP_DATASET,
-                type: localConstants._TYPE_N_MEASUREMENTS,
-                args: { database: lastSelectedDatabase}
             });
         }
 
-        //update first and last interval when the selected policy changes
-        if (prevState.lastSelectedPolicy !== lastSelectedPolicy) {
+        if (prevState.lastSelectedField !== lastSelectedField) {
 
-            //update first and last intervals
             fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
-                type: localConstants._TYPE_FIRST_INTERVAL,
+                type: localConstants._TYPE_HEATMAP_BOUNDS,
                 args: {
-                    database: configuration[localConstants._TYPE_SELECTED_DATABASE],
-                    policy: configuration[localConstants._TYPE_SELECTED_POLICY],
-                    field: fields[0],
-                }
-            });
-
-            fetchData({
-                groupType: localConstants._TYPE_GROUP_DATASET,
-                type: localConstants._TYPE_LAST_INTERVAL,
-                args: {
-                    database: configuration[localConstants._TYPE_SELECTED_DATABASE],
-                    policy: configuration[localConstants._TYPE_SELECTED_POLICY],
-                    field: fields[0],
-                }
-            });
-        }
-
-        //guard
-        if (!lastSelectedDatabase || !lastSelectedPolicy || !firstInterval || !lastInterval) return;
-
-        //as we said before, in this block we will check if the current datetime pickers values are changed and if they
-        //are null. If they are null then they are re-initialized with first/last interval values (if they exist).
-        if (prevState.lastSelectedStartInterval !== lastSelectedStartInterval) {
-
-            setItem({
-                groupType: localConstants._TYPE_GROUP_CONFIGURATION,
-                item: firstInterval,
-                type: localConstants._TYPE_SELECTED_START_INTERVAL,
-            });
-        }
-
-        if (prevState.lastSelectedEndInterval !== lastSelectedEndInterval) {
-
-            setItem({
-                groupType: localConstants._TYPE_GROUP_CONFIGURATION,
-                item: lastInterval,
-                type: localConstants._TYPE_SELECTED_END_INTERVAL,
+                    [localConstants._TYPE_SELECTED_DATABASE]: configuration[localConstants._TYPE_SELECTED_DATABASE],
+                    [localConstants._TYPE_SELECTED_POLICY]: configuration[localConstants._TYPE_SELECTED_POLICY],
+                    [localConstants._TYPE_SELECTED_FIELD]: configuration[localConstants._TYPE_SELECTED_FIELD],
+                    [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: configuration[localConstants._TYPE_SELECTED_HEATMAP_TYPE],
+                    [localConstants._TYPE_SELECTED_PERIOD]: configuration[localConstants._TYPE_SELECTED_PERIOD]
+                },
             });
         }
     }
@@ -215,30 +160,49 @@ export default class ConfiguratorContainer extends Component {
 
     render() {
 
-        const { configuration } = this.props;
+        console.log(this.state)
+        console.log(this.props)
 
         const { isLoading } = this.state;
 
         const {
             [localConstants._TYPE_DATABASES]: databases,
             [localConstants._TYPE_POLICIES]: policies,
+            [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
             [localConstants._TYPE_FIELDS]: fields,
-            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
+        } = this.props.dataset;
+
+        const {
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
+        } = this.props.dataset.heatMapBounds;
 
-        } = this.props.dataset;
+        const {
+            [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
+            [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+            [localConstants._TYPE_SELECTED_PERIOD]: selectedPeriod,
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
+        } = this.props.configuration;
 
         //dropdowns unlocking
         let unlockPoliciesDropdown = false;
+        let unlockHeatMapTypesDropdown = false;
+        let unlockFieldsDropdown = false;
         let unlockDateTimePickers = false;
 
-        if (configuration[localConstants._TYPE_SELECTED_DATABASE]) {
-
+        if (selectedDatabase) {
             unlockPoliciesDropdown = true;
-            if (configuration[localConstants._TYPE_SELECTED_POLICY] && firstInterval && lastInterval) {
-
-                unlockDateTimePickers = true;
+            if (selectedPolicy) {
+                unlockHeatMapTypesDropdown = true;
+                if (selectedHeatMapType) {
+                    unlockFieldsDropdown = true;
+                    if (selectedField && firstInterval && lastInterval) {
+                        unlockDateTimePickers = true;
+                    }
+                }
             }
         }
 
@@ -254,66 +218,100 @@ export default class ConfiguratorContainer extends Component {
                     <Panel.Body>
                         <div className="overlay-loader-container">
                             <LoadingOverlay className="overlay-loader">
-                                <Form>
-                                    <Col xs={12} sm={6} md={3}>
+                                <Row>
+                                    <Form>
+                                        <Col xs={12} sm={6} md={3}>
 
-                                        <DropdownClassic
-                                            label="Databases"
-                                            id="databases-dropdown"
-                                            placeholder="select database"
-                                            loading={isLoading}
-                                            data={databases}
-                                            value={configuration[localConstants._TYPE_SELECTED_DATABASE]}
-                                            type={localConstants._TYPE_SELECTED_DATABASE}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={false}/>
+                                            <DropdownClassic
+                                                label="Databases"
+                                                id="databases-dropdown"
+                                                placeholder="select database"
+                                                loading={isLoading}
+                                                data={databases}
+                                                value={selectedDatabase}
+                                                type={localConstants._TYPE_SELECTED_DATABASE}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={false}/>
 
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
 
-                                        <DropdownClassic
-                                            label="Policies"
-                                            id="policies-dropdown"
-                                            placeholder="select policy"
-                                            loading={isLoading}
-                                            data={policies}
-                                            value={configuration[localConstants._TYPE_SELECTED_POLICY]}
-                                            type={localConstants._TYPE_SELECTED_POLICY}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={!unlockPoliciesDropdown}/>
+                                            <DropdownClassic
+                                                label="Policies"
+                                                id="policies-dropdown"
+                                                placeholder="select policy"
+                                                loading={isLoading}
+                                                data={policies}
+                                                value={selectedPolicy}
+                                                type={localConstants._TYPE_SELECTED_POLICY}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockPoliciesDropdown}/>
 
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
 
-                                        <DropdownDateTime
-                                            label="Start Interval"
-                                            id="datetime-start"
-                                            placeholder="select start interval"
-                                            min={firstInterval}
-                                            max={configuration[localConstants._TYPE_SELECTED_END_INTERVAL]}
-                                            step={(300 / 60)}
-                                            value={configuration[localConstants._TYPE_SELECTED_START_INTERVAL]}
-                                            type={localConstants._TYPE_SELECTED_START_INTERVAL}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={!unlockDateTimePickers}/>
+                                            <DropdownClassic
+                                                label="Heatmap Type"
+                                                id="heatmap-types-dropdown"
+                                                placeholder="select heatmap type.."
+                                                loading={isLoading}
+                                                data={heatMapTypes}
+                                                value={selectedHeatMapType}
+                                                type={localConstants._TYPE_SELECTED_HEATMAP_TYPE}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockHeatMapTypesDropdown}/>
 
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
 
-                                        <DropdownDateTime
-                                            label="End Interval"
-                                            id="datetime-end"
-                                            placeholder="select end interval"
-                                            min={configuration[localConstants._TYPE_SELECTED_START_INTERVAL]}
-                                            max={lastInterval}
-                                            step={(300 / 60)}
-                                            value={configuration[localConstants._TYPE_SELECTED_END_INTERVAL]}
-                                            type={localConstants._TYPE_SELECTED_END_INTERVAL}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={!unlockDateTimePickers}/>
+                                            <DropdownClassic
+                                                label="Field"
+                                                id="fields-dropdown"
+                                                placeholder="select field.."
+                                                loading={isLoading}
+                                                data={fields}
+                                                value={selectedField}
+                                                type={localConstants._TYPE_SELECTED_FIELD}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockFieldsDropdown}/>
 
-                                    </Col>
-                                </Form>
+                                        </Col>
+                                    </Form>
+                                </Row>
+                                <Row>
+                                    <Form>
+                                        <Col xs={12} sm={6} md={3}>
+
+                                            <DropdownDateTime
+                                                label="Start Interval"
+                                                id="datetime-start"
+                                                placeholder="select start interval"
+                                                min={firstInterval}
+                                                max={selectedEndInterval}
+                                                step={(300 / 60)}
+                                                value={selectedStartInterval}
+                                                type={localConstants._TYPE_SELECTED_START_INTERVAL}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockDateTimePickers}/>
+
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
+
+                                            <DropdownDateTime
+                                                label="End Interval"
+                                                id="datetime-end"
+                                                placeholder="select end interval"
+                                                min={selectedStartInterval}
+                                                max={lastInterval}
+                                                step={(300 / 60)}
+                                                value={selectedEndInterval}
+                                                type={localConstants._TYPE_SELECTED_END_INTERVAL}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockDateTimePickers}/>
+
+                                        </Col>
+                                    </Form>
+                                </Row>
                                 <Loader loading={isLoading}/>
                             </LoadingOverlay>
                         </div>

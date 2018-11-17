@@ -43,11 +43,14 @@ class StaticAnalysisContainer extends Component {
 
                 [localConstants._TYPE_DATABASES]: [],
                 [localConstants._TYPE_POLICIES]: [],
-                [localConstants._TYPE_FIELDS]: null,
-                [localConstants._TYPE_N_MEASUREMENTS]: null,
-                [localConstants._TYPE_FIRST_INTERVAL]: null,
-                [localConstants._TYPE_LAST_INTERVAL]: null,
                 [localConstants._TYPE_HEATMAP_TYPES]: [],
+                [localConstants._TYPE_FIELDS]: [],
+                [localConstants._TYPE_HEATMAP_BOUNDS]: {
+                    [localConstants._TYPE_FIRST_INTERVAL]: null,
+                    [localConstants._TYPE_LAST_INTERVAL]: null,
+                    [localConstants._TYPE_TIMESERIES_START_INDEX]: null,
+                    [localConstants._TYPE_TIMESERIES_END_INDEX]: null,
+                },
                 [localConstants._TYPE_HEATMAP_ZOOMS]: [],
             },
 
@@ -55,14 +58,15 @@ class StaticAnalysisContainer extends Component {
 
                 [localConstants._TYPE_SELECTED_DATABASE]: null,
                 [localConstants._TYPE_SELECTED_POLICY]: null,
+                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
+                [localConstants._TYPE_SELECTED_FIELD]: null,
+                [localConstants._TYPE_SELECTED_PERIOD]: 300,
                 [localConstants._TYPE_SELECTED_START_INTERVAL]: null,
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
 
             [localConstants._TYPE_GROUP_HEATMAP]: {
 
-                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
-                [localConstants._TYPE_SELECTED_FIELD]: null,
                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: null,
             },
 
@@ -152,20 +156,43 @@ class StaticAnalysisContainer extends Component {
         } = this.state[localConstants._TYPE_GROUP_DATASET];
 
         const {
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
+            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
+        } = this.state[localConstants._TYPE_GROUP_DATASET][localConstants._TYPE_HEATMAP_BOUNDS];
+
+        const {
+            [localConstants._TYPE_FIRST_INTERVAL]: prevFirstInterval,
+            [localConstants._TYPE_LAST_INTERVAL]: prevLastInterval,
+        } = prevState[localConstants._TYPE_GROUP_DATASET][localConstants._TYPE_HEATMAP_BOUNDS];
+
+        const {
             [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
             [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.state[localConstants._TYPE_GROUP_CONFIGURATION];
 
         const {
-            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
-            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom,
         } = this.state[localConstants._TYPE_GROUP_HEATMAP];
 
+        //init start/end intervals when first/last intervals of the heatmap/dataset changes
+        //e.g. when first/last intervals are fetched (as heatmap's bound) from the api
+        if (firstInterval !== prevFirstInterval || lastInterval !== prevLastInterval) {
+            this.setState({
+                [localConstants._TYPE_GROUP_CONFIGURATION]: {
+                    ...this.state[localConstants._TYPE_GROUP_CONFIGURATION],
+                    [localConstants._TYPE_SELECTED_START_INTERVAL]: firstInterval,
+                    [localConstants._TYPE_SELECTED_END_INTERVAL]: lastInterval,
+                }
+            })
+        }
+
         //guard
-        if (!selectedDatabase || !selectedPolicy || !selectedStartInterval || !selectedEndInterval) return;
+        if (!selectedDatabase || !selectedPolicy || !selectedHeatMapType || !selectedField
+            || !selectedStartInterval || !selectedEndInterval) return;
 
         //configuration (from configurator) is changed
         if (JSON.stringify(this.state[localConstants._TYPE_GROUP_CONFIGURATION]) !==
@@ -181,13 +208,6 @@ class StaticAnalysisContainer extends Component {
                 }
             });
 
-            //fetch heatmap types
-            this.fetchData({
-                groupType: localConstants._TYPE_GROUP_DATASET,
-                type: localConstants._TYPE_HEATMAP_TYPES,
-                args: {}
-            });
-
             //fetch heatmap zooms
             this.fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
@@ -200,18 +220,15 @@ class StaticAnalysisContainer extends Component {
         }
 
         //guard
-        if (!heatMapTypes || !heatMapZooms || !fields ||
-            heatMapTypes.length === 0 || heatMapZooms.length === 0 || fields.length === 0) return;
+        if (!heatMapZooms || heatMapZooms.length === 0) return;
 
         //init heatmap configuration
-        if (!selectedHeatMapType && !selectedHeatMapZoom && !selectedField) {
+        if (!selectedHeatMapZoom) {
 
             this.setState({
                 [localConstants._TYPE_GROUP_HEATMAP]: {
                     ...this.state[localConstants._TYPE_GROUP_HEATMAP],
-                    [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapTypes[0],
                     [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZooms[0],
-                    [localConstants._TYPE_SELECTED_FIELD]: fields[0],
                 }
             });
         }

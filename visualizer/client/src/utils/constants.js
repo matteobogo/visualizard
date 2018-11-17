@@ -1,13 +1,16 @@
 export const _TYPE_DATABASES                    = 'databases';
 export const _TYPE_POLICIES                     = 'policies';
 export const _TYPE_FIELDS                       = 'fields';
-export const _TYPE_HEATMAP_TYPES                = 'heatmapTypes';
+export const _TYPE_HEATMAP_TYPES                = 'heatMapTypes';
+export const _TYPE_HEATMAP_BOUNDS               = 'heatMapBounds';
 export const _TYPE_FIRST_INTERVAL               = 'firstInterval';
 export const _TYPE_LAST_INTERVAL                = 'lastInterval';
 export const _TYPE_COMPUTATION_OPTIONS          = 'computationOptions';
 export const _TYPE_STATISTICS                   = 'statistics';
 export const _TYPE_HEATMAP_ZOOMS                = 'heatMapZooms';
-export const _TYPE_N_MEASUREMENTS               = 'nMeasurements';
+export const _TYPE_TIMESERIES_START_INDEX       = 'timeSeriesStartIndex';
+export const _TYPE_TIMESERIES_END_INDEX         = 'timeSeriesEndIndex';
+export const _TYPE_PERIODS                      = 'periods';
 
 export const _TYPE_TIMESERIE_DATA               = 'timeSerieData';
 export const _TYPE_DATASET_ANALYSIS             = 'datasetAnalysis';
@@ -15,6 +18,7 @@ export const _TYPE_PSPT_ANALYSIS                = 'psptAnalysis';
 
 export const _TYPE_SELECTED_DATABASE            = 'database';
 export const _TYPE_SELECTED_POLICY              = 'policy';
+export const _TYPE_SELECTED_PERIOD              = 'period';
 export const _TYPE_SELECTED_START_INTERVAL      = 'startInterval';
 export const _TYPE_SELECTED_END_INTERVAL        = 'endInterval';
 

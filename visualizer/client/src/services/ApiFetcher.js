@@ -2,20 +2,24 @@ import * as config from '../config/config';
 import * as localConstants from '../utils/constants';
 
 const _URL_DATABASES         = '/influx/databases';
-const _URL_POLICIES          = (database) => `/influx/policies?dbname=${database}`;
-const _URL_FIELDS            = (database) => `/influx/fields?dbname=${database}`;
+const _URL_POLICIES          = (req) => `/influx/policies?dbname=${req[localConstants._TYPE_SELECTED_DATABASE]}`;
+const _URL_FIELDS            = (req) => `/influx/fields?dbname=${req[localConstants._TYPE_SELECTED_DATABASE]}`;
 const _URL_PERIODS           = '/influx/periods';
-const _URL_FIRST_INTERVAL    = (database, policy, field) =>
-    `/influx/firstInterval?dbname=${database}&policy=${policy}&field=${field}`;
-const _URL_LAST_INTERVAL     = (database, policy, field) =>
-    `/influx/lastInterval?dbname=${database}&policy=${policy}&field=${field}`;
 
 const _URL_STATISTICS = `/analysis/statistics`;
 const _URL_HEATMAP_TYPES = `/heatmaps/types`;
-const _URL_HEATMAP_ZOOMS = (database, policy) =>
-    `/heatmaps/zooms?database=${database}&policy=${policy}`;
 
-const _URL_N_MEASUREMENTS = (database) => `/influx/measurements/number?dbname=${database}`;
+const _URL_HEATMAP_ZOOMS = (req) =>
+    `/heatmaps/zooms?database=${req[localConstants._TYPE_SELECTED_DATABASE]}` +
+    `&policy=${req[localConstants._TYPE_SELECTED_POLICY]}`;
+
+const _URL_HEATMAP_BOUNDS = (req) =>
+    `/heatmaps/bounds?` +
+    `database=${req[localConstants._TYPE_SELECTED_DATABASE]}&` +
+    `policy=${req[localConstants._TYPE_SELECTED_POLICY]}&` +
+    `field=${req[localConstants._TYPE_SELECTED_FIELD]}&` +
+    `heatMapType=${req[localConstants._TYPE_SELECTED_HEATMAP_TYPE]}&` +
+    `period=${req[localConstants._TYPE_SELECTED_PERIOD]}`;
 
 const _URL_TIMESERIE_DATA = (req) =>
     `/timeseries/` +
@@ -49,7 +53,7 @@ const fetchResources = (resource_uri) => {
         });
 };
 
-export const fetchData = ({itemType, args = {}}) => {
+export const fetchData = ({itemType, args = {}, format = {}}) => {
 
     let _URL;
     switch (itemType) {
@@ -59,31 +63,23 @@ export const fetchData = ({itemType, args = {}}) => {
             break;
 
         case localConstants._TYPE_POLICIES:
-            _URL = _URL_POLICIES(args.database);
+            _URL = _URL_POLICIES(args);
             break;
 
         case localConstants._TYPE_FIELDS:
-            _URL = _URL_FIELDS(args.database);
-            break;
-
-        case localConstants._TYPE_FIRST_INTERVAL:
-            _URL = _URL_FIRST_INTERVAL(args.database, args.policy, args.field);
-            break;
-
-        case localConstants._TYPE_LAST_INTERVAL:
-            _URL = _URL_LAST_INTERVAL(args.database, args.policy, args.field);
+            _URL = _URL_FIELDS(args);
             break;
 
         case localConstants._TYPE_HEATMAP_TYPES:
             _URL = _URL_HEATMAP_TYPES;
             break;
 
-        case localConstants._TYPE_HEATMAP_ZOOMS:
-            _URL = _URL_HEATMAP_ZOOMS(args.database, args.policy);
+        case localConstants._TYPE_HEATMAP_BOUNDS:
+            _URL = _URL_HEATMAP_BOUNDS(args);
             break;
 
-        case localConstants._TYPE_N_MEASUREMENTS:
-            _URL = _URL_N_MEASUREMENTS(args.database);
+        case localConstants._TYPE_HEATMAP_ZOOMS:
+            _URL = _URL_HEATMAP_ZOOMS(args);
             break;
 
         case localConstants._TYPE_STATISTICS:

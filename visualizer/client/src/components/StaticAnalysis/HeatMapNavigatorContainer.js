@@ -207,7 +207,7 @@ export default class HeatMapNavigatorContainer extends Component {
         const { onError } = this.props;
 
         const {
-            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
+            [localConstants._TYPE_TIMESERIES_END_INDEX]: nMeasurements,
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
             [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
         } = this.props.dataset;
@@ -301,7 +301,7 @@ export default class HeatMapNavigatorContainer extends Component {
     computeHeatMapTiles({ baseURI, zoom, isUpdate }) {
 
         const {
-            [localConstants._TYPE_N_MEASUREMENTS]: nMeasurements,
+            [localConstants._TYPE_TIMESERIES_END_INDEX]: nMeasurements,
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
         } = this.props.dataset;
 
@@ -726,30 +726,6 @@ export default class HeatMapNavigatorContainer extends Component {
                         <div className="main-container">
                             <div className="heatmap-menu-container">
                                 <Form>
-                                    <Col xs={12} sm={6} md={3}>
-                                        <DropdownClassic
-                                            label="Heat Map Type"
-                                            id="heatmap-types-dropdown"
-                                            placeholder="select heatmap type.."
-                                            loading={isLoading}
-                                            data={heatMapTypes}
-                                            value={heatMapType}
-                                            type={localConstants._TYPE_SELECTED_HEATMAP_TYPE}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={false}/>
-                                    </Col>
-                                    <Col xs={12} sm={6} md={3}>
-                                        <DropdownClassic
-                                            label="Field"
-                                            id="fields-dropdown"
-                                            placeholder="select field.."
-                                            loading={isLoading}
-                                            data={fields}
-                                            value={field}
-                                            type={localConstants._TYPE_SELECTED_FIELD}
-                                            onChange={this.handleDropdownSelection}
-                                            disabled={false}/>
-                                    </Col>
                                     <Col xs={12} sm={9} md={6}>
                                         <HeatMapSelectionBox
                                             label="Selection"
