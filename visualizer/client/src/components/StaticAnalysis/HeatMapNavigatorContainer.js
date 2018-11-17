@@ -3,7 +3,7 @@ import { config, TILES_URL } from '../../config/config';
 
 import * as localConstants from '../../utils/constants';
 
-import { Panel, Row, Col, Form } from 'react-bootstrap';
+import { Panel, Col, Form } from 'react-bootstrap';
 import 'react-widgets/dist/css/react-widgets.css';
 
 import { X } from 'react-feather';
@@ -12,7 +12,6 @@ import './HeatMapNavigatorContainer.css';
 
 import { TimeLine } from './TimeLine';
 
-import { DropdownClassic } from '../common/Dropdown';
 import { HeatMapSelectionBox } from './HeatMapSelectionBox';
 
 import ArrowUpSvg from '../../../public/images/arrow-up.svg';
@@ -21,9 +20,6 @@ import ArrowDownSvg from '../../../public/images/arrow-down.svg';
 import ArrowLeftSvg from '../../../public/images/arrow-left.svg';
 import Tile from "./Tile.js";
 
-//estimation of pixels gap for the left/right panel's border
-//we need to consider the gap during computation of the number of tiles that can be visualized
-const _PANEL_GAP = 150;
 const _FIXED_TILES_HEIGHT = 2;
 
 const _MENU_NAVIGATION = {
@@ -149,20 +145,23 @@ export default class HeatMapNavigatorContainer extends Component {
 
                 nHorizontalTiles: 0,
 
-                tileIdStartInterval: null,      //ids
+                //intervals ids
+                tileIdStartInterval: null,
                 tileIdCurrentInterval: null,
                 tileIdEndInterval: null,
 
+                //timeseries indexes ids
+                tileIdStartMachineIndex: null,
+                tileIdCurrentMachineIndex: null,
+                tileIdEndMachineIndex: null,
+
+                //timeline
                 timelineStartTimestamp: null,
                 timelineEndTimestamp: null,
                 timelineStartTimeserieIndex: null,
                 timelineEndTimeserieIndex: null,
 
                 timelineData: null,
-
-                tileIdStartMachineIndex: null,
-                tileIdCurrentMachineIndex: null,
-                tileIdEndMachineIndex: null,
 
                 tileRowsURLs: [],
             },
@@ -204,42 +203,21 @@ export default class HeatMapNavigatorContainer extends Component {
 
     componentDidUpdate(prevProps, prevState, prevContext) {
 
-        const { onError } = this.props;
-
-        const {
-            [localConstants._TYPE_TIMESERIES_END_INDEX]: nMeasurements,
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-        } = this.props.dataset;
-
-        const {
-            [localConstants._TYPE_FIRST_INTERVAL]: prevFirstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: prevLastInterval,
-        } = prevProps.dataset;
-
         const {
             [localConstants._TYPE_SELECTED_DATABASE]: database,
             [localConstants._TYPE_SELECTED_POLICY]: policy,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: field,
+            [localConstants._TYPE_SELECTED_PERIOD]: period,
         } = this.props.configuration;
 
         const {
-            [localConstants._TYPE_SELECTED_DATABASE]: prevDatabase,
-            [localConstants._TYPE_SELECTED_POLICY]: prevPolicy,
-            [localConstants._TYPE_SELECTED_START_INTERVAL]: prevStartInterval,
-            [localConstants._TYPE_SELECTED_END_INTERVAL]: prevEndInterval,
-        } = prevProps.configuration;
-
-        const {
-            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
-            [localConstants._TYPE_SELECTED_FIELD]: field,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: heatMapZoom,
         } = this.props.heatMapConfiguration;
 
         const {
-            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: prevHeatMapType,
-            [localConstants._TYPE_SELECTED_FIELD]: prevField,
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: prevHeatMapZoom,
         } = prevProps.heatMapConfiguration;
 
@@ -256,23 +234,15 @@ export default class HeatMapNavigatorContainer extends Component {
             tileIdCurrentMachineIndex: prevTileIdCurrentMachineIndex
         } = prevState.navigation;
 
-        //the configuration fetched from props is changed or a different heatmap configuration is triggered
-        if (database && policy && startInterval && endInterval &&
-            heatMapType && field && nMeasurements > 0 && firstInterval && lastInterval &&
-            heatMapZoom !== null && heatMapZoom !== undefined &&
-            (
-                database !== prevDatabase                               //configuration change
-                || policy !== prevPolicy
-                || firstInterval !== prevFirstInterval
-                || lastInterval !== prevLastInterval
-                || startInterval !== prevStartInterval
-                || endInterval !== prevEndInterval
-                || heatMapType !== prevHeatMapType                      //dropdown selection change
-                || field !== prevField
-            )) {
+        //guard
+        if (!Object.values(this.props.configuration).every((v) => v) || !heatMapZoom) return;
 
-            this.computeHeatMapTiles({      //TODO change baseURI with selected field (when the tile generation is ok)
-                baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
+        //the configuration fetched from props is changed or a different heatmap configuration is triggered
+        if (JSON.stringify(this.props.configuration) !== JSON.stringify(prevProps.configuration) ||
+            heatMapZoom !== prevHeatMapZoom) {
+
+            this.computeHeatMapTiles({
+                baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}`,
                 zoom: heatMapZoom,
                 isUpdate: false,
             });
@@ -301,9 +271,11 @@ export default class HeatMapNavigatorContainer extends Component {
     computeHeatMapTiles({ baseURI, zoom, isUpdate }) {
 
         const {
-            [localConstants._TYPE_TIMESERIES_END_INDEX]: nMeasurements,
             [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-        } = this.props.dataset;
+            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
+            [localConstants._TYPE_TIMESERIES_START_INDEX]: startIndex,
+            [localConstants._TYPE_TIMESERIES_END_INDEX]: endIndex
+        } = this.props.dataset.heatMapBounds;
 
         const {
             [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
@@ -327,7 +299,7 @@ export default class HeatMapNavigatorContainer extends Component {
         const xIDend = convertTimestampToID(firstInterval, endInterval, 300, zoom);
 
         const yIDstart = 0;
-        const yIDend = convertMeasurementIdxToID(nMeasurements, zoom);
+        const yIDend = convertMeasurementIdxToID(endIndex, zoom);
 
         //current view (top-left corner)
         let xIDcurrent = tileIdCurrentInterval;
@@ -510,14 +482,19 @@ export default class HeatMapNavigatorContainer extends Component {
         type,
     }) {
 
-        const { setItem } = this.props;
-        const { startInterval } = this.props.configuration;
-        const { [localConstants._TYPE_HEATMAP_ZOOMS]: zooms } = this.props.dataset;
-        const { handleTimeSerieSelection } = this.props;
+        const { setItem, handleTimeSerieSelection  } = this.props;
 
         const {
+            [localConstants._TYPE_HEATMAP_ZOOMS]: zooms
+        } = this.props.dataset;
+
+        const {
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+        } = this.props.configuration;
+
+        const {
             [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedZoom,
         } = this.props.heatMapConfiguration;
 
@@ -605,14 +582,26 @@ export default class HeatMapNavigatorContainer extends Component {
     renderHighlights() {
 
         const { timeSeriesMap } = this.props;
-        const { [localConstants._TYPE_FIRST_INTERVAL]: firstInterval } = this.props.dataset;
-        const { [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval } = this.props.configuration;
-        const { [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom } = this.props.heatMapConfiguration;
 
-        const { nHorizontalTiles, tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
+        const {
+            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval
+        } = this.props.dataset.heatMapBounds;
+
+        const {
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval
+        } = this.props.configuration;
+
+        const {
+            [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom
+        } = this.props.heatMapConfiguration;
+
+        const {
+            nHorizontalTiles,
+            tileIdCurrentInterval,
+            tileIdCurrentMachineIndex
+        } = this.state.navigation;
 
         let paths = [];
-
         for (let [key, value] of timeSeriesMap) {
 
             const color = value.color;
@@ -688,18 +677,11 @@ export default class HeatMapNavigatorContainer extends Component {
 
     render() {
 
+        console.log(this.state)
+        console.log(this.props)
+
         const { disabled, timeSeriesMap } = this.props;
         const { isLoading } = this.state;
-
-        const {
-            [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
-            [localConstants._TYPE_FIELDS]: fields,
-        } = this.props.dataset;
-
-        const {
-            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
-            [localConstants._TYPE_SELECTED_FIELD]: field,
-        } = this.props.heatMapConfiguration;
 
         const {
             nHorizontalTiles,
@@ -726,7 +708,7 @@ export default class HeatMapNavigatorContainer extends Component {
                         <div className="main-container">
                             <div className="heatmap-menu-container">
                                 <Form>
-                                    <Col xs={12} sm={9} md={6}>
+                                    <Col xs={12}>
                                         <HeatMapSelectionBox
                                             label="Selection"
                                             timestamp={timestamp}
