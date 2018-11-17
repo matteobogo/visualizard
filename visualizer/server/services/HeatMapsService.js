@@ -628,15 +628,19 @@ const heatMapTilesBuilder = async (
 
     //save configurations to db
     const update = {
-        database: request.database,         //fixed
-        policy: request.policy,             //fixed
-        field: request.fields[0],           //fixed
-        heatMapType: request.heatMapType,   //fixed
+        database: request.database,             //fixed
+        policy: request.policy,                 //fixed
+        field: request.fields[0],               //fixed
+        heatMapType: request.heatMapType,       //fixed
+        startInterval: request.startInterval,   //fixed
+        endInterval: request.endInterval,       //fixed
+        period: request.period,                 //fixed
         heatMapZooms: zoomOutLevels.sort((a, b) => a - b).concat(zoomInLevels), //updated
     };
 
     //remove the updated params for the query
-    const query = (({database,policy,field,heatMapType}) => ({database,policy,field,heatMapType}))(update);
+    const query = (({database,policy,field,heatMapType,startInterval,endInterval,period}) =>
+        ({database,policy,field,heatMapType,startInterval,endInterval,period}))(update);
     const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 
     ConfigurationsModel.findOneAndUpdate(query, update, options, (err, doc) => {
@@ -1149,6 +1153,7 @@ const getDataByMachineIdxByHeatMapType = async (
 
         return data;
     });
+
     if (!points || points.length === 0) throw Error(`no points available for ${indexedTimeSerie}`);
 
     return {

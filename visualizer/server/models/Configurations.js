@@ -9,7 +9,7 @@ const configurationsSchema = new moongose.Schema({
         type: String
     },
     field: {
-        type: String,
+        type: String
     },
     heatMapType: {
         type: String
@@ -17,6 +17,15 @@ const configurationsSchema = new moongose.Schema({
     heatMapZooms: [{
         type: String
     }],
+    startInterval: {
+        type: String
+    },
+    endInterval: {
+        type: String
+    },
+    period: {
+        type: Number
+    },
     createdAt: {
         type: Date,
         default: Date.now
