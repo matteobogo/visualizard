@@ -19,10 +19,10 @@ const configurationsSchema = new moongose.Schema({
     }],
     bounds: {
         intervals: {
-            startInterval: {
+            firstInterval: {
                 type: String,
             },
-            endInterval: {
+            lastInterval: {
                 type: String,
             },
             period: {
