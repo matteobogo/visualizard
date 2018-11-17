@@ -7,6 +7,17 @@ const mime = {
     json: 'application/json',
 };
 
+const getHeatMapBounds = async (req, res) => {
+
+    let bounds, err;
+    [err, bounds] = await to(heatMapsService.getHeatMapBounds(req.query));
+
+    if (err) return ReE(res, `heatmap's bounds are not available`);
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: bounds}, 200);
+};
+
 const getHeatMapTypes = async (req, res) => {
 
     const heatMapTypes = heatMapsService.getHeatMapTypes();
@@ -81,28 +92,6 @@ const stopHeatMapComputation = async (req, res) => {
     return ReS(res, { payload: { status: heatMapComputationStatus, percentage: heatMapComputationPercentage } }, 200);
 };
 
-const getHeatMap = async (req, res) => {
-
-    let img_type = req.params.img_type
-    ,   heatmap_type = req.params.heatmap_type
-    ,   field = req.params.field;
-
-    switch (img_type) {
-
-        case 'png':
-            //TODO
-            break;
-
-        case 'jpeg':
-            //TODO
-            break;
-
-        default:
-            res.setHeader('Content-Type', mime.json);
-            return ReE(res, `${img_type} media type not supported`, 400);
-    }
-};
-
 const storeHeatMap = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/json');
@@ -153,6 +142,7 @@ const getDataByMachineIdxByHeatMapType = async (req, res) => {
 };
 
 module.exports = {
+    getHeatMapBounds: getHeatMapBounds,
     getHeatMapTypes: getHeatMapTypes,
     getZoomLevels: getZoomLevels,
     getPalettes: getPalettes,
@@ -160,7 +150,6 @@ module.exports = {
     getHeatMapZscore: getHeatMapZscore,
     getHeatMapComputationStatus: getHeatMapComputationStatus,
     stopHeatMapComputation: stopHeatMapComputation,
-    getHeatMap: getHeatMap,
     storeHeatMap: storeHeatMap,
     getDataByMachineIdxByHeatMapType: getDataByMachineIdxByHeatMapType,
 };

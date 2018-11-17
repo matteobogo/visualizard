@@ -17,6 +17,27 @@ const configurationsSchema = new moongose.Schema({
     heatMapZooms: [{
         type: String
     }],
+    bounds: {
+        intervals: {
+            startInterval: {
+                type: String,
+            },
+            endInterval: {
+                type: String,
+            },
+            period: {
+                type: Number,
+            }
+        },
+        timeSeriesIndexes: {
+            startIndex: {
+                type: Number,
+            },
+            endIndex: {
+                type: Number,
+            }
+        }
+    },
     startInterval: {
         type: String
     },

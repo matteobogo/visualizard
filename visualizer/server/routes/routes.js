@@ -35,6 +35,7 @@ router.post('/analysis', AnalysisController.startDatasetAnalysis);
 router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
 router.get('/analysis', AnalysisController.getAnalysis);
 
+router.get('/heatmaps/bounds', HeatMapController.getHeatMapBounds);
 router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
 router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
 router.get('/heatmaps/palettes', HeatMapController.getPalettes);
@@ -43,19 +44,8 @@ router.get('/heatmaps/zscores', HeatMapController.getHeatMapZscore);
 router.get('/heatmaps/status', HeatMapController.getHeatMapComputationStatus);
 router.post('/heatmaps/stop', HeatMapController.stopHeatMapComputation);
 
-router.get('/heatmaps/:heatmap_type/:field/:img_type', HeatMapController.getHeatMap);
-
 router.get('/timeseries/:heatMapType/:timeSerieIndex', HeatMapController.getDataByMachineIdxByHeatMapType);
 
 router.post('/admin/store-heatmap', HeatMapController.storeHeatMap);
-
-
-// api_v1.route('/').get(function (req, res) {
-//     res.render('index');
-// });
-
-
-
-
 
 module.exports = router;
