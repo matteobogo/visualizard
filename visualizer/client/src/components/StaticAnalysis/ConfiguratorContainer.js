@@ -24,8 +24,6 @@ export default class ConfiguratorContainer extends Component {
             lastSelectedPolicy: null,
             lastSelectedHeatMapType: null,
             lastSelectedField: null,
-            lastSelectedStartInterval: null,
-            lastSelectedEndInterval: null,
 
             isLoading: false,
         };
@@ -159,9 +157,6 @@ export default class ConfiguratorContainer extends Component {
     }
 
     render() {
-
-        console.log(this.state)
-        console.log(this.props)
 
         const { isLoading } = this.state;
 
