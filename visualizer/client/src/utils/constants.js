@@ -2,14 +2,22 @@ export const _TYPE_DATABASES                    = 'databases';
 export const _TYPE_POLICIES                     = 'policies';
 export const _TYPE_FIELDS                       = 'fields';
 export const _TYPE_HEATMAP_TYPES                = 'heatMapTypes';
+
+//HEATMAP BOUNDS
 export const _TYPE_HEATMAP_BOUNDS               = 'heatMapBounds';
+
+//HEATMAP BOUNDS - TIMESTAMP + TIMESERIES INDEXES BOUNDS
 export const _TYPE_FIRST_INTERVAL               = 'firstInterval';
 export const _TYPE_LAST_INTERVAL                = 'lastInterval';
+export const _TYPE_TIMESERIES_START_INDEX       = 'timeSeriesStartIndex';
+export const _TYPE_TIMESERIES_END_INDEX         = 'timeSeriesEndIndex';
+
+//HEATMAP BOUNDS - TILES IDS BOUNDS PER ZOOM
+export const _TYPE_TILE_IDS_BOUNDS_PER_ZOOM     = 'tileIdsBoundsPerZoom';
+
 export const _TYPE_COMPUTATION_OPTIONS          = 'computationOptions';
 export const _TYPE_STATISTICS                   = 'statistics';
 export const _TYPE_HEATMAP_ZOOMS                = 'heatMapZooms';
-export const _TYPE_TIMESERIES_START_INDEX       = 'timeSeriesStartIndex';
-export const _TYPE_TIMESERIES_END_INDEX         = 'timeSeriesEndIndex';
 export const _TYPE_PERIODS                      = 'periods';
 
 export const _TYPE_TIMESERIE_DATA               = 'timeSerieData';

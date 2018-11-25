@@ -48,14 +48,9 @@
     background-color: #EAEAEA;
 }
 
-img {
+.menu-area-clickable img {
     width: 15px;
     height: 15px;
-}
-
-line {
-    stroke: black;
-    stroke-width: 1px;
 }
 
 /* Timeline Horizontal */
@@ -67,6 +62,11 @@ line {
     left: 0;
     pointer-events: none;  /* the layer behind the overlay is clickable */
     opacity: 0.5;
+}
+
+.timeline-overlay line {
+    stroke: black;
+    stroke-width: 1px;
 }
 
 /* Heatmap Grid */

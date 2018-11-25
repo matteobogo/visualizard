@@ -50,6 +50,7 @@ class StaticAnalysisContainer extends Component {
                     [localConstants._TYPE_LAST_INTERVAL]: null,
                     [localConstants._TYPE_TIMESERIES_START_INDEX]: null,
                     [localConstants._TYPE_TIMESERIES_END_INDEX]: null,
+                    [localConstants._TYPE_TILE_IDS_BOUNDS_PER_ZOOM]: null,
                 },
                 [localConstants._TYPE_HEATMAP_ZOOMS]: [],
             },

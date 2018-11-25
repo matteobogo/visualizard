@@ -7,6 +7,7 @@ export const config = {
     API_PORT:                   process.env.API_PORT                    || 3000,
     API_ENDPOINT:               process.env.API_ENDPOINT                || "/api",
     IMAGE_ENDPOINT:             process.env.IMAGE_ENDPOINT              || "/images/TILES",
+    FAKE_TILE_ENDPOINT:         process.env.FAKE_TILE_ENDPOINT          || "/images/faketile.png",
 
     WS_ENABLE_RECONNECTION:     process.env.WS_ENABLE_RECONNECTION      || true,
     WS_RECONNECTION_ATTEMPTS:   process.env.WS_CONNECTION_ATTEMPTS      || 10,
@@ -23,3 +24,4 @@ export const config = {
 
 export const API_URL = config.API_PROTOCOL + '://' + config.API_HOSTNAME + ':' + config.API_PORT + config.API_ENDPOINT;
 export const TILES_URL = `${config.API_PROTOCOL}://${config.API_HOSTNAME}:${config.API_PORT }${config.IMAGE_ENDPOINT}`;
+export const FAKE_TILE_URL = `${config.API_PROTOCOL}://${config.API_HOSTNAME}:${config.API_PORT }${config.FAKE_TILE_ENDPOINT}`;
