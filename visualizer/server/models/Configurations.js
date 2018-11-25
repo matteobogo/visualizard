@@ -36,7 +36,14 @@ const configurationsSchema = new moongose.Schema({
             endIndex: {
                 type: Number,
             }
-        }
+        },
+        tileIdsBoundsPerZoom: [{
+            zoom: { type: String },
+            xIDStart: { type: Number },
+            xIDEnd: { type: Number },
+            yIDStart: { type: Number },
+            yIDEnd: { type: Number },
+        }],
     },
     startInterval: {
         type: String
