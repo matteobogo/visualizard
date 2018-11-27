@@ -470,7 +470,7 @@ const getAnalysisCached = async (request) => {
     request.type = request.type || x`Analysis Type is missing`;
     request.visualizationFlag = request.visualizationFlag || x`Client flag is missing`;   //better visualization for clients
 
-    logger.log('debug', request);
+    //logger.log('debug', request);
 
     //validate request
     //TODO

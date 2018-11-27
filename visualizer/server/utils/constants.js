@@ -8,6 +8,7 @@ const constants = {
 
     PATH_HEATMAPS_IMAGES: 'public/images',
     PATH_HEATMAPS_TILES: 'public/images/TILES',
+    FILENAME_FAKE_TILE: 'faketile',
 
     PALETTES: {
         GRAY: {

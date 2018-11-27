@@ -102,6 +102,11 @@ const getHeatMapTypes = () => {
     return Object.keys(constants.HEATMAPS.TYPES);
 };
 
+const getImageTypes = () => {
+
+    return Object.values(constants.IMAGE_EXTENSIONS);
+};
+
 const getZoomLevels = ({database, policy}) => {   //TODO use also heatMapType and field for granularity?
 
     const query = {database: database, policy: policy};
@@ -353,13 +358,32 @@ const tileStorage = async (
     });
 };
 
+const fakeTileGeneration = async ({imageType}) => {
+
+    const filename = `${constants.FILENAME_FAKE_TILE}.${imageType}`;
+
+    const pathFakeTile =
+        pathjs.join(
+            process.cwd(),
+            constants.PATH_HEATMAPS_IMAGES,
+        );
+
+    const canvas = Canvas.createCanvas(config.HEATMAPS.TILE_SIZE, config.HEATMAPS.TILE_SIZE);
+
+    return canvasToImage({
+        canvas: canvas,
+        filename: filename,
+        imageType: imageType,
+        path: pathFakeTile,
+    });
+};
+
 const heatMapTilesBuilder = async (
     {
         request,
         measurements,       //from measurement analysis, sorted, only the names
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
-        imageType,
         tileSize,
         zoomInLevels
     }) => {
@@ -385,14 +409,14 @@ const heatMapTilesBuilder = async (
 
     const minimumZoomLevel = intervals / minZoomOutWidth;
 
-    logger.log('info',`Computed the minimum out zoom level: [${minimumZoomLevel}] according to TILE_SIZE: ` +
+    logger.log('info',`=> Computed the minimum out zoom level: [${minimumZoomLevel}] according to TILE_SIZE: ` +
         `[${config.HEATMAPS.TILE_SIZE}] and NR_TILES_WIDTH: [${config.HEATMAPS.MIN_ZOOM_OUT_NR_TILES}]`);
 
     //computing the range of out zoom levels, starting from the previously computed minimum until the zero
     let powerOfTwoGen = gf.generatePowerOfTwoRangeBackward(minimumZoomLevel);
     const zoomOutLevels = [...powerOfTwoGen].map(v => -Math.abs(v));
 
-    logger.log('info',`Computed the out zoom levels range: ${zoomOutLevels}`);
+    logger.log('info',`=> Computed the out zoom levels range: ${zoomOutLevels}`);
 
     //seconds in a time interval (i.e. the width of the tile)
     const tileTimeRangeWidth = (request.period * tileSize) - request.period;
@@ -412,7 +436,24 @@ const heatMapTilesBuilder = async (
             request.fields[0],
         );
 
-    // logger.log('info', `Start generating tiles for the zoom level [0]`);
+    //generating the "faketile" used by clients to mimic an empty tile (if not exist)
+    if (!fs.existsSync(
+        pathjs.join(
+            process.cwd(),
+            constants.PATH_HEATMAPS_IMAGES,
+            `${constants.FILENAME_FAKE_TILE}.${request.imageType}`
+        ))) {
+
+        logger.log('info', `Fake Tile not exists, generating it..`);
+        await fakeTileGeneration({imageType: request.imageType})
+            .catch(err => { throw Error(`failed during fake tike generation: ${err.message}`); });
+    }
+    else {
+        logger.log('info', `=> Fake tile already generated, skip it`);
+    }
+
+
+    // logger.log('info', `Start generating tiles for the zoom level [0]..`);
     //
     // for (let i = 0, xIDsrc = 0; i < intervals; i += tileSize, ++xIDsrc) {                 //xID is used for TMS x ID
     //
@@ -462,7 +503,7 @@ const heatMapTilesBuilder = async (
     //         //z is the zoom (0 => 256 pixels, default for tiles)
     //         //further info on TMS standard: https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification
     //
-    //         logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]`);
+    //         logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]..`);
     //
     //         //save the original tile (level 0)
     //         await tileStorage({
@@ -471,7 +512,7 @@ const heatMapTilesBuilder = async (
     //             zoom: 0,
     //             xID: xIDsrc,
     //             yID: yIDsrc,
-    //             imageType: imageType,
+    //             imageType: request.imageType,
     //         })
     //             .catch(err => {
     //                 throw Error(`Failed to store the original canvas: ${err}`);
@@ -488,7 +529,7 @@ const heatMapTilesBuilder = async (
     //             if (availableZooms.includes(zoom)) {
     //
     //                 logger.log('info', `Start Generating tiles with IN zoom: ${`@${zoom}x`} ` +
-    //                     `- original: [${xIDsrc},${yIDsrc}]`);
+    //                     `- original: [${xIDsrc},${yIDsrc}]..`);
     //
     //                 const subTileSize = tileSize / zoom;
     //
@@ -510,7 +551,7 @@ const heatMapTilesBuilder = async (
     //                             zoom: zoom,
     //                             xID: xID,
     //                             yID: yID,
-    //                             imageType: imageType
+    //                             imageType: request.imageType
     //                         })
     //                             .catch(err => logger.log('error', `Failed to store a zoomed [@${zoom}x] tile ` +
     //                                 `[${xID},${yID}]: ${err.message}`));
@@ -544,14 +585,14 @@ const heatMapTilesBuilder = async (
         const _ERR_NOT_GEN = `tiles of level [${previousZoomLevel}] has not been generated, tiles of level ` +
             `[${currentZoomLevel}] cannot be generated`;
 
-        logger.log('info', `Start generating tiles for the OUT zoom level: [${currentZoomLevel}]`);
+        logger.log('info', `Start generating tiles for the OUT zoom level: [${currentZoomLevel}]..`);
 
         //check if tiles of previous zoom level have been generated
         const zoomDirPath =
             pathjs.join(
                 pathTilesDirBase,
                 previousZoomLevel);    //previous zoom level
-        
+
         //check if folder containing tiles of the previous zoom level exists
         if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
 
@@ -621,7 +662,7 @@ const heatMapTilesBuilder = async (
 
                         const yDirPath = pathjs.join(xDirPath, (w+y).toString());
 
-                        await Canvas.loadImage(pathjs.join(yDirPath, `tile.${imageType}`))
+                        await Canvas.loadImage(pathjs.join(yDirPath, `tile.${request.imageType}`))
                             .then((image) => {
 
                                 ctx.drawImage(image, xStartCoord, yStartCoord);
@@ -646,11 +687,11 @@ const heatMapTilesBuilder = async (
                     zoom: currentZoomLevel,
                     xID: xID,
                     yID: yID,
-                    imageType: imageType,
+                    imageType: request.imageType,
                 })
                     .then(() => {
 
-                        logger.log('info', `Generated tile of OUT zoom level: [${currentZoomLevel}] with ID: ` +
+                        logger.log('info', `=> Generated tile of OUT zoom level: [${currentZoomLevel}] with ID: ` +
                             `[${xID},${yID}]`);
                     });
 
@@ -723,7 +764,7 @@ const heatMapTilesBuilder = async (
     await ConfigurationsModel.findOneAndUpdate(query, update, options)
         .exec()
         .then((doc) => {
-            logger.log('info', `Configuration of generated heatmap saved\n ${JSON.stringify(doc, null, 2)}`);
+            logger.log('info', `=> Configuration of generated heatmap stored`);
         })
         .catch((err) => {
             throw Error(`Failed to save heatmap configuration: ${err}`);
@@ -738,7 +779,6 @@ const drawHeatMap = async ({
     measurements,
     datasetMean,
     datasetStd,
-    imageType,
 
 }) => {
 
@@ -822,7 +862,7 @@ const drawHeatMap = async ({
     }
 
     logger.log('info',
-        `Canvas generation completed, now starts to convert the canvas in ${imageType}`);
+        `Canvas generation completed, now starts to convert the canvas in ${request.imageType}`);
 
     const formattedStartInterval = (new Date(request.startInterval)).toISOString();
     const formattedEndInterval = (new Date(request.endInterval)).toISOString();
@@ -858,7 +898,7 @@ const drawHeatMap = async ({
     return canvasToImage({
         canvas: canvas,
         filename: filename,
-        imageType: imageType,
+        imageType: request.imageType,
         path: path,
     })
         .catch(err => {
@@ -875,7 +915,7 @@ const heatMapMeasurementsSorting = async (
     }) => {
 
     logger.log('info', `Sorting Measurements Stats according to HeatMap Type [${heatMapType}] for the field ` +
-        `[${field} with Field Index: ${fieldIndex}]`);
+        `[${field} with Field Index: ${fieldIndex}]..`);
 
     //sorts the measurements analysis
     //the order of each measurement in the measurements analysis is used to build different heatmaps
@@ -910,7 +950,7 @@ const heatMapMeasurementsSorting = async (
             break;
     }
 
-    logger.log('info', `Sorted Measurements Analysis updated`);
+    logger.log('info', `=> Sorted Measurements Analysis done`);
 
     return measurementsAnalysisSorted;
 };
@@ -920,8 +960,6 @@ const getZoomInLevels = () => config.HEATMAPS.TILE_ZOOMS.split(',');
 const heatMapBuildAndStore = async (
     {
         request = gf.checkParam`HeatMap request`,
-        imageType = constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,       //png
-        mode = constants.HEATMAPS.MODES.TILES,                      //single | tiles
         tileSize = config.HEATMAPS.TILE_SIZE,                       //fetch default from config
         zoomInLevels = getZoomInLevels(),                           //fetch default from config
     }) => {
@@ -943,7 +981,7 @@ const heatMapBuildAndStore = async (
                 throw Error(`Validation fails: ${err.message}`);
             });
 
-        logger.log('info', `Fetching Dataset Analysis`);
+        logger.log('info', `Fetching Dataset Analysis..`);
 
         //dataset analysis
         const datasetAnalysis = await analysisService.getAnalysisCached({
@@ -958,8 +996,9 @@ const heatMapBuildAndStore = async (
                 logger.log('error', `Failing to fetch dataset analysis: ${err.message}`);
                 throw Error(`Fetching Dataset Analysis fails: ${err.message}`);
             });
+        logger.log('info',`=> Dataset Analysis fetched`);
 
-        logger.log('info', `Fetching Measurements Analysis`);
+        logger.log('info', `Fetching Measurements Analysis..`);
 
         //measurements analysis
         let measurementsAnalysis = await analysisService.getAnalysisCached({
@@ -974,8 +1013,9 @@ const heatMapBuildAndStore = async (
                 logger.log('error', `Failing to fetch measurements analysis: ${err.message}`);
                 throw Error(`Fetching Measurements Analysis fails: ${err.message}`);
             });
+        logger.log('info',`=> Measurements Analysis fetched`);
 
-        logger.log('info', `Sorting Measurement Analysis according to the type of HeatMap requested`);
+        logger.log('info', `Sorting Measurement Analysis according to HeatMap Type: ${request.heatMapType}..`);
 
         //return the field index (of the requested field) in the list of fields within the fieldsStats array
         const fieldIndex = datasetAnalysis.fieldsStats.map(entry => entry.field).indexOf(request.fields[0]);
@@ -987,17 +1027,18 @@ const heatMapBuildAndStore = async (
             field: request.fields[0],
             fieldIndex: fieldIndex,
         });
+        logger.log('info',`=> Sorting Measurements Analysis done`);
 
         //subset of measurements selected
         if (request.nMeasurements > 0) {
 
             logger.log('info',
-                `Selecting a subset of measurements: ${request.nMeasurements}/${measurementsAnalysis.length}`);
+                `Selecting a subset of measurements: ${request.nMeasurements}/${measurementsAnalysis.length}..`);
 
             measurementsAnalysisSorted = measurementsAnalysisSorted.slice(0, request.nMeasurements);
         }
 
-        logger.log('info', `Start HeatMap Construction [MODE: ${mode}]`);
+        logger.log('info', `Start HeatMap Construction [MODE: ${request.mode}]..`);
 
         //fetches only the names, sorted according to the HeatMap type requested
         const measurementsNames = measurementsAnalysisSorted.map(m => m.measurement);
@@ -1007,7 +1048,7 @@ const heatMapBuildAndStore = async (
         const datasetStd = datasetAnalysis.fieldsStats[fieldIndex].std;
 
         //construction
-        switch (mode) {
+        switch (request.mode) {
 
             case constants.HEATMAPS.MODES.SINGLE_IMAGE:
 
@@ -1017,7 +1058,6 @@ const heatMapBuildAndStore = async (
                         measurements: measurementsNames,
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
-                        imageType: imageType
                     })
                     .catch(error => {
                         logger.log('error', `Failing to build the HeatMap Image: ${error.message}`);
@@ -1034,7 +1074,6 @@ const heatMapBuildAndStore = async (
                         measurements: measurementsNames,
                         datasetMean: datasetMean,
                         datasetStd: datasetStd,
-                        imageType: imageType,
                         tileSize: tileSize,
                         zoomInLevels: zoomInLevels,
                     })
@@ -1044,12 +1083,12 @@ const heatMapBuildAndStore = async (
                     });
         }
 
-        logger.log('info', `BuildNStore process completed`);
+        logger.log('info', `=> Building and Storing HeatMap process completed`);
 
         //computes computation time
         let timeEnd = new Date();
         let timeDiff = (timeEnd.getTime() - currentStageTime.getTime());
-        logger.log('info', `HeatMap Image built and stored in ${((timeDiff / 1000) / 60).toFixed(2)} minutes`);
+        logger.log('info', `=> HeatMap Image built and stored in ${((timeDiff / 1000) / 60).toFixed(2)} minutes`);
 
         return 'OK';
 
@@ -1115,19 +1154,28 @@ const heatMapConfigurationValidation = async (request) => {
     request.startInterval = request.startInterval || gf.checkParam`Start Interval`;
     request.endInterval = request.endInterval || gf.checkParam`End Interval`;
     request.fields = request.fields || gf.checkParam`Fields`;
+    request.nMeasurements = request.nMeasurements || gf.checkParam`Number of Measurements`;
+    request.period = request.period || gf.checkParam`Period`;
+    request.palette = request.palette || gf.checkParam`Palette`;
+    request.heatMapType = request.heatMapType || gf.checkParam`HeatMap Type`;
+    request.imageType = request.imageType || gf.checkParam`Image Type`;
 
     //database + policy + fields validation
+    logger.log('info',
+        `Validating database: [${request.database}], policy: [${request.policy}], fields: [${request.fields}]..`);
+
     await validateDatabaseArgs(request.database, request.policy, request.fields) //field accepts array
     .catch(err => {
        logger.log('error', `Failed to validate Database/Policy/Fields: ${err.message}`);
        throw Error(`Validation of Database/Policy/Fields failed`);
     });
 
-    logger.log('info', `Database: [${request.database}] validated ` +
-                       `Policy: [${request.policy}] validated ` +
-                       `Fields: [${request.fields}] validated`);
+    logger.log('info', `=> Database: [${request.database}] validated ` +
+                       `=> Policy: [${request.policy}] validated ` +
+                       `=> Fields: [${request.fields}] validated`);
 
     //intervals validation
+    logger.log('info', `Validating intervals: [${request.startInterval} - ${request.endInterval}]..`);
     let startInterval, endInterval;
     try {
 
@@ -1146,6 +1194,40 @@ const heatMapConfigurationValidation = async (request) => {
         logger.log('error', `the start interval [${startInterval}] is greater than the end interval [${endInterval}`);
         throw Error('end interval must be greater or equal then start');
     }
+
+    logger.log('info',`=> Intervals: [${startInterval} - ${endInterval}] validated`);
+    
+    //check # of measurements
+    logger.log('info',`Validating number of measurements: [${request.nMeasurements}]..`);
+    const nMeasurements = await influx.fetchMeasurementsListFromHttpApi(request.database);
+    if (request.nMeasurements > nMeasurements || request.nMeasurements < 0) 
+        throw Error(`number of measurements must be 0 (all) or not exceed the max number of available measurements`);
+    logger.log('info',`=> Number of measurements: [${request.nMeasurements}] validated`);
+    
+    //check period
+    logger.log('info',`Validating period: [${request.period}]..`);
+    if (request.period !== String(config.TIMESERIES.period))
+        throw Error(`invalid period ${request.period}, period must be 300`);
+    //TODO list of available periods? (more than 1)
+    logger.log('info',`=> Period: [${request.period}] validated`);
+    
+    //check palette
+    logger.log('info',`Validating palette: [${request.palette}]..`);
+    if (!getPalettes().includes(request.palette))
+        throw Error(`invalid palette ${request.palette}, palettes available: ${getPalettes()}`);
+    logger.log('info',`=> Palette: [${request.palette}] validated`);
+
+    //check heatmap type
+    logger.log('info',`Validating HeatMap Type: [${request.heatMapType}]..`);
+    if (!getHeatMapTypes().includes(request.heatMapType))
+        throw Error(`invalid heatmap type ${request.heatMapType}, heatmap types available: ${getHeatMapTypes()}`);
+    logger.log('info',`=> HeatMap Type: [${request.heatMapType}] validated`);
+
+    //check image types
+    logger.log('info', `Validating image type: [${request.imageType}]..`);
+    if (!getImageTypes().includes(request.imageType))
+        throw Error(`invalid image type ${request.imageType}, image types available: ${getImageTypes()}`);
+    logger.log('info', `=> Image type: [${request.imageType}] validated`);
 
     return true;
 };

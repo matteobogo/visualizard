@@ -175,15 +175,11 @@ describe('Dataset Analysis Service', function() {
                  period: 300,
                  heatMapType: 'SORT_BY_MACHINE',
                  palette: 'GRAY',
+                 imageType: constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
+                 mode: constants.HEATMAPS.MODES.TILES,
              };
 
-             heatMapService.heatMapBuildAndStore(
-                 {
-                     request: request,
-                     imageType: constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
-                     mode: constants.HEATMAPS.MODES.TILES,
-                 }
-             )
+             heatMapService.heatMapBuildAndStore({request: request})
                  .then(res => console.log(res))
                  .catch(err => console.log(err));
         });
