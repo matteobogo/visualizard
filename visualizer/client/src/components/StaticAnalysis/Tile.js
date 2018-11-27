@@ -83,6 +83,7 @@ export default class Tile extends Component {
                 imgX: pos_x,
                 imgY: pos_y,
             },
+            zoomTick: (type === localConstants._TYPE_MOUSE_WHEEL) ? event.deltaY : null,
             type: type,
         });
     }
@@ -99,18 +100,7 @@ export default class Tile extends Component {
 
     onMouseWheel(event) {
 
-        const { tileID, handleTileMouseInteraction } = this.props;
-
-        handleTileMouseInteraction({
-            coordinates: {
-                tileX: tileID[0],
-                tileY: tileID[1],
-                imgX: 0,
-                imgY: 0,
-            },
-            zoomTick: event.deltaY,
-            type: localConstants._TYPE_MOUSE_WHEEL,
-        });
+        this.onMouseInteraction(event, localConstants._TYPE_MOUSE_WHEEL);
     }
 
     render() {
