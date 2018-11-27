@@ -85,6 +85,8 @@ const getHeatMapBounds = async (request) => {
     return ConfigurationsModel.findOne(request, 'bounds')
             .then((res) => {
 
+                if (!res) throw Error(`HeatMap Bounds not available`);
+
                 return {
                     firstInterval: res.bounds.intervals.firstInterval,
                     lastInterval: res.bounds.intervals.lastInterval,
