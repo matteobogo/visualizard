@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 
 import * as localConstants from '../../utils/constants';
+import * as globals from '../../utils/globals';
 
 import { DropdownClassic, DropdownDateTime } from '../common/Dropdown';
 
@@ -24,8 +25,6 @@ export default class ConfiguratorContainer extends Component {
             lastSelectedField: null,
             lastSelectedZScore: null,
             lastSelectedPalette: null,
-
-            isLoading: false,
         };
 
         this.handleDropdownSelection = this.handleDropdownSelection.bind(this);
@@ -153,6 +152,14 @@ export default class ConfiguratorContainer extends Component {
 
         if (prevState.lastSelectedPalette !== lastSelectedPalette) {
 
+            //
+        }
+
+        //guard
+        if (!globals.checkValuesExistanceOfObject(this.state)) return;
+
+        if (JSON.stringify(prevState) !== JSON.stringify(this.state)) {
+
             fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
                 type: localConstants._TYPE_HEATMAP_BOUNDS,
@@ -180,7 +187,7 @@ export default class ConfiguratorContainer extends Component {
 
     render() {
 
-        const { isLoading } = this.state;
+        const { isLoading } = this.props;
 
         const {
             [localConstants._TYPE_DATABASES]: databases,
