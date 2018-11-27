@@ -441,7 +441,6 @@ const heatMapTilesBuilder = async (
         pathjs.join(
             process.cwd(),
             constants.PATH_HEATMAPS_IMAGES,
-            `${constants.FILENAME_FAKE_TILE}.${request.imageType}`
         ))) {
 
         logger.log('info', `Fake Tile not exists, generating it..`);
