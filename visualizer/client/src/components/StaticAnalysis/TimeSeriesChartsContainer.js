@@ -8,16 +8,7 @@ import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
 import { TimeSeries, TimeRange } from 'pondjs';
-import {
-    Charts,
-    ChartContainer,
-    ChartRow,
-    YAxis,
-    LineChart,
-    Baseline,
-    Resizable,
-    Legend,
-    styler,
+import { Charts, ChartContainer, ChartRow, YAxis, LineChart, Baseline, Resizable, Legend, styler
 } from "react-timeseries-charts";
 
 import './TimeSeriesChartsContainer.css';
@@ -41,14 +32,15 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
             timeRange: null,
             timeSeries: null,
+            colors: null,
+            legendCategs: null,
+            legendStyles: null,
 
             tracker: null,
             trackerEvents: null,
 
             max: 0,          //max value over the different timeseries (need to calibrate the yAxis in the chart)
             min: 0,          //as above with min
-
-            isLoading: false,
         };
 
         this.handleTrackerChanged = this.handleTrackerChanged.bind(this);
@@ -58,21 +50,24 @@ export default class TimeSeriesChartsContainer extends React.Component {
     componentDidUpdate(prevProps, prevState, prevContext) {
 
         const {
-            timeSeriesMap, //contains the data of the timeseries
+            timeSeriesMap,  //contains the data of the timeseries
             mainField,      //the selected field of the timeserie to show in the chart (same for all timeseries)
             fieldStats,     //stats about the selected field (min, max, mean, std) over all the dataset
             sideFields,     //other fields to show in the highlight menu when charts are navigated
-            timestampFocus,
         } = this.props;
 
-        const { timeSeriesMap: prevTimeSeriesMap } = prevProps;
+        const {
+            timeSeriesMap: prevTimeSeriesMap,
+        } = prevProps;
+
+        //guard
+        if (!timeSeriesMap || !mainField || !fieldStats || !sideFields) return;
 
         //if time range is changed, then rebuild the x-axis of the chart
         //data has the following structure:
         //{ machineIdx: { time: .., field1: .., field2: .., .. }, machineIdx: { .. }, .. }
-        if (timeSeriesMap && mainField && fieldStats && sideFields && timestampFocus && (
-            timeSeriesMap.size !== prevTimeSeriesMap.size) ||
-            this.state.lastTimeSerieIndexes.length !== timeSeriesMap.size) {
+        if ((timeSeriesMap.size !== prevTimeSeriesMap.size) ||
+            this.state.lastTimeSerieIndexes.length !== timeSeriesMap.size) {    //TODO necessario il lastimeserieindexe?
 
             this.buildTimeSeriesCharts();
         }
@@ -88,9 +83,10 @@ export default class TimeSeriesChartsContainer extends React.Component {
         let newMax = max;
         let newMin = min;
 
-        this.setState({isLoading: true});
-
-        let timeSeries = new Map();
+        let timeSeries = [];
+        let colors = [];
+        let legendCategs = [];
+        let legendStyles = [];
         for (let [key, value] of timeSeriesMap) {
 
             //build the timeserie object
@@ -101,7 +97,22 @@ export default class TimeSeriesChartsContainer extends React.Component {
             });
 
             //assign the timeserie obj
-            timeSeries.set(key, timeserie);
+            timeSeries.push(timeserie);
+
+            //colors
+            colors.push(value.color);
+
+            //categs (legend)
+            legendCategs.push({
+                key: value.name,
+                label: `${value.name} (${key})`,
+            });
+
+            //style (legend)
+            legendStyles.push({
+                key: value.name,
+                color: value.color,
+            });
 
             //check max/min of the field(s) of the current timeserie
             //if there are multiple fields we need to specify as argument the field(s)
@@ -122,6 +133,9 @@ export default class TimeSeriesChartsContainer extends React.Component {
             lastTimeSerieIndexes: Array.from(timeSeriesMap.keys()),
             timeRange: timeRange,
             timeSeries: timeSeries,
+            colors: colors,
+            legendCategs: legendCategs,
+            legendStyles: legendStyles,
             max: newMax,
             min: newMin,
             isLoading: false,
@@ -131,23 +145,30 @@ export default class TimeSeriesChartsContainer extends React.Component {
     handleTrackerChanged(tracker) {
 
         const { timeSeries } = this.state;
+        const { timeSerieCurrentPointSelection: focus } = this.props;
 
         if (!timeSeries) return;
 
-        //if the user doesn't have the focus on the chart, we track the ts focused in the heatmap
+        if (!focus) this.setState({ tracker: null, trackerEvents: null });
+
+        //if the user doesn't have the focus on the chart, we track the ts focused in the heatmap (if any)
         if (!tracker) {
-            tracker = new Date(this.props.timestampFocus);
+            tracker = new Date(focus);
         }
+        else {
 
-        let trackerEvents = [];
-        for (let [key, value] of timeSeries) {
-            trackerEvents.push(value.at(value.bisect(tracker)));
+            let trackerEvents = [];
+
+            timeSeries.forEach((v) => {
+
+                trackerEvents.push(v.at(v.bisect(tracker)));
+            });
+
+            this.setState({
+                tracker: tracker,
+                trackerEvents: trackerEvents,
+            });
         }
-
-        this.setState({
-            tracker: tracker,
-            trackerEvents: trackerEvents,
-        });
     }
 
     handleTimeRangeChange (timeRange) {
@@ -156,37 +177,13 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
     render() {
 
-        const {
-            disabled, isLoading: isLoadingParent, mainField, sideFields, fieldStats, timeSeriesMap,
-        } = this.props;
-
-        const { timeSeries, timeRange, max, min, isLoading } = this.state;
-
-        if (disabled) return null;
-
-        let legendCategs = [];
-        let legendStyle = null;
-        if (timeSeries && timeSeriesMap) {
-
-            let styles = [];
-
-            //build categories for the legend
-            for (let [key, value] of timeSeries) {
-                legendCategs.push({
-                    key: value.name(),
-                    label: `${value.name()} (${key})`,
-                });
-
-                styles.push({
-                    key: value.name(), color: timeSeriesMap.get(key).color,
-                });
-            }
-
-            legendStyle = styler(styles);
-        }
-
         console.log(this.state)
         console.log(this.props)
+
+        const { disabled, isLoading, mainField, sideFields, fieldStats } = this.props;
+        const { timeSeries, timeRange, colors, legendCategs, legendStyles, max, min } = this.state;
+
+        if (disabled) return null;
 
         return(
 
@@ -201,7 +198,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
                         <LoadingOverlay>
 
                             {
-                                (timeSeries && timeRange) &&
+                                timeSeries &&
                                 <div>
                                     <Row>
                                         <Col xs={12}>
@@ -216,7 +213,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                                     <svg height="5" width="15">
                                                                         <line
                                                                             x1="0" y1="4" x2="10" y2="4"
-                                                                            style={{stroke: Array.from(timeSeriesMap.keys())[idx].color}}
+                                                                            style={{stroke: colors[idx]}}
                                                                         />
                                                                     </svg>
                                                                     <p>{mainField}: {e.get(mainField)}</p>
@@ -225,6 +222,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                                             <p key={idx}>{f}: {e.get(f)}</p>
                                                                         ))
                                                                     }
+                                                                    <p>({this.state.tracker.toISOString()})</p>
                                                                 </div>
                                                             </Col>
                                                         ))
@@ -268,15 +266,18 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                             />
 
                                                             {
-                                                                Array.from(timeSeries.keys()).map((k, idx) => (
+                                                                timeSeries.map((k, idx) => (
                                                                     <LineChart
                                                                         key={idx}
                                                                         axis="usage"
                                                                         breakLine={false}
-                                                                        series={timeSeries.get(k)}
+                                                                        series={k}
                                                                         columns={[mainField]}
                                                                         style={styler([
-                                                                            {key: mainField, color: timeSeriesMap.get(k).color}
+                                                                            {
+                                                                                key: mainField,
+                                                                                color: colors[idx],
+                                                                            }
                                                                         ])}
                                                                         interpolation="curveBasis"
                                                                     />
@@ -291,21 +292,21 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                     </Row>
                                     <Row>
                                         <Col md={12}>
-                                            <span>
-                                                <Legend
-                                                    type="line"
-                                                    align="right"
-                                                    style={legendStyle}
-                                                    categories={legendCategs}
-                                                />
-                                            </span>
+                                        <span>
+                                            <Legend
+                                                type="line"
+                                                align="right"
+                                                style={styler(legendStyles)}
+                                                categories={legendCategs}
+                                            />
+                                        </span>
                                         </Col>
                                     </Row>
                                 </div>
                             }
 
                         </LoadingOverlay>
-                        <Loader loading={isLoading || isLoadingParent}/>
+                        <Loader loading={isLoading}/>
                     </Panel.Body>
                 </Panel.Collapse>
             </Panel>
