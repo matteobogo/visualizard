@@ -64,6 +64,8 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: null,
                 [localConstants._TYPE_SELECTED_FIELD]: null,
                 [localConstants._TYPE_SELECTED_PERIOD]: 300,
+                [localConstants._TYPE_SELECTED_ZSCORE]: null,
+                [localConstants._TYPE_SELECTED_PALETTE]: null,
                 [localConstants._TYPE_SELECTED_START_INTERVAL]: null,
                 [localConstants._TYPE_SELECTED_END_INTERVAL]: null,
             },
@@ -123,7 +125,7 @@ class StaticAnalysisContainer extends Component {
         //TODO as above, but for palettes
         //fetch palettes
         this.fetchData({
-            groupType: localConstants._TYPE_PALETTES,
+            groupType: localConstants._TYPE_GROUP_DATASET,
             type: localConstants._TYPE_PALETTES,
         });
     }
@@ -523,6 +525,7 @@ class StaticAnalysisContainer extends Component {
                                     fetchData={this.fetchData}
                                     setItem={this.setItem}
                                     onError={this.handleError}
+                                    isLoading={isLoading}
                                 />
                             </Col>
                         </Row>
