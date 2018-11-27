@@ -1311,17 +1311,18 @@ const getDataByMachineIdxByHeatMapType = async (
         timeSerieIndex = gf.checkParam`Timeserie Index`,
     }) => {
 
+    //TODO need to re-design validation function for both timeserie check (requires less params) and heatmap config check
     //validation
-    await heatMapConfigurationValidation({
-        database: database,
-        policy: policy,
-        startInterval: startInterval,
-        endInterval: endInterval,
-        fields: fields,
-    });
+    // await heatMapConfigurationValidation({
+    //     database: database,
+    //     policy: policy,
+    //     startInterval: startInterval,
+    //     endInterval: endInterval,
+    //     fields: fields,
+    // });
 
-    if (!getHeatMapTypes().includes(heatMapType))
-        throw Error(`invalid param: HeatMap Type ${heatMapType}`);
+    // if (!getHeatMapTypes().includes(heatMapType))
+    //     throw Error(`invalid param: HeatMap Type ${heatMapType}`);
 
     //fetch timeseries names from db
     let timeseriesNames = await
