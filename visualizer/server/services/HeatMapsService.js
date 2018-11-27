@@ -360,19 +360,19 @@ const tileStorage = async (
 
 const fakeTileGeneration = async ({imageType}) => {
 
-    const filename = `${constants.FILENAME_FAKE_TILE}.${imageType}`;
-
     const pathFakeTile =
         pathjs.join(
             process.cwd(),
-            constants.PATH_HEATMAPS_IMAGES,
+            constants.PATH_HEATMAPS_IMAGES
         );
 
     const canvas = Canvas.createCanvas(config.HEATMAPS.TILE_SIZE, config.HEATMAPS.TILE_SIZE);
 
+    logger.log('info', `Storing Fake Tile [${pathFakeTile}/${constants.FILENAME_FAKE_TILE}.${imageType}]..`);
+
     return canvasToImage({
         canvas: canvas,
-        filename: filename,
+        filename: `/${constants.FILENAME_FAKE_TILE}`,
         imageType: imageType,
         path: pathFakeTile,
     });
@@ -441,11 +441,13 @@ const heatMapTilesBuilder = async (
         pathjs.join(
             process.cwd(),
             constants.PATH_HEATMAPS_IMAGES,
+            `${constants.FILENAME_FAKE_TILE}.${request.imageType}`
         ))) {
 
         logger.log('info', `Fake Tile not exists, generating it..`);
         await fakeTileGeneration({imageType: request.imageType})
-            .catch(err => { throw Error(`failed during fake tike generation: ${err.message}`); });
+            .catch(err => { throw Error(`failed during fake tile generation: ${err.message}`); });
+        logger.log('info', `=> Fake Tile generated and stored`);
     }
     else {
         logger.log('info', `=> Fake tile already generated, skip it`);
