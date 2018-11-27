@@ -119,6 +119,7 @@ const storeHeatMap = async (req, res) => {
         heatMapType: req.query.heatMapType,
         imageType: req.query.imageType,
         mode: req.query.mode,
+        zScore: req.query.zScore,
     };
 
     heatMapsService.heatMapBuildAndStore({request: heatMapRequest});

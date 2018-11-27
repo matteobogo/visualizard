@@ -349,6 +349,8 @@ const tileStorage = async (
             request.policy,
             request.heatMapType,
             request.fields[0],
+            request.zScore,
+            request.palette,
             String(zoom),
             String(xID),
             String(yID),
@@ -752,7 +754,9 @@ const heatMapTilesBuilder = async (
         policy: request.policy,
         field: request.fields[0],
         heatMapType: request.heatMapType,
-        period: 300,
+        period: request.period,
+        palette: request.palette,
+        zScore: request.zScore,
     };
 
     const update = {
@@ -775,7 +779,7 @@ const heatMapTilesBuilder = async (
 
     await ConfigurationsModel.findOneAndUpdate(query, update, options)
         .exec()
-        .then((doc) => {
+        .then(() => {
             logger.log('info', `=> Configuration of generated heatmap stored`);
         })
         .catch((err) => {
@@ -893,7 +897,8 @@ const drawHeatMap = async ({
         `${request.period}_` +
         `${request.fields[0]}_` +
         `${request.heatMapType}_` +
-        `${request.palette}_`;
+        `${request.palette}_` +
+        `${request.zScore}_`;
 
     //path for storing image
     const pathImageDir =
@@ -904,7 +909,8 @@ const drawHeatMap = async ({
         `/${request.policy}` +
         `/${request.heatMapType}` +
         `/${request.fields[0]}` +
-        `/${request.palette}`;
+        `/${request.palette}` +
+        `/${request.zScore}`;
 
     //check if directory exists, otherwise creates it
     if (!fs.existsSync(pathImageDir)) {

@@ -14,27 +14,36 @@ const configurationsSchema = new moongose.Schema({
     heatMapType: {
         type: String
     },
+    period: {
+        type: String
+    },
+    zScore: {
+        type: String
+    },
+    palette: {
+        type: String
+    },
     heatMapZooms: [{
         type: String
     }],
     bounds: {
         intervals: {
             firstInterval: {
-                type: String,
+                type: String
             },
             lastInterval: {
-                type: String,
+                type: String
             },
             period: {
-                type: Number,
+                type: Number
             }
         },
         timeSeriesIndexes: {
             startIndex: {
-                type: Number,
+                type: Number
             },
             endIndex: {
-                type: Number,
+                type: Number
             }
         },
         tileIdsBoundsPerZoom: [{
@@ -44,15 +53,6 @@ const configurationsSchema = new moongose.Schema({
             yIDStart: { type: Number },
             yIDEnd: { type: Number },
         }],
-    },
-    startInterval: {
-        type: String
-    },
-    endInterval: {
-        type: String
-    },
-    period: {
-        type: Number
     },
     createdAt: {
         type: Date,
