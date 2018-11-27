@@ -401,10 +401,9 @@ const heatMapTilesBuilder = async (
         datasetMean,        //from dataset analysis
         datasetStd,         //from dataset analysis
         tileSize,
-        zoomInLevels
+        zoomInLevels,
     }) => {
 
-    //TODO flagga per skippare la generazione delle tiles e fare solo un check delle configurazioni da storare?
     //TODO storage tiles su database esterno on cloud (es. amazon)
 
     const intervals =
@@ -441,17 +440,6 @@ const heatMapTilesBuilder = async (
     let currentEndInterval = new Date(request.startInterval);
     currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
 
-    //base directory where tiles will be stored
-    const pathTilesDirBase =
-        pathjs.join(
-            process.cwd(),
-            constants.PATH_HEATMAPS_TILES,
-            request.database,
-            request.policy,
-            request.heatMapType,
-            request.fields[0],
-        );
-
     //generating the "faketile" used by clients to mimic an empty tile (if not exist)
     if (!fs.existsSync(
         pathjs.join(
@@ -469,261 +457,298 @@ const heatMapTilesBuilder = async (
         logger.log('info', `=> Fake tile already generated, skip it`);
     }
 
-    logger.log('info', `Start generating tiles for the zoom level [0]..`);
+    request.skipGen ?
+        logger.log('info', `=> Skipping flag is [${request.skipGen}] => Tile Generation process will be skipped`)
+        :
+        logger.log('info', `Start generating tiles for the zoom level [0]..`);
 
-    for (let i = 0, xIDsrc = 0; i < intervals; i += tileSize, ++xIDsrc) {                 //xID is used for TMS x ID
+    if (!request.skipGen) {  //skip tiles generation and do only the configuration storing process
 
-        for (let j = 0, yIDsrc = 0; j < measurements.length; j += tileSize, ++yIDsrc) {   //yID is used for TMS y ID
+        for (let i = 0, xIDsrc = 0; i < intervals; i += tileSize, ++xIDsrc) {                 //xID is used for TMS x ID
 
-            const slicedMeasurements = measurements.slice(j, j + tileSize);
+            for (let j = 0, yIDsrc = 0; j < measurements.length; j += tileSize, ++yIDsrc) {   //yID is used for TMS y ID
 
-            let formattedCurrentStartInterval = currentStartInterval.toISOString();
-            let formattedCurrentEndInterval = currentEndInterval.toISOString();
+                const slicedMeasurements = measurements.slice(j, j + tileSize);
 
-            if (currentEndInterval > Date.parse(request.endInterval))
-                formattedCurrentEndInterval = (new Date(request.endInterval)).toISOString();
+                let formattedCurrentStartInterval = currentStartInterval.toISOString();
+                let formattedCurrentEndInterval = currentEndInterval.toISOString();
 
-            const originalCanvas =
+                if (currentEndInterval > Date.parse(request.endInterval))
+                    formattedCurrentEndInterval = (new Date(request.endInterval)).toISOString();
 
-                //fetches points batch
-                await influx.fetchPointsFromHttpApi({
-                    database: request.database,
-                    policy: request.policy,
-                    measurements: slicedMeasurements,
-                    startInterval: formattedCurrentStartInterval,
-                    endInterval: formattedCurrentEndInterval,
-                    period: request.period,
-                    fields: request.fields,
+                const originalCanvas =
+
+                    //fetches points batch
+                    await influx.fetchPointsFromHttpApi({
+                        database: request.database,
+                        policy: request.policy,
+                        measurements: slicedMeasurements,
+                        startInterval: formattedCurrentStartInterval,
+                        endInterval: formattedCurrentEndInterval,
+                        period: request.period,
+                        fields: request.fields,
+                    })
+                        .then(pointsBatch => {
+
+                            //build canvas
+                            return drawHeatMapTile({
+                                pointsBatch: pointsBatch,
+                                field: request.fields[0],
+                                datasetMean: datasetMean,
+                                datasetStd: datasetStd,
+                                palette: request.palette,
+                                width: tileSize,
+                                height: tileSize,
+                                minZscore: -Math.abs(request.zScore),
+                                maxZscore: Math.abs(request.zScore),
+                            });
+                        })
+                        .catch((err) => {
+                            throw Error(`Failed during HeatMap Image Tiles building: ${err}`);
+                        });
+
+                //building the tile's filename according to TMS standard http://.../z/x/y.imagetype
+                //TMS providers will fetch a coordinates tuple as (x, y, z) starting from (0, 0, 0), where:
+                //x is the axis X (timestamps, 0 is the first timestamp, every 256 timestamp the ID is increased)
+                //y is the axis Y (machines, 0 is the first machine, every 256 machines the ID is increased)
+                //z is the zoom (0 => 256 pixels, default for tiles)
+                //further info on TMS standard: https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification
+
+                logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]..`);
+
+                //save the original tile (level 0)
+                await tileStorage({
+                    request: request,
+                    canvas: originalCanvas,
+                    zoom: 0,
+                    xID: xIDsrc,
+                    yID: yIDsrc,
+                    imageType: request.imageType,
                 })
-                .then(pointsBatch => {
-
-                    //build canvas
-                    return drawHeatMapTile({
-                        pointsBatch: pointsBatch,
-                        field: request.fields[0],
-                        datasetMean: datasetMean,
-                        datasetStd: datasetStd,
-                        palette: request.palette,
-                        width: tileSize,
-                        height: tileSize,
-                        minZscore: -Math.abs(request.zScore),
-                        maxZscore: Math.abs(request.zScore),
+                    .catch(err => {
+                        throw Error(`Failed to store the original canvas: ${err}`);
                     });
-                })
-                .catch((err) => {
-                    throw Error(`Failed during HeatMap Image Tiles building: ${err}`);
-                });
 
-            //building the tile's filename according to TMS standard http://.../z/x/y.imagetype
-            //TMS providers will fetch a coordinates tuple as (x, y, z) starting from (0, 0, 0), where:
-            //x is the axis X (timestamps, 0 is the first timestamp, every 256 timestamp the ID is increased)
-            //y is the axis Y (machines, 0 is the first machine, every 256 machines the ID is increased)
-            //z is the zoom (0 => 256 pixels, default for tiles)
-            //further info on TMS standard: https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification
+                //zooms
+                //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+                for (let i = 0; i < zoomInLevels.length; ++i) {
 
-            logger.log('info', `Storing original Canvas [${xIDsrc},${yIDsrc}]..`);
+                    const zoom = Number(zoomInLevels[i]);
+                    const availableZooms = config.HEATMAPS.TILE_ZOOMS.split(',').map(Number);
 
-            //save the original tile (level 0)
-            await tileStorage({
-                request: request,
-                canvas: originalCanvas,
-                zoom: 0,
-                xID: xIDsrc,
-                yID: yIDsrc,
-                imageType: request.imageType,
-            })
-                .catch(err => {
-                    throw Error(`Failed to store the original canvas: ${err}`);
-                });
+                    //skip 1x zoom (i.e. the original canvas)
+                    if (availableZooms.includes(zoom)) {
 
-            //zooms
-            //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-            for (let i = 0; i < zoomInLevels.length; ++i) {
+                        logger.log('info', `Start Generating tiles with IN zoom: ${`@${zoom}x`} ` +
+                            `- original: [${xIDsrc},${yIDsrc}]..`);
 
-                const zoom = Number(zoomInLevels[i]);
-                const availableZooms = config.HEATMAPS.TILE_ZOOMS.split(',').map(Number);
+                        const subTileSize = tileSize / zoom;
 
-                //skip 1x zoom (i.e. the original canvas)
-                if (availableZooms.includes(zoom)) {
+                        let xID = xIDsrc * zoom;
+                        for (let x = 0; x < tileSize; x += subTileSize, ++xID) {
 
-                    logger.log('info', `Start Generating tiles with IN zoom: ${`@${zoom}x`} ` +
-                        `- original: [${xIDsrc},${yIDsrc}]..`);
+                            let yID = yIDsrc * zoom;
+                            for (let y = 0; y < tileSize; y += subTileSize, ++yID) {
 
-                    const subTileSize = tileSize / zoom;
+                                //generates a new canvas and scales
+                                const canvas = Canvas.createCanvas(tileSize, tileSize);
+                                const ctx = canvas.getContext("2d");
 
-                    let xID = xIDsrc * zoom;
-                    for (let x = 0; x < tileSize; x += subTileSize, ++xID) {
+                                ctx.drawImage(originalCanvas, x, y, subTileSize, subTileSize, 0, 0, tileSize, tileSize);
 
-                        let yID = yIDsrc * zoom;
-                        for (let y = 0; y < tileSize; y += subTileSize, ++yID) {
-
-                            //generates a new canvas and scales
-                            const canvas = Canvas.createCanvas(tileSize, tileSize);
-                            const ctx = canvas.getContext("2d");
-
-                            ctx.drawImage(originalCanvas, x, y, subTileSize, subTileSize, 0, 0, tileSize, tileSize);
-
-                            await tileStorage({
-                                request: request,
-                                canvas: canvas,
-                                zoom: zoom,
-                                xID: xID,
-                                yID: yID,
-                                imageType: request.imageType
-                            })
-                                .catch(err => logger.log('error', `Failed to store a zoomed [@${zoom}x] tile ` +
-                                    `[${xID},${yID}]: ${err.message}`));
+                                await tileStorage({
+                                    request: request,
+                                    canvas: canvas,
+                                    zoom: zoom,
+                                    xID: xID,
+                                    yID: yID,
+                                    imageType: request.imageType
+                                })
+                                    .catch(err => logger.log('error', `Failed to store a zoomed [@${zoom}x] tile ` +
+                                        `[${xID},${yID}]: ${err.message}`));
+                            }
                         }
                     }
+                    else throw Error(`Failed during HeatMap Image Tiles building: ` +
+                        `Zoom level not permitted: ${zoom}`);
                 }
-                else throw Error(`Failed during HeatMap Image Tiles building: ` +
-                    `Zoom level not permitted: ${zoom}`);
             }
-        }
 
-        //advance with time interval
-        currentStartInterval.setSeconds(currentStartInterval.getSeconds() + tileTimeRangeWidth);
-        currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+            //advance with time interval
+            currentStartInterval.setSeconds(currentStartInterval.getSeconds() + tileTimeRangeWidth);
+            currentEndInterval.setSeconds(currentEndInterval.getSeconds() + tileTimeRangeWidth);
+        }
     }
 
     /* Generating the OUT zoom levels */
+
+    //TODO redesign: this path generation is included in tileStorage function (using params in request), we need to
+    //TODO extract this logic from the function tileStorage (including the check)
+    //TODO also check other code blocks that use tileStorage
+    //base directory where tiles will be stored
+    const pathTilesDirBase =
+        pathjs.join(
+            process.cwd(),
+            constants.PATH_HEATMAPS_TILES,
+            request.database,
+            request.policy,
+            request.heatMapType,
+            request.fields[0],
+            request.zScore,
+            request.palette,
+        );
+
+    logger.log('info', `=> Computed Base PATH for tiles storage: [${pathTilesDirBase}]`);
 
     //reverse the order of out zoom levels (e.g. 16,8,4,2  => 2,4,8,16), also added the level 0 as init
     //we use the tiles generated for a zoom level to generate the tiles of the next level
     zoomOutLevels.push(0);
     zoomOutLevels.sort((a,b) => b - a);
 
-    for (let i = 1; i < zoomOutLevels.length; ++i) {
-        
-        const previousZoomLevel = String(zoomOutLevels[i-1]);
-        const currentZoomLevel = zoomOutLevels[i];
-        //const nTilesToBeCombined = Math.abs(currentZoomLevel);
-        const nTilesToBeCombined = 2;
+    if (!request.skipGen) { //skip tiles generation and do only the configuration storing process
 
-        const _ERR_NOT_GEN = `tiles of level [${previousZoomLevel}] has not been generated, tiles of level ` +
-            `[${currentZoomLevel}] cannot be generated`;
+        logger.log('info', `Start generating tiles for the zoom OUT levels: ${zoomOutLevels}..`);
 
-        logger.log('info', `Start generating tiles for the OUT zoom level: [${currentZoomLevel}]..`);
+        for (let i = 1; i < zoomOutLevels.length; ++i) {
 
-        //check if tiles of previous zoom level have been generated
-        const zoomDirPath =
-            pathjs.join(
-                pathTilesDirBase,
-                previousZoomLevel);    //previous zoom level
+            const previousZoomLevel = String(zoomOutLevels[i - 1]);
+            const currentZoomLevel = zoomOutLevels[i];
+            //const nTilesToBeCombined = Math.abs(currentZoomLevel);
+            const nTilesToBeCombined = 2;
 
-        //check if folder containing tiles of the previous zoom level exists
-        if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
+            logger.log('info', `Previous Zoom Level: [${previousZoomLevel}] => Current Zoom Level: [${currentZoomLevel}]`);
 
-        //get the list of subdirs corresponding to the ID X of TMS (remark TMS: zoom/x/y/file.ext)
-        const dirsIdX = getDirsListByPath(zoomDirPath, {toInt: true, sort: 'asc'});
+            const _ERR_NOT_GEN = `tiles of level [${previousZoomLevel}] has not been generated, tiles of level ` +
+                `[${currentZoomLevel}] cannot be generated`;
 
-        //check if the folder of the previous zoom level is not empty (i.e. tiles have been generated)
-        if (dirsIdX.length === 0) throw Error(_ERR_NOT_GEN + `(X coords directory)`);
+            logger.log('info', `Start generating tiles for the OUT zoom level: [${currentZoomLevel}]..`);
 
-        let xID = 0;
+            logger.log('info', `Checking if tiles of previous zoom level: [${previousZoomLevel}] has been generated..`);
+            const zoomDirPath =
+                pathjs.join(
+                    pathTilesDirBase,
+                    previousZoomLevel);    //previous zoom level
 
-        for (let j = 0; j < dirsIdX.length; j += nTilesToBeCombined) {
+            //check if folder containing tiles of the previous zoom level exists
+            if (!fs.existsSync(zoomDirPath)) throw Error(_ERR_NOT_GEN);
 
-            //check if we are near the end (i.e. we don't have a sufficient number of tiles to combine according to the
-            //zoom level to be generated. In that case we need to generate a "dummy" canvas to cover the missing area
-            let missingXIds = 0;
-            if ((j + nTilesToBeCombined) > dirsIdX.length)
-                missingXIds = Math.abs(dirsIdX.length - (j + nTilesToBeCombined));
+            logger.log('info', `=> Path of the previous zoom level: [${zoomDirPath}] exists`);
 
-            //collect the lists of all sub-folders of each xID folder
-            //we need only the first one for processing tiles, but is recommended to check the existence of all
-            //sub-folders before start the tiles generation process
-            let dirsIdYList = [];
-            for (let z = 0; z < nTilesToBeCombined - missingXIds; ++z) {
+            //get the list of subdirs corresponding to the ID X of TMS (remark TMS: zoom/x/y/file.ext)
+            const dirsIdX = getDirsListByPath(zoomDirPath, {toInt: true, sort: 'asc'});
 
-                //get the path of the xID folder
-                const xDirPath = pathjs.join(zoomDirPath, (j+z).toString());
+            //check if the folder of the previous zoom level is not empty (i.e. tiles have been generated)
+            if (dirsIdX.length === 0) throw Error(_ERR_NOT_GEN + `(X coords directory)`);
 
-                //get the list of sub-folders corresponding to the ID Y of TMS for the selected xID folder
-                const dirsIdY = getDirsListByPath(xDirPath, {toInt: true, sort: 'asc'});
+            logger.log('info', `=> Tiles of previous zoom level: [${previousZoomLevel}] found`);
 
-                //existence check
-                if (dirsIdY.length === 0) throw Error(_ERR_NOT_GEN + `(Y coords directory)`);
+            let xID = 0;
 
-                dirsIdYList.push(dirsIdY);
-            }
+            for (let j = 0; j < dirsIdX.length; j += nTilesToBeCombined) {
 
-            if (dirsIdYList.length === 0 || dirsIdYList.length < (nTilesToBeCombined - missingXIds))
-                throw Error(`cannot find any sub-folders of Y coordinate, during zoom out level [${currentZoomLevel}]` +
-                    ` tiles processing`);
+                //check if we are near the end (i.e. we don't have a sufficient number of tiles to combine according to the
+                //zoom level to be generated. In that case we need to generate a "dummy" canvas to cover the missing area
+                let missingXIds = 0;
+                if ((j + nTilesToBeCombined) > dirsIdX.length)
+                    missingXIds = Math.abs(dirsIdX.length - (j + nTilesToBeCombined));
 
-            //take the first list of Y sub-folders (assuming it's always exists) for processing tiles
-            //also in the case we'are at the boarder of the heatmap
-            const firstDirIdY = dirsIdYList[0];
+                //collect the lists of all sub-folders of each xID folder
+                //we need only the first one for processing tiles, but is recommended to check the existence of all
+                //sub-folders before start the tiles generation process
+                let dirsIdYList = [];
+                for (let z = 0; z < nTilesToBeCombined - missingXIds; ++z) {
 
-            let yID = 0;
-            for (let w = 0; w < firstDirIdY.length; w += nTilesToBeCombined) {
+                    //get the path of the xID folder
+                    const xDirPath = pathjs.join(zoomDirPath, (j + z).toString());
 
-                //check if we are near the end (vertically) as done previously for the X ids (horizontally)
-                let missingYIds = 0;
-                if ((w + nTilesToBeCombined) > firstDirIdY.length)
-                    missingYIds = Math.abs(firstDirIdY.length - (w + nTilesToBeCombined));
+                    //get the list of sub-folders corresponding to the ID Y of TMS for the selected xID folder
+                    const dirsIdY = getDirsListByPath(xDirPath, {toInt: true, sort: 'asc'});
 
-                //create a "big" canvas to include the tiles to be combined of the previous zoom level
-                const canvas = Canvas.createCanvas(tileSize * 2, tileSize * 2);
-                const ctx = canvas.getContext("2d");
+                    //existence check
+                    if (dirsIdY.length === 0) throw Error(_ERR_NOT_GEN + `(Y coords directory)`);
 
-                let xStartCoord = 0;
-
-                for (let x = 0; x < nTilesToBeCombined - missingXIds; ++x) {
-
-                    const xDirPath = pathjs.join(zoomDirPath, (j+x).toString());
-
-                    let yStartCoord = 0;
-
-                    for (let y = 0; y < nTilesToBeCombined - missingYIds; ++y) {
-
-                        const yDirPath = pathjs.join(xDirPath, (w+y).toString());
-
-                        await Canvas.loadImage(pathjs.join(yDirPath, `tile.${request.imageType}`))
-                            .then((image) => {
-
-                                ctx.drawImage(image, xStartCoord, yStartCoord);
-                            });
-
-                        yStartCoord += tileSize;
-                    }
-
-                    xStartCoord += tileSize;
+                    dirsIdYList.push(dirsIdY);
                 }
 
-                //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-                //canvas/image, dx, dy, dWidth, dHeight
-                const scaledCanvas = Canvas.createCanvas(tileSize, tileSize);
-                const scaledCtx = scaledCanvas.getContext("2d");
+                if (dirsIdYList.length === 0 || dirsIdYList.length < (nTilesToBeCombined - missingXIds))
+                    throw Error(`cannot find any sub-folders of Y coordinate, during zoom out level [${currentZoomLevel}]` +
+                        ` tiles processing`);
 
-                scaledCtx.drawImage(canvas, 0, 0, tileSize, tileSize);
+                //take the first list of Y sub-folders (assuming it's always exists) for processing tiles
+                //also in the case we'are at the boarder of the heatmap
+                const firstDirIdY = dirsIdYList[0];
 
-                await tileStorage({
-                    request: request,
-                    canvas: scaledCanvas,
-                    zoom: currentZoomLevel,
-                    xID: xID,
-                    yID: yID,
-                    imageType: request.imageType,
-                })
-                    .then(() => {
+                let yID = 0;
+                for (let w = 0; w < firstDirIdY.length; w += nTilesToBeCombined) {
 
-                        logger.log('info', `=> Generated tile of OUT zoom level: [${currentZoomLevel}] with ID: ` +
-                            `[${xID},${yID}]`);
-                    });
+                    //check if we are near the end (vertically) as done previously for the X ids (horizontally)
+                    let missingYIds = 0;
+                    if ((w + nTilesToBeCombined) > firstDirIdY.length)
+                        missingYIds = Math.abs(firstDirIdY.length - (w + nTilesToBeCombined));
 
-                ++yID;
+                    //create a "big" canvas to include the tiles to be combined of the previous zoom level
+                    const canvas = Canvas.createCanvas(tileSize * 2, tileSize * 2);
+                    const ctx = canvas.getContext("2d");
+
+                    let xStartCoord = 0;
+
+                    for (let x = 0; x < nTilesToBeCombined - missingXIds; ++x) {
+
+                        const xDirPath = pathjs.join(zoomDirPath, (j + x).toString());
+
+                        let yStartCoord = 0;
+
+                        for (let y = 0; y < nTilesToBeCombined - missingYIds; ++y) {
+
+                            const yDirPath = pathjs.join(xDirPath, (w + y).toString());
+
+                            await Canvas.loadImage(pathjs.join(yDirPath, `tile.${request.imageType}`))
+                                .then((image) => {
+
+                                    ctx.drawImage(image, xStartCoord, yStartCoord);
+                                });
+
+                            yStartCoord += tileSize;
+                        }
+
+                        xStartCoord += tileSize;
+                    }
+
+                    //https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+                    //canvas/image, dx, dy, dWidth, dHeight
+                    const scaledCanvas = Canvas.createCanvas(tileSize, tileSize);
+                    const scaledCtx = scaledCanvas.getContext("2d");
+
+                    scaledCtx.drawImage(canvas, 0, 0, tileSize, tileSize);
+
+                    await tileStorage({
+                        request: request,
+                        canvas: scaledCanvas,
+                        zoom: currentZoomLevel,
+                        xID: xID,
+                        yID: yID,
+                        imageType: request.imageType,
+                    })
+                        .then(() => {
+
+                            logger.log('info', `=> Generated tile of OUT zoom level: [${currentZoomLevel}] with ID: ` +
+                                `[${xID},${yID}]`);
+                        });
+
+                    ++yID;
+                }
+
+                ++xID;
             }
-
-            ++xID;
         }
+
     }
+
+    logger.log('info', `Scanning tiles storage and computing HeatMap boundaries for each zoom level..`);
 
     const heatMapZooms = zoomOutLevels.sort((a, b) => a - b).concat(zoomInLevels);
 
     //TODO make a function for this
-    //scan tile's storage and compute tile ids bounds for each zoom level generated
     const zoomsIdsBounds = [];
 
     for (let i = 0; i < heatMapZooms.length; ++i) {
@@ -751,6 +776,9 @@ const heatMapTilesBuilder = async (
         zoomsIdsBounds.push({ zoom: zoom, xIDStart: xIDstart, xIDEnd: xIDend, yIDStart: yIDStart, yIDEnd: yIDEnd });
     }
 
+    logger.log('info', `=> HeatMap boundaries of zoom levels [${heatMapZooms}] computed`);
+
+    logger.log('info', `Storing HeatMap configuration on database..`);
     //TODO make a function for this
     //save configurations to db
     const query = {
@@ -784,7 +812,7 @@ const heatMapTilesBuilder = async (
     await ConfigurationsModel.findOneAndUpdate(query, update, options)
         .exec()
         .then(() => {
-            logger.log('info', `=> Configuration of generated heatmap stored`);
+            logger.log('info', `=> Configuration of generated HeatMap stored`);
         })
         .catch((err) => {
             throw Error(`Failed to save heatmap configuration: ${err}`);
