@@ -4,10 +4,12 @@ import * as localConstants from '../utils/constants';
 const _URL_DATABASES         = '/influx/databases';
 const _URL_POLICIES          = (req) => `/influx/policies?dbname=${req[localConstants._TYPE_SELECTED_DATABASE]}`;
 const _URL_FIELDS            = (req) => `/influx/fields?dbname=${req[localConstants._TYPE_SELECTED_DATABASE]}`;
-const _URL_PERIODS           = '/influx/periods';
+//TODO URL periods
+const _URL_HEATMAP_TYPES     = `/heatmaps/types`;
+const _URL_ZSCORES           = `/heatmaps/z-scores`;
+const _URL_PALETTES          = `/heatmaps/palettes`;
 
 const _URL_STATISTICS = `/analysis/statistics`;
-const _URL_HEATMAP_TYPES = `/heatmaps/types`;
 
 const _URL_HEATMAP_ZOOMS = (req) =>
     `/heatmaps/zooms?database=${req[localConstants._TYPE_SELECTED_DATABASE]}` +
@@ -19,7 +21,9 @@ const _URL_HEATMAP_BOUNDS = (req) =>
     `policy=${req[localConstants._TYPE_SELECTED_POLICY]}&` +
     `field=${req[localConstants._TYPE_SELECTED_FIELD]}&` +
     `heatMapType=${req[localConstants._TYPE_SELECTED_HEATMAP_TYPE]}&` +
-    `period=${req[localConstants._TYPE_SELECTED_PERIOD]}`;
+    `period=${req[localConstants._TYPE_SELECTED_PERIOD]}&` +
+    `zScore=${req[localConstants._TYPE_SELECTED_ZSCORE]}&` +
+    `palette=${req[localConstants._TYPE_SELECTED_PALETTE]}`;
 
 const _URL_TIMESERIE_DATA = (req) =>
     `/timeseries/` +
@@ -66,12 +70,20 @@ export const fetchData = ({itemType, args = {}, format = {}}) => {
             _URL = _URL_POLICIES(args);
             break;
 
+        case localConstants._TYPE_HEATMAP_TYPES:
+            _URL = _URL_HEATMAP_TYPES;
+            break;
+
         case localConstants._TYPE_FIELDS:
             _URL = _URL_FIELDS(args);
             break;
 
-        case localConstants._TYPE_HEATMAP_TYPES:
-            _URL = _URL_HEATMAP_TYPES;
+        case localConstants._TYPE_ZSCORES:
+            _URL = _URL_ZSCORES;
+            break;
+
+        case localConstants._TYPE_PALETTES:
+            _URL = _URL_PALETTES;
             break;
 
         case localConstants._TYPE_HEATMAP_BOUNDS:

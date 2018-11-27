@@ -1,10 +1,8 @@
 import React, { Component } from 'react';
 
 import * as localConstants from '../../utils/constants';
-import * as apiFetcher from "../../services/ApiFetcher";
 
 import { DropdownClassic, DropdownDateTime } from '../common/Dropdown';
-import { ConfiguratorOptions } from './ConfiguratorOptions';
 
 import { Row, Col, Panel, Form } from 'react-bootstrap';
 
@@ -24,6 +22,8 @@ export default class ConfiguratorContainer extends Component {
             lastSelectedPolicy: null,
             lastSelectedHeatMapType: null,
             lastSelectedField: null,
+            lastSelectedZScore: null,
+            lastSelectedPalette: null,
 
             isLoading: false,
         };
@@ -39,6 +39,7 @@ export default class ConfiguratorContainer extends Component {
 
         const {
             lastSelectedDatabase, lastSelectedPolicy, lastSelectedHeatMapType, lastSelectedField,
+            lastSelectedZScore, lastSelectedPalette,
         } = prevState;
 
         //update the last selected database in the local state, reset others
@@ -49,6 +50,8 @@ export default class ConfiguratorContainer extends Component {
                 lastSelectedPolicy: null,
                 lastSelectedHeatMapType: null,
                 lastSelectedField: null,
+                lastSelectedZScore: null,
+                lastSelectedPalette: null,
             }
         }
 
@@ -73,6 +76,20 @@ export default class ConfiguratorContainer extends Component {
             }
         }
 
+        if (configuration[localConstants._TYPE_SELECTED_ZSCORE] !== lastSelectedZScore) {
+
+            return {
+                lastSelectedZScore: configuration[localConstants._TYPE_SELECTED_ZSCORE],
+            }
+        }
+
+        if (configuration[localConstants._TYPE_SELECTED_PALETTE] !== lastSelectedPalette) {
+
+            return {
+                lastSelectedPalette: configuration[localConstants._TYPE_SELECTED_PALETTE],
+            }
+        }
+
         return null;
     }
 
@@ -80,19 +97,12 @@ export default class ConfiguratorContainer extends Component {
 
     componentDidUpdate(prevProps, prevState, prevContext) { //commit phase (fast, best for async)
 
-        const {
-            configuration,
-            fetchData,
-        } = this.props;
+        const { configuration, fetchData } = this.props;
 
         const {
             lastSelectedDatabase, lastSelectedPolicy, lastSelectedHeatMapType, lastSelectedField,
+            lastSelectedZScore, lastSelectedPalette,
         } = this.state;
-
-        const {
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-        } = this.props.dataset.heatMapBounds;
 
         if (prevState.lastSelectedDatabase !== lastSelectedDatabase) {
 
@@ -133,6 +143,16 @@ export default class ConfiguratorContainer extends Component {
 
         if (prevState.lastSelectedField !== lastSelectedField) {
 
+            //
+        }
+
+        if (prevState.lastSelectedZScore !== lastSelectedZScore) {
+
+            //
+        }
+
+        if (prevState.lastSelectedPalette !== lastSelectedPalette) {
+
             fetchData({
                 groupType: localConstants._TYPE_GROUP_DATASET,
                 type: localConstants._TYPE_HEATMAP_BOUNDS,
@@ -141,7 +161,9 @@ export default class ConfiguratorContainer extends Component {
                     [localConstants._TYPE_SELECTED_POLICY]: configuration[localConstants._TYPE_SELECTED_POLICY],
                     [localConstants._TYPE_SELECTED_FIELD]: configuration[localConstants._TYPE_SELECTED_FIELD],
                     [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: configuration[localConstants._TYPE_SELECTED_HEATMAP_TYPE],
-                    [localConstants._TYPE_SELECTED_PERIOD]: configuration[localConstants._TYPE_SELECTED_PERIOD]
+                    [localConstants._TYPE_SELECTED_PERIOD]: configuration[localConstants._TYPE_SELECTED_PERIOD],
+                    [localConstants._TYPE_SELECTED_ZSCORE]: configuration[localConstants._TYPE_SELECTED_ZSCORE],
+                    [localConstants._TYPE_SELECTED_PALETTE]: configuration[localConstants._TYPE_SELECTED_PALETTE],
                 },
             });
         }
@@ -165,6 +187,8 @@ export default class ConfiguratorContainer extends Component {
             [localConstants._TYPE_POLICIES]: policies,
             [localConstants._TYPE_HEATMAP_TYPES]: heatMapTypes,
             [localConstants._TYPE_FIELDS]: fields,
+            [localConstants._TYPE_ZSCORES]: zscores,
+            [localConstants._TYPE_PALETTES]: palettes,
         } = this.props.dataset;
 
         const {
@@ -178,6 +202,8 @@ export default class ConfiguratorContainer extends Component {
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_PERIOD]: selectedPeriod,
+            [localConstants._TYPE_SELECTED_ZSCORE]: selectedZScore,
+            [localConstants._TYPE_SELECTED_PALETTE]: selectedPalette,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.props.configuration;
@@ -186,6 +212,8 @@ export default class ConfiguratorContainer extends Component {
         let unlockPoliciesDropdown = false;
         let unlockHeatMapTypesDropdown = false;
         let unlockFieldsDropdown = false;
+        let unlockZScoresDropdown = false;
+        let unlockPalettesDropdown = false;
         let unlockDateTimePickers = false;
 
         if (selectedDatabase) {
@@ -194,8 +222,14 @@ export default class ConfiguratorContainer extends Component {
                 unlockHeatMapTypesDropdown = true;
                 if (selectedHeatMapType) {
                     unlockFieldsDropdown = true;
-                    if (selectedField && firstInterval && lastInterval) {
-                        unlockDateTimePickers = true;
+                    if (selectedField) {
+                        unlockZScoresDropdown = true;
+                        if (selectedZScore) {
+                            unlockPalettesDropdown = true;
+                            if (selectedPalette && firstInterval && lastInterval) {
+                                unlockDateTimePickers = true;
+                            }
+                        }
                     }
                 }
             }
@@ -275,6 +309,34 @@ export default class ConfiguratorContainer extends Component {
                                 </Row>
                                 <Row>
                                     <Form>
+                                        <Col xs={12} sm={6} md={3}>
+
+                                            <DropdownClassic
+                                                label="Z-Score"
+                                                id="zscores-dropdown"
+                                                placeholder="select Z-Score.."
+                                                loading={isLoading}
+                                                data={zscores}
+                                                value={selectedZScore}
+                                                type={localConstants._TYPE_SELECTED_ZSCORE}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockZScoresDropdown}/>
+
+                                        </Col>
+                                        <Col xs={12} sm={6} md={3}>
+
+                                            <DropdownClassic
+                                                label="Palette"
+                                                id="palettes-dropdown"
+                                                placeholder="select palette.."
+                                                loading={isLoading}
+                                                data={palettes}
+                                                value={selectedPalette}
+                                                type={localConstants._TYPE_SELECTED_PALETTE}
+                                                onChange={this.handleDropdownSelection}
+                                                disabled={!unlockPalettesDropdown}/>
+
+                                        </Col>
                                         <Col xs={12} sm={6} md={3}>
 
                                             <DropdownDateTime

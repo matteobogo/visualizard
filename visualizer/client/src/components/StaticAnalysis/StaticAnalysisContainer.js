@@ -45,6 +45,8 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_POLICIES]: [],
                 [localConstants._TYPE_HEATMAP_TYPES]: [],
                 [localConstants._TYPE_FIELDS]: [],
+                [localConstants._TYPE_ZSCORES]: [],
+                [localConstants._TYPE_PALETTES]: [],
                 [localConstants._TYPE_HEATMAP_BOUNDS]: {
                     [localConstants._TYPE_FIRST_INTERVAL]: null,
                     [localConstants._TYPE_LAST_INTERVAL]: null,
@@ -78,7 +80,7 @@ class StaticAnalysisContainer extends Component {
             },
 
             timeSeriesMap: new Map(),
-            timeSerieTimestampSelection: null,
+            timeSerieCurrentPointSelection: null,
 
             pendingRequests: {},    //map of pending requests in process through redux
             pendingDeletion: [],    //uuid list of pending requests consumed (need to be deleted from redux store)
@@ -108,6 +110,21 @@ class StaticAnalysisContainer extends Component {
         this.fetchData({
             groupType: localConstants._TYPE_GROUP_DATASET,
             type: localConstants._TYPE_DATABASES,
+        });
+
+        //TODO update logic in backend: need heatmap infos (db/policy/..) to get the list of zscores
+        //TODO of heatmaps available for a specific config of database/policy/etc...
+        //fetch zscores
+        this.fetchData({
+            groupType: localConstants._TYPE_GROUP_DATASET,
+            type: localConstants._TYPE_ZSCORES,
+        });
+
+        //TODO as above, but for palettes
+        //fetch palettes
+        this.fetchData({
+            groupType: localConstants._TYPE_PALETTES,
+            type: localConstants._TYPE_PALETTES,
         });
     }
 
@@ -321,6 +338,7 @@ class StaticAnalysisContainer extends Component {
             zoom = null,
             tileIds = null,
             pointCoords = null,
+            latLon = null,
             actionType
         }) {
 
@@ -375,11 +393,12 @@ class StaticAnalysisContainer extends Component {
                         //add data correlated to the tile and the point within it selected
                         //it will be used for the overlay highlight on the heatmap
                         data["selection"] = {
+                            timestamp: timestamp,
+                            timeSerieIdx: timeSerieIdx,
                             tileIds: {x: tileIds[0], y: tileIds[1]},
                             pointCoords: {x: pointCoords[0], y: pointCoords[1]},
                             tileZoom: zoom,
-                            timestamp: timestamp,
-                            timeSerieIdx: timeSerieIdx,
+                            latLon: latLon,
                         };
 
                         //assign color to timeserie
@@ -392,7 +411,10 @@ class StaticAnalysisContainer extends Component {
                                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
                             },
                             timeSeriesMap: timeSeriesMap.set(timeSerieIdx, data),
-                            timeSerieTimestampSelection: timestamp,
+                            timeSerieCurrentPointSelection: {
+                                timeSerieIdx: timeSerieIdx,
+                                timestamp: timestamp
+                            },
                             isLoading: false,
                         });
                     })
@@ -441,12 +463,15 @@ class StaticAnalysisContainer extends Component {
 
     render() {
 
+        console.log(this.state)
+
         const {
             [localConstants._TYPE_GROUP_DATASET]: dataset,
             [localConstants._TYPE_GROUP_CONFIGURATION]: configuration,
             [localConstants._TYPE_GROUP_HEATMAP]: heatmapConfiguration,
             [localConstants._TYPE_GROUP_ANALYSES]: analyses,
             timeSeriesMap,
+            timeSerieCurrentPointSelection,
             isLoading,
 
         } = this.state;
@@ -455,17 +480,12 @@ class StaticAnalysisContainer extends Component {
 
             [localConstants._TYPE_SELECTED_DATABASE]: selectedDatabase,
             [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
 
         } = this.state[localConstants._TYPE_GROUP_CONFIGURATION];
-
-        const {
-
-            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
-            [localConstants._TYPE_SELECTED_FIELD]: selectedField,
-
-        } = this.state[localConstants._TYPE_GROUP_HEATMAP];
 
         //get stats of the current selected field from dataset analysis
         let selectedFieldStats;
@@ -529,6 +549,7 @@ class StaticAnalysisContainer extends Component {
                                     sideFields={['n_jobs', 'n_tasks']}
                                     fieldStats={selectedFieldStats}
                                     timeSeriesMap={timeSeriesMap}
+                                    timeSerieCurrentPointSelection={timeSerieCurrentPointSelection}
                                     isLoading={isLoading}
                                 />
                             </Col>

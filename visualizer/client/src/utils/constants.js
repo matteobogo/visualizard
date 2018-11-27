@@ -1,7 +1,10 @@
 export const _TYPE_DATABASES                    = 'databases';
 export const _TYPE_POLICIES                     = 'policies';
-export const _TYPE_FIELDS                       = 'fields';
 export const _TYPE_HEATMAP_TYPES                = 'heatMapTypes';
+export const _TYPE_FIELDS                       = 'fields';
+export const _TYPE_PERIODS                      = 'periods';
+export const _TYPE_ZSCORES                      = 'zScores';
+export const _TYPE_PALETTES                     = 'palettes';
 
 //HEATMAP BOUNDS
 export const _TYPE_HEATMAP_BOUNDS               = 'heatMapBounds';
@@ -18,20 +21,22 @@ export const _TYPE_TILE_IDS_BOUNDS_PER_ZOOM     = 'tileIdsBoundsPerZoom';
 export const _TYPE_COMPUTATION_OPTIONS          = 'computationOptions';
 export const _TYPE_STATISTICS                   = 'statistics';
 export const _TYPE_HEATMAP_ZOOMS                = 'heatMapZooms';
-export const _TYPE_PERIODS                      = 'periods';
 
 export const _TYPE_TIMESERIE_DATA               = 'timeSerieData';
 export const _TYPE_DATASET_ANALYSIS             = 'datasetAnalysis';
 export const _TYPE_PSPT_ANALYSIS                = 'psptAnalysis';
 
+//HEATMAP CONFIGURATION
 export const _TYPE_SELECTED_DATABASE            = 'database';
 export const _TYPE_SELECTED_POLICY              = 'policy';
+export const _TYPE_SELECTED_HEATMAP_TYPE        = 'heatMapType';
+export const _TYPE_SELECTED_FIELD               = 'field';
 export const _TYPE_SELECTED_PERIOD              = 'period';
+export const _TYPE_SELECTED_ZSCORE              = 'zScore';
+export const _TYPE_SELECTED_PALETTE             = 'palette';
 export const _TYPE_SELECTED_START_INTERVAL      = 'startInterval';
 export const _TYPE_SELECTED_END_INTERVAL        = 'endInterval';
 
-export const _TYPE_SELECTED_HEATMAP_TYPE        = 'heatMapType';
-export const _TYPE_SELECTED_FIELD               = 'field';
 export const _TYPE_SELECTED_STATISTIC           = 'statistic';
 export const _TYPE_SELECTED_HEATMAP_ZOOM        = 'heatMapZoom';
 
