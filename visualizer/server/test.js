@@ -177,6 +177,7 @@ describe('Dataset Analysis Service', function() {
                  palette: 'GRAY',
                  imageType: constants.IMAGE_EXTENSIONS.IMAGE_PNG_EXT,
                  mode: constants.HEATMAPS.MODES.TILES,
+                 zScore: 3,
              };
 
              heatMapService.heatMapBuildAndStore({request: request})

@@ -7,15 +7,14 @@ const mime = {
     json: 'application/json',
 };
 
-const getHeatMapBounds = async (req, res) => {
+const getPalettes = async (req, res) => {
 
-    let bounds, err;
-    [err, bounds] = await to(heatMapsService.getHeatMapBounds(req.query));
+    const palettes = heatMapsService.getPalettes();
 
-    if (err) return ReE(res, `heatmap's bounds are not available`);
+    if (!palettes || palettes.length === 0) return ReE(res, 'no palettes available');
 
     res.setHeader('Content-Type', mime.json);
-    return ReS(res, {payload: bounds}, 200);
+    return ReS(res, {payload: palettes}, 200);
 };
 
 const getHeatMapTypes = async (req, res) => {
@@ -26,6 +25,47 @@ const getHeatMapTypes = async (req, res) => {
 
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: heatMapTypes}, 200);
+};
+
+const getImageTypes = async (req, res) => {
+
+    const imageTypes = heatMapsService.getImageTypes();
+
+    if (!imageTypes || imageTypes.length === 0) return ReE(res, 'no image types available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: imageTypes}, 200);
+};
+
+const getHeatMapGenerationModes = async (req, res) => {
+
+    const modes = heatMapsService.getHeatMapGenerationModes();
+
+    if (!modes || modes.length === 0) return ReE(res, 'no heatmap generation modes available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: modes}, 200);
+};
+
+const getZScores = async (req, res) => {
+
+    const zScores = heatMapsService.getZScores();
+
+    if (!zScores || zScores.length === 0) return ReE(res, 'no z-scores available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: zScores}, 200);
+};
+
+const getHeatMapBounds = async (req, res) => {
+
+    let bounds, err;
+    [err, bounds] = await to(heatMapsService.getHeatMapBounds(req.query));
+
+    if (err) return ReE(res, `heatmap's bounds are not available`);
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: bounds}, 200);
 };
 
 const getZoomLevels = async (req, res) => {
@@ -42,35 +82,6 @@ const getZoomLevels = async (req, res) => {
 
     res.setHeader('Content-Type', mime.json);
     return ReS(res, {payload: zoomLevels}, 200);
-};
-
-const getPalettes = async (req, res) => {
-
-    const palettes = heatMapsService.getPalettes();
-
-    if (!palettes || palettes.length === 0) return ReE(res, 'no palettes available');
-
-    res.setHeader('Content-Type', mime.json);
-    return ReS(res, {payload: palettes}, 200);
-};
-
-const setHeatMapZscores = async (req, res) => {
-
-    const minZscore = req.query.min;
-    const maxZscore = req.query.max;
-
-    heatMapsService.setZscores(minZscore, maxZscore);
-
-    res.setHeader('Content-Type', mime.json);
-    return ReS(res, {payload: true}, 200);
-};
-
-const getHeatMapZscore = async (req, res) => {
-
-    const zScores = heatMapsService.getZscores();
-
-    res.setHeader('Content-Type', mime.json);
-    return ReS(res, { payload: zScores}, 200);
 };
 
 const getHeatMapComputationStatus = async (req, res) => {
@@ -139,12 +150,13 @@ const getDataByMachineIdxByHeatMapType = async (req, res) => {
 };
 
 module.exports = {
-    getHeatMapBounds: getHeatMapBounds,
-    getHeatMapTypes: getHeatMapTypes,
-    getZoomLevels: getZoomLevels,
     getPalettes: getPalettes,
-    setHeatMapZscores: setHeatMapZscores,
-    getHeatMapZscore: getHeatMapZscore,
+    getHeatMapTypes: getHeatMapTypes,
+    getImageTypes: getImageTypes,
+    getHeatMapGenerationModes: getHeatMapGenerationModes,
+    getZScores: getZScores,
+    getHeatMapBounds: getHeatMapBounds,
+    getZoomLevels: getZoomLevels,
     getHeatMapComputationStatus: getHeatMapComputationStatus,
     stopHeatMapComputation: stopHeatMapComputation,
     storeHeatMap: storeHeatMap,

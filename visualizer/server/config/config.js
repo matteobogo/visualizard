@@ -30,8 +30,7 @@ const config = {
         period:             process.env.TS_PERIOD                           || 300,
     },
     HEATMAPS: {
-        MIN_Z_SCORE:        process.env.HEATMAP_MIN_Z_SCORE                 || -3,
-        MAX_Z_SCORE:        process.env.HEATMAP_MAX_Z_SCORE                 || 3,
+        Z_SCORE:            process.env.HEATMAP_Z_SCORE                     || "1,2,3,4",
         TILE_SIZE:          process.env.HEATMAP_TILE_SIZE                   || 256,
         MIN_ZOOM_OUT_NR_TILES:  process.env.HEATMAP_MIN_ZOOM_OUT_NR_TILES   || 1,
         TILE_ZOOMS:         process.env.HEATMAP_TILE_ZOOMS                  || '2' //2x

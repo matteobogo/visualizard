@@ -36,11 +36,12 @@ router.get('/analysis/statistics', AnalysisController.getAnalysisStatistics);
 router.get('/analysis', AnalysisController.getAnalysis);
 
 router.get('/heatmaps/bounds', HeatMapController.getHeatMapBounds);
-router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
-router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
 router.get('/heatmaps/palettes', HeatMapController.getPalettes);
-router.post('/heatmaps/zscores', HeatMapController.setHeatMapZscores);
-router.get('/heatmaps/zscores', HeatMapController.getHeatMapZscore);
+router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
+router.get('/heatmaps/image-types', HeatMapController.getImageTypes);
+router.get('/heatmaps/modes', HeatMapController.getHeatMapGenerationModes);
+router.get('/heatmaps/z-scores', HeatMapController.getZScores);
+router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
 router.get('/heatmaps/status', HeatMapController.getHeatMapComputationStatus);
 router.post('/heatmaps/stop', HeatMapController.stopHeatMapComputation);
 
