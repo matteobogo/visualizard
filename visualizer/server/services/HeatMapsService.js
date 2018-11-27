@@ -78,6 +78,8 @@ const getHeatMapBounds = async (request) => {
     request.field = request.field || gf.checkParam(request.field);
     request.heatMapType = request.heatMapType || gf.checkParam(request.heatMapType);
     request.period = request.period || gf.checkParam(request.period);
+    request.zScore = request.zScore || gf.checkParam(request.zScore);
+    request.palette = request.palette || gf.checkParam(request.palette);
 
     //find() always return a promise in moongose 4.13+ (exec() is not necessary)
     return ConfigurationsModel.findOne(request, 'bounds')
@@ -92,7 +94,7 @@ const getHeatMapBounds = async (request) => {
                 }
             })
             .catch((err) => {
-                logger.log('error', `Failed to fetch heatmap's bounds: ${err} \n request: ${arguments[0]}`);
+                logger.log('error', `Failed to fetch heatmap's bounds: ${err}`);
                 throw Error(`Failed to fetch heatmap's bounds`);
             });
 };
