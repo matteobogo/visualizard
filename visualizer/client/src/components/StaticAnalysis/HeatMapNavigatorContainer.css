@@ -3,130 +3,31 @@
 }
 
 .heatmap-menu-container {
-
-    display: flex;
-    width: 100%;
-}
-
-.heatmap-container {
-
-    display: flex;
-}
-
-.wrapper {
-
-    display: grid;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    grid-template-areas:    "hd hd hd hd"
-                            "lsd tlvertic main rsd"
-                            "ft ft ft ft"
-                            "tl tl tl tl"
-}
-
-.wrapper p {
-    font-size: x-small;
-    color: black;
-}
-
-.menu-area-clickable {
-    width: 100%;
-    height: 100%;
-    background: transparent no-repeat;
-    border: none;
-    cursor: pointer;
-    overflow: hidden;
-    outline: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: 0.5s;
-}
-
-.menu-area-clickable:hover {
-    background-color: #EAEAEA;
-}
-
-.menu-area-clickable img {
-    width: 15px;
-    height: 15px;
-}
-
-/* Timeline Horizontal */
-.timeline-overlay {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    pointer-events: none;  /* the layer behind the overlay is clickable */
-    opacity: 0.5;
-}
-
-.timeline-overlay line {
-    stroke: black;
-    stroke-width: 1px;
-}
-
-/* Heatmap Grid */
-
-.header {
-    grid-area: hd;
-    height: 35px;
-    margin: 0 35px 0 35px;
-}
-
-.left-sidebar {
-    grid-area: lsd;
-    width: 35px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.right-sidebar {
-    grid-area: rsd;
-    width: 35px;
+.pigeon-map-container {
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.tiles-container-bordering {
-    border: 2px grey solid;
-}
-
-.tiles-container {
-    grid-area: main;
-    display: grid;
-    cursor: crosshair;
-    position: relative;
-}
-
-.footer {
-    grid-area: ft;
-    height: 35px;
-    margin: 0 35px 0 35px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.pigeon-map img {
+    width: 256px;
+    height: 256px;
 }
 
 .timeline {
-    grid-area: tl;
-    height: 100px;
-    margin: 20px 35px 0 35px;
     display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.tiles-col {
-    width: 256px;
-}
-
-.tile {
-    width: 256px;
-    height: 256px;
+.timeline p {
+    font-size: x-small;
+    color: black;
 }
 
 .timeserie-closable-area {
@@ -161,3 +62,120 @@
     margin: 0 10px 0 0;
     font-size: small;
 }
+
+
+
+
+/*.heatmap-container {*/
+
+    /*display: flex;*/
+/*}*/
+
+/*.wrapper {*/
+
+    /*display: grid;*/
+    /*justify-content: center;*/
+    /*width: 100%;*/
+    /*height: 100%;*/
+    /*grid-template-areas:    "hd hd hd hd"*/
+                            /*"lsd tlvertic main rsd"*/
+                            /*"ft ft ft ft"*/
+                            /*"tl tl tl tl"*/
+/*}*/
+
+/*.wrapper p {*/
+    /*font-size: x-small;*/
+    /*color: black;*/
+/*}*/
+
+/*.menu-area-clickable {*/
+    /*width: 100%;*/
+    /*height: 100%;*/
+    /*background: transparent no-repeat;*/
+    /*border: none;*/
+    /*cursor: pointer;*/
+    /*overflow: hidden;*/
+    /*outline: none;*/
+    /*display: flex;*/
+    /*align-items: center;*/
+    /*justify-content: center;*/
+    /*transition: 0.5s;*/
+/*}*/
+
+/*.menu-area-clickable:hover {*/
+    /*background-color: #EAEAEA;*/
+/*}*/
+
+/*.menu-area-clickable img {*/
+    /*width: 15px;*/
+    /*height: 15px;*/
+/*}*/
+
+/*!* Timeline Horizontal *!*/
+/*.timeline-overlay {*/
+    /*position: absolute;*/
+    /*width: 100%;*/
+    /*height: 100%;*/
+    /*top: 0;*/
+    /*left: 0;*/
+    /*pointer-events: none;  !* the layer behind the overlay is clickable *!*/
+    /*opacity: 0.5;*/
+/*}*/
+
+/*.timeline-overlay line {*/
+    /*stroke: black;*/
+    /*stroke-width: 1px;*/
+/*}*/
+
+/*!* Heatmap Grid *!*/
+
+/*.header {*/
+    /*grid-area: hd;*/
+    /*height: 35px;*/
+    /*margin: 0 35px 0 35px;*/
+/*}*/
+
+/*.left-sidebar {*/
+    /*grid-area: lsd;*/
+    /*width: 35px;*/
+    /*display: flex;*/
+    /*align-items: center;*/
+    /*justify-content: center;*/
+/*}*/
+
+/*.right-sidebar {*/
+    /*grid-area: rsd;*/
+    /*width: 35px;*/
+    /*display: flex;*/
+    /*align-items: center;*/
+    /*justify-content: center;*/
+/*}*/
+
+/*.tiles-container-bordering {*/
+    /*border: 2px grey solid;*/
+/*}*/
+
+/*.tiles-container {*/
+    /*grid-area: main;*/
+    /*display: grid;*/
+    /*cursor: crosshair;*/
+    /*position: relative;*/
+/*}*/
+
+/*.footer {*/
+    /*grid-area: ft;*/
+    /*height: 35px;*/
+    /*margin: 0 35px 0 35px;*/
+    /*display: flex;*/
+    /*align-items: center;*/
+    /*justify-content: center;*/
+/*}*/
+
+/*.tiles-col {*/
+    /*width: 256px;*/
+/*}*/
+
+/*.tile {*/
+    /*width: 256px;*/
+    /*height: 256px;*/
+/*}*/

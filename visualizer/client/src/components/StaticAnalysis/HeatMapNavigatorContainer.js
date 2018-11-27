@@ -1,7 +1,17 @@
+//HeatMap Requirements:
+//Tiles are 256 × 256 pixel PNG files
+//Each zoom level is a directory, each column is a subdirectory, and each tile in that column is a file
+//Filename(url) format is /zoom/x/y.png
+
 import React, { Component } from 'react';
 import { config, TILES_URL, FAKE_TILE_URL } from '../../config/config';
 
 import * as localConstants from '../../utils/constants';
+import * as globals from '../../utils/globals';
+
+import {default as PigeonMap} from 'pigeon-maps';
+import Marker from 'pigeon-marker';
+import Overlay from 'pigeon-overlay';
 
 import { Panel, Row, Col, Form } from 'react-bootstrap';
 import 'react-widgets/dist/css/react-widgets.css';
@@ -20,6 +30,8 @@ import ArrowDownSvg from '../../../public/images/arrow-down.svg';
 import ArrowLeftSvg from '../../../public/images/arrow-left.svg';
 import Tile from "./Tile.js";
 
+const _FIXED_N_TILES = 2;
+const _FIXED_TILES_WIDTH = 2;
 const _FIXED_TILES_HEIGHT = 2;
 const _MENU_NAVIGATION = {
     _UP: 'UP',
@@ -27,9 +39,6 @@ const _MENU_NAVIGATION = {
     _DOWN: 'DOWN',
     _LEFT: 'LEFT',
 };
-
-//check if all object's values are valid (not null/undefined/zero)
-const checkValuesExistanceOfObject = (obj) => Object.values(obj).every((v) => v);
 
 const convertTimestampToID = (genesis, current, period = 300, zoom) => {
 
@@ -135,12 +144,82 @@ const computeTimelineData = (startTimestamp, endTimestamp, period, zoom) => {
     return timestamps.map(e => e.toISOString());
 };
 
+/* TILE's Conversion Functions */
+//https://gis.stackexchange.com/questions/133205/wmts-convert-geolocation-lat-long-to-tile-index-at-a-given-zoom-level
+//https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+
+const long2tile = (lon,zoom) => {
+    return ((lon+180)/360*Math.pow(2,zoom));
+};
+
+const lat2tile = (lat,zoom) => {
+    return ((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom));
+};
+
+const tile2long = (x,z) => {
+    return (x/Math.pow(2,z)*360-180);
+};
+
+const tile2lat = (y,z) => {
+    const n = Math.PI-2*Math.PI*y/Math.pow(2,z);
+    return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
+};
+
+//https://help.openstreetmap.org/questions/747/given-a-latlon-how-do-i-find-the-precise-position-on-the-tile
+//When you calulate the tile number according to the wiki you will actually get a floating point number.
+//The integer part indicates which tile you are (or should be) looking at.
+//The fractional part indicates the position within the tile. As a tile is 256 pixel wide,
+//multiplying the fractional part with 256 will give you the pixel position from the top left.
+
+//convert lon/lat/zoom to tile ids and internal (tile) pixels coords
+const lonLat2TileIdsPixels = (lon, lat, zoom) => {
+
+    const xRes = long2tile(lon, zoom);
+    const yRes = lat2tile(lat, zoom);
+
+    //integer part indicates tile's ids
+    const xTileID = Math.trunc(xRes);
+    const yTileID = Math.trunc(yRes);
+
+    //fractional part indicates the position within the tile
+    const xPoint = Math.floor((xRes % 1) * config.TILE_SIZE);
+    const yPoint = Math.floor((yRes % 1) * config.TILE_SIZE);
+
+    console.log(lon,lat)
+    console.log(xRes, yRes)
+    console.log(xTileID, yTileID)
+    console.log(xPoint, yPoint)
+
+    return {
+        xTileID: xTileID,
+        yTileID: yTileID,
+        xPoint: xPoint,
+        yPoint: yPoint,
+    }
+};
+
+const mapOptions = {    //TODO fetch from config externally or from API
+
+    minZoom: 1,
+    center: [0,0],
+    zoom: 1,
+    defaultZoom: 1,
+    bounds: null,
+    initial: null,
+};
+
 export default class HeatMapNavigatorContainer extends Component {
 
     constructor() {
         super();
 
         this.state = {
+
+            map: {
+                ...mapOptions,
+                zoomsMap: null,
+                marksMap: null,
+            },
 
             zooms: null,
 
@@ -192,6 +271,12 @@ export default class HeatMapNavigatorContainer extends Component {
 
         this.updateClientWindowDimensions = this.updateClientWindowDimensions.bind(this);
         this.heatMapContainerElement = React.createRef();
+
+        this.fetchTileByTmsURL = this.fetchTileByTmsURL.bind(this);
+        this.handleBoundsChange = this.handleBoundsChange.bind(this);
+        this.handleClick = this.handleClick.bind(this);
+
+        this.handleMarkerClick = this.handleMarkerClick.bind(this);
     }
 
     componentDidMount() {
@@ -243,168 +328,158 @@ export default class HeatMapNavigatorContainer extends Component {
         } = prevState.navigation;
 
         //guard
-        if (!checkValuesExistanceOfObject(this.props.dataset) ||
-            !checkValuesExistanceOfObject(this.props.configuration) ||
-            !checkValuesExistanceOfObject(this.props.heatMapConfiguration))
+        if (!globals.checkValuesExistanceOfObject(this.props.dataset) ||
+            !globals.checkValuesExistanceOfObject(this.props.configuration) ||
+            !globals.checkValuesExistanceOfObject(this.props.heatMapConfiguration))
             return;
 
-        //the configuration fetched from props is changed or a different heatmap configuration is triggered
-        if (JSON.stringify(this.props.configuration) !== JSON.stringify(prevProps.configuration) ||
-            heatMapZoom !== prevHeatMapZoom) {
+        //zooms mapping when the component is loaded and anytime the zoom list from props changes
+        if (!this.state.map.zoomsMap || JSON.stringify(zooms) !== JSON.stringify(prevZooms)) {
 
-            this.computeHeatMapTiles({
-                baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}`,
-                zoom: heatMapZoom,
-                isUpdate: false,
-            });
+            this.zoomsMapping();
         }
 
-        //guard
-        if (tileIdCurrentInterval === null || tileIdCurrentMachineIndex === null) return;
-
-        //user has triggered the heatmap navigation, resizing or zooming
-        if (heatMapZoom !== null && heatMapZoom !== undefined &&
-            heatMapZoom !== prevHeatMapZoom ||
-            tileIdCurrentInterval !== prevTileIdCurrentInterval ||
-            tileIdCurrentMachineIndex !== prevTileIdCurrentMachineIndex) {
-
-            //note: start/end ids (both interval and machineIdx) are already updated here
-            //e.g. in case of zooming the logic of mouse wheel will update them according to the new zoom and
-            //heatmap is re-computed with the zoomed tile in top-left corner
-            this.computeHeatMapTiles({
-                baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
-                zoom: heatMapZoom,
-                isUpdate: true,
-            });
-        }
+        // //guard
+        // if (!this.state.map.zoomsMap) return;
+        //
+        // //the configuration fetched from props is changed or a different heatmap configuration is triggered
+        // if (JSON.stringify(this.props.configuration) !== JSON.stringify(prevProps.configuration) ||
+        //     heatMapZoom !== prevHeatMapZoom) {
+        //
+        //     this.computeHeatMapTiles({
+        //         baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}`,
+        //         zoom: heatMapZoom,
+        //         isUpdate: false,
+        //     });
+        // }
+        //
+        // //guard
+        // if (tileIdCurrentInterval === null || tileIdCurrentMachineIndex === null) return;
+        //
+        // //user has triggered the heatmap navigation, resizing or zooming
+        // if (heatMapZoom !== null && heatMapZoom !== undefined &&
+        //     heatMapZoom !== prevHeatMapZoom ||
+        //     tileIdCurrentInterval !== prevTileIdCurrentInterval ||
+        //     tileIdCurrentMachineIndex !== prevTileIdCurrentMachineIndex) {
+        //
+        //     //note: start/end ids (both interval and machineIdx) are already updated here
+        //     //e.g. in case of zooming the logic of mouse wheel will update them according to the new zoom and
+        //     //heatmap is re-computed with the zoomed tile in top-left corner
+        //     this.computeHeatMapTiles({
+        //         baseURI: `${TILES_URL}/${database}/${policy}/${heatMapType}/mean_cpu_usage_rate`,  //${field}
+        //         zoom: heatMapZoom,
+        //         isUpdate: true,
+        //     });
+        // }
     }
 
-    getTileIdsBoundsByZoom(zoom) {
-
-        const {
-            [localConstants._TYPE_TILE_IDS_BOUNDS_PER_ZOOM]: tileIdsBoundsPerZoom,
-        } = this.props.dataset.heatMapBounds;
-
-        return tileIdsBoundsPerZoom.find(o => o.zoom === zoom);
-    }
-
-    boundsCheck(timestampID, timeserieIndexID, zoom) {
-
-        const idsBounds = this.getTileIdsBoundsByZoom(zoom);
-
-        return !(timestampID < idsBounds.xIDStart ||
-            timestampID > idsBounds.xIDEnd ||
-            timeserieIndexID < idsBounds.yIDStart ||
-            timeserieIndexID > idsBounds.yIDEnd)
-    }
-
-    computeHeatMapTiles({ baseURI, zoom, isUpdate }) {
-
-        const {
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
-            [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
-            [localConstants._TYPE_TIMESERIES_START_INDEX]: startIndex,
-            [localConstants._TYPE_TIMESERIES_END_INDEX]: endIndex,
-        } = this.props.dataset.heatMapBounds;
-
-        const {
-            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
-            [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
-        } = this.props.configuration;
-
-        const { tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
-
-        /* COMPUTE NR. TILES ACCORDING TO CLIENT WINDOW */
-        const { clientWindowWidth, clientWindowsHeight } = this.state;
-
-        //compute the number of tiles according to window size
-        //we "virtually" remove a tile to fill the gap of left/right navigators and bootstrap panel
-        const nHorizontalTiles = Math.floor((clientWindowWidth) / (config.TILE_SIZE)) - 1;
-
-        //get the tiles ids bounds for the current zoom
-        const tileIdsBounds = this.getTileIdsBoundsByZoom(zoom);
-
-        //current view (top-left corner)
-        //when the heatmap is built for the first time, the top-left corner starts from tile (0,0)
-        let xIDcurrent = isUpdate ? tileIdCurrentInterval : tileIdsBounds.xIDStart;
-        let yIDcurrent = isUpdate ? tileIdCurrentMachineIndex : tileIdsBounds.yIDStart;
-
-        /* COMPUTE TILES URLS */
-        let tileRows = [];
-
-        let timestampID = xIDcurrent;
-        for (let i = 0; i < nHorizontalTiles; ++i) {
-
-            let cols = [];
-
-            let timeserieIndexID = yIDcurrent;
-            for (let j = 0; j < _FIXED_TILES_HEIGHT; ++j) {
-
-                //URI + zoom level (z) + timestamp (x) + machine index (y)
-                const _URL =
-                    `${baseURI}/` +
-                    `${zoom}/` +
-                    `${timestampID}/` +
-                    `${timeserieIndexID}/` +
-                    `tile.png`;
-
-                //check tiles ids bounds, if we are out of bounds a fake tile is fetched
-                cols.push((this.boundsCheck(timestampID, timeserieIndexID, zoom)) ? _URL : FAKE_TILE_URL);
-
-                ++timeserieIndexID;
-            }
-
-            tileRows.push(cols);
-            ++timestampID;
-        }
-
-        /* COMPUTE THE TIMELINE */
-        //TODO revisiona usando i bounds fetchati nei props (dataset)
-
-        //start timestamp + start timeserie index of the current heatmap view
-        const [startTimestamp, startTimeserieIndex] = convertTileCoordinates({
-            genesis: startInterval,
-            tileIds: [xIDcurrent, yIDcurrent],
-            tileCoords: [0,0],
-            zoom: zoom,
-        });
-
-        //end timestamp + end timeserie index of the current heatmap view
-        let [endTimestamp, endTimeserieIndex] = convertTileCoordinates({
-            genesis: startInterval,
-            tileIds: [xIDcurrent + nHorizontalTiles - 1, yIDcurrent],
-            tileCoords: [config.TILE_SIZE, config.TILE_SIZE],
-            zoom: zoom,
-        });
-
-        const timelineData = computeTimelineData(startTimestamp, endTimestamp, 300, zoom);
-
-        this.setState({
-
-            navigation: {
-                ...this.state.navigation,
-
-                nHorizontalTiles: nHorizontalTiles,
-
-                tileIdStartInterval: tileIdsBounds.xIDStart,
-                tileIdCurrentInterval: xIDcurrent,
-                tileIdEndInterval: tileIdsBounds.xIDEnd,
-
-                tileIdStartMachineIndex: tileIdsBounds.yIDStart,
-                tileIdCurrentMachineIndex: yIDcurrent,
-                tileIdEndMachineIndex: tileIdsBounds.yIDEnd,
-
-                timelineStartTimestamp: startTimestamp,
-                timelineEndTimestamp: endTimestamp,
-                //timelineStartTimeserieIndex: startTimeserieIndex, //TODO may be useful when limiting the vertical sel.
-                //timelineEndTimeserieIndex: endTimeserieIndex - 1,
-
-                timelineData: timelineData,
-
-                tileRowsURLs: tileRows,
-            },
-        });
-    }
+    // computeHeatMapTiles({ baseURI, zoom, isUpdate }) {
+    //
+    //     const {
+    //         [localConstants._TYPE_FIRST_INTERVAL]: firstInterval,
+    //         [localConstants._TYPE_LAST_INTERVAL]: lastInterval,
+    //         [localConstants._TYPE_TIMESERIES_START_INDEX]: startIndex,
+    //         [localConstants._TYPE_TIMESERIES_END_INDEX]: endIndex,
+    //     } = this.props.dataset.heatMapBounds;
+    //
+    //     const {
+    //         [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
+    //         [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+    //     } = this.props.configuration;
+    //
+    //     const { tileIdCurrentInterval, tileIdCurrentMachineIndex } = this.state.navigation;
+    //
+    //     /* COMPUTE NR. TILES ACCORDING TO CLIENT WINDOW */
+    //     const { clientWindowWidth, clientWindowsHeight } = this.state;
+    //
+    //     //compute the number of tiles according to window size
+    //     //we "virtually" remove a tile to fill the gap of left/right navigators and bootstrap panel
+    //     //const nHorizontalTiles = Math.floor((clientWindowWidth) / (config.TILE_SIZE)) - 1;
+    //
+    //     //get the tiles ids bounds for the current zoom
+    //     const tileIdsBounds = this.getTileIdsBoundsByZoom(zoom);
+    //
+    //     //current view (top-left corner)
+    //     //when the heatmap is built for the first time, the top-left corner starts from tile (0,0)
+    //     let xIDcurrent = isUpdate ? tileIdCurrentInterval : tileIdsBounds.xIDStart;
+    //     let yIDcurrent = isUpdate ? tileIdCurrentMachineIndex : tileIdsBounds.yIDStart;
+    //
+    //     /* COMPUTE TILES URLS */
+    //     let tileRows = [];
+    //
+    //     let timestampID = xIDcurrent;
+    //     for (let i = 0; i < _FIXED_TILES_WIDTH; ++i) {
+    //
+    //         let cols = [];
+    //
+    //         let timeserieIndexID = yIDcurrent;
+    //         for (let j = 0; j < _FIXED_TILES_HEIGHT; ++j) {
+    //
+    //             //URI + zoom level (z) + timestamp (x) + machine index (y)
+    //             const _URL =
+    //                 `${baseURI}/` +
+    //                 `${zoom}/` +
+    //                 `${timestampID}/` +
+    //                 `${timeserieIndexID}/` +
+    //                 `tile.png`;
+    //
+    //             //check tiles ids bounds, if we are out of bounds a fake tile is fetched
+    //             cols.push((this.boundsCheck(timestampID, timeserieIndexID, zoom)) ? _URL : FAKE_TILE_URL);
+    //
+    //             ++timeserieIndexID;
+    //         }
+    //
+    //         tileRows.push(cols);
+    //         ++timestampID;
+    //     }
+    //
+    //     /* COMPUTE THE TIMELINE */
+    //     //TODO revisiona usando i bounds fetchati nei props (dataset)
+    //
+    //     //start timestamp + start timeserie index of the current heatmap view
+    //     const [startTimestamp, startTimeserieIndex] = convertTileCoordinates({
+    //         genesis: startInterval,
+    //         tileIds: [xIDcurrent, yIDcurrent],
+    //         tileCoords: [0,0],
+    //         zoom: zoom,
+    //     });
+    //
+    //     //end timestamp + end timeserie index of the current heatmap view
+    //     let [endTimestamp, endTimeserieIndex] = convertTileCoordinates({
+    //         genesis: startInterval,
+    //         tileIds: [xIDcurrent + _FIXED_TILES_WIDTH - 1, yIDcurrent],
+    //         tileCoords: [config.TILE_SIZE, config.TILE_SIZE],
+    //         zoom: zoom,
+    //     });
+    //
+    //     const timelineData = computeTimelineData(startTimestamp, endTimestamp, 300, zoom);
+    //
+    //     this.setState({
+    //
+    //         navigation: {
+    //             ...this.state.navigation,
+    //
+    //             nHorizontalTiles: _FIXED_TILES_WIDTH,
+    //
+    //             tileIdStartInterval: tileIdsBounds.xIDStart,
+    //             tileIdCurrentInterval: xIDcurrent,
+    //             tileIdEndInterval: tileIdsBounds.xIDEnd,
+    //
+    //             tileIdStartMachineIndex: tileIdsBounds.yIDStart,
+    //             tileIdCurrentMachineIndex: yIDcurrent,
+    //             tileIdEndMachineIndex: tileIdsBounds.yIDEnd,
+    //
+    //             timelineStartTimestamp: startTimestamp,
+    //             timelineEndTimestamp: endTimestamp,
+    //             //timelineStartTimeserieIndex: startTimeserieIndex, //TODO may be useful when limiting the vertical sel.
+    //             //timelineEndTimeserieIndex: endTimeserieIndex - 1,
+    //
+    //             timelineData: timelineData,
+    //
+    //             tileRowsURLs: tileRows,
+    //         },
+    //     });
+    // }
 
     updateClientWindowDimensions() {
 
@@ -697,6 +772,197 @@ export default class HeatMapNavigatorContainer extends Component {
         return paths;
     }
 
+    zoomsMapping() {
+
+        const { [localConstants._TYPE_HEATMAP_ZOOMS]: zooms } = this.props.dataset;
+        const { minZoom } = this.state.map;
+
+        //mapping zooms according to pigeon-maps lib zooming (TMS) scale: [1,2,...]
+        //e.g. [1, 2, 3, 4, 5, 6, 7] =map=> [-32, -16, -8, -4, -2, 0, 2]
+        const zoomsMap = new Map();
+        zooms
+            .sort((a, b) => a - b) //we assuming the list arrives ordered (asc), but do a sort anyway
+            .forEach((k,idx) => zoomsMap.set(minZoom + idx, k));
+
+        this.setState({
+            map: {
+                ...this.state.map,
+                maxZoom: zoomsMap.size,
+                zoomsMap: zoomsMap,
+            },
+        });
+    }
+
+    getTileIdsBoundsByZoom(zoom) {
+
+        const {
+            [localConstants._TYPE_TILE_IDS_BOUNDS_PER_ZOOM]: tileIdsBoundsPerZoom,
+        } = this.props.dataset.heatMapBounds;
+
+        return tileIdsBoundsPerZoom.find(o => o.zoom === zoom);
+    }
+
+    boundsCheck(timestampID, timeserieIndexID, zoom) {
+
+        const { zoomsMap } = this.state.map;
+
+        const realZoom = zoomsMap.get(zoom);
+
+        const idsBounds = this.getTileIdsBoundsByZoom(realZoom);
+
+        return !(timestampID < idsBounds.xIDStart ||
+            timestampID > idsBounds.xIDEnd ||
+            timeserieIndexID < idsBounds.yIDStart ||
+            timeserieIndexID > idsBounds.yIDEnd)
+    }
+
+    fetchTileByTmsURL(x, y, z) {
+
+        const {
+            [localConstants._TYPE_SELECTED_DATABASE]: database,
+            [localConstants._TYPE_SELECTED_POLICY]: policy,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: field,
+            [localConstants._TYPE_SELECTED_ZSCORE]: zScore,
+            [localConstants._TYPE_SELECTED_PALETTE]: palette,
+        } = this.props.configuration;
+
+        const { zoomsMap } = this.state.map;
+
+        //TODO revert to parametric url
+        //const baseURI = `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}/${zScore}/${palette}`;
+
+        const baseURI = `${TILES_URL}/google_cluster/autogen/SORT_BY_MACHINE/mean_cpu_usage_rate/2/GRAY`;
+        const URL = `${baseURI}/` +
+            `${zoomsMap.get(z)}/` +     //zoom (get the real zoom mapped with the tile server)
+            `${x}/` +                   //timestampid
+            `${y}/` +                   //machineid
+            `tile.png`;
+
+        //check bounds, if we are out of bounds a fake tile is fetched from the API
+        return (this.boundsCheck(x,y,z) ? URL : FAKE_TILE_URL);
+    }
+
+    handleBoundsChange({ center, zoom, bounds, initial }) {
+
+        console.log(bounds)
+
+        this.setState({
+            map: {
+                ...this.state.map,
+                center: center,
+                zoom: zoom,
+                bounds: bounds,     //{ ne: [lat, lon], sw: [lat, lon] } , i.e. top-right and bottom-left corners
+                initial: initial,
+            }
+        })
+    }
+
+    handleClick({ event, latLng, pixel }) {
+
+        const { zoom: mappedZoom, zoomsMap } = this.state.map;
+
+        const {
+            [localConstants._TYPE_SELECTED_DATABASE]: database,
+            [localConstants._TYPE_SELECTED_POLICY]: policy,
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+            [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
+            [localConstants._TYPE_SELECTED_FIELD]: field,
+            [localConstants._TYPE_SELECTED_PERIOD]: period,
+        } = this.props.configuration;
+
+        const coords = lonLat2TileIdsPixels(latLng[1], latLng[0], mappedZoom);
+
+        //get back the real zoom (from pigeon's map zooms mapping)
+        const realZoom = zoomsMap.get(mappedZoom);
+
+        //compute timestamp/timeserie index according to tile ids and point coords
+        const [ tileTimestamp, timeSerieIdx ] = convertTileCoordinates({
+            genesis: startInterval,
+            tileIds: [coords.xTileID, coords.yTileID],
+            tileCoords: [coords.xPoint, coords.yPoint],
+            zoom: realZoom,
+        });
+
+        //send back the selection
+        this.props.handleTimeSerieSelection({
+            timeSerieIdx: timeSerieIdx,
+            timestamp: tileTimestamp,
+            heatMapType: heatMapType,
+            fields: [field, 'n_jobs', 'n_tasks'], //TODO make other fields selectable
+            zoom: realZoom,
+            tileIds: [coords.xTileID, coords.yTileID],
+            pointCoords: [coords.xPoint, coords.yPoint],
+            latLon: latLng,
+            actionType: 'selection',
+        });
+    }
+
+    handleMarkerClick() {
+
+
+    }
+
+    renderMarks() {
+
+        const { timeSeriesMap } = this.props;
+
+        let markers = [];
+        for (let [key, value] of timeSeriesMap) {
+
+            markers.push(
+                <Marker
+                    key={key}
+                    anchor={value.selection.latLon}
+                    payload={1}
+                    onClick={this.handleMarkerClick}
+                />
+            )
+        }
+
+        return markers;
+    }
+
+    renderTimeline(bounds) {
+
+        const { zoom, zoomsMap } = this.state.map;
+        const {
+            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval,
+            [localConstants._TYPE_SELECTED_END_INTERVAL]: endInterval,
+        } = this.props.configuration;
+
+        const leftBound = bounds.sw;        //[lat, lon]
+        const rightBound = bounds.ne;
+
+        const leftCoords = lonLat2TileIdsPixels(leftBound[1], leftBound[0], zoom);
+        const rightCoords = lonLat2TileIdsPixels(rightBound[1], rightBound[0], zoom);
+
+        console.log(leftCoords,rightCoords)
+
+        const realZoom = zoomsMap.get(zoom);
+
+        const [startTimestamp, startTimeserieIndex] = convertTileCoordinates({
+            genesis: startInterval,
+            tileIds: [leftCoords.xTileID, 0],       //start timeserie index can be ignored
+            tileCoords: [0, 0],
+            zoom: realZoom,
+        });
+
+        let [endTimestamp, endTimeserieIndex] = convertTileCoordinates({
+            genesis: startInterval,
+            tileIds: [rightCoords.xTileID, 0], //end timeserie index can be ignored
+            tileCoords: [config.TILE_SIZE, config.TILE_SIZE],
+            zoom: realZoom,
+        });
+
+        console.log(startTimestamp, endTimestamp)
+
+        return computeTimelineData(startTimestamp, endTimestamp, 300, realZoom)
+                .slice(0, (_FIXED_N_TILES + 1));
+        //TODO need slice cos when out of boundaries computes more, can be fixed?
+    }
+
     render() {
 
         console.log(this.state)
@@ -704,17 +970,23 @@ export default class HeatMapNavigatorContainer extends Component {
 
         const { disabled, timeSeriesMap } = this.props;
 
+        const { bounds } = this.state.map;
+
         const {
             nHorizontalTiles,
             tileIdCurrentInterval,
             tileIdCurrentMachineIndex,
             tileRowsURLs,
-            timelineData,
         } = this.state.navigation;
 
         const { timestamp, timeserieIdx } = this.state.selection;
 
         //if (disabled) return null;
+        if (!this.state.map.zoomsMap) return null;
+
+        const timelineData = (bounds) ? this.renderTimeline(bounds) : null;
+
+        console.log('timelinedata', timelineData)
 
         return (
 
@@ -739,96 +1011,185 @@ export default class HeatMapNavigatorContainer extends Component {
                                 </Form>
                             </div>
 
-                            <div className="heatmap-container">
-                                <div className="wrapper">
-                                    <div className="header">
-                                        <button className="menu-area-clickable btn-up"
-                                           onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._UP})}>
-                                            <img id="arrow-up-svg" src={ArrowUpSvg}/>
-                                        </button>
-                                    </div>
-                                    <div className="left-sidebar">
-                                        <button className="menu-area-clickable btn-left"
-                                            onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._LEFT})}>
-                                            <img id="arrow-left-svg" src={ArrowLeftSvg}/>
-                                        </button>
-                                    </div>
 
-                                    <div className="tiles-container-bordering">
-                                        <div className="tiles-container" ref={this.heatMapContainerElement}>
+                            <Row>
+                                <div className="pigeon-map-container">
 
-                                            {
-                                                tileRowsURLs.length > 0 &&
+                                        <PigeonMap
+                                            boxClassname="pigeon-map"
+                                            height={config.TILE_SIZE * _FIXED_N_TILES}
+                                            width={config.TILE_SIZE * _FIXED_N_TILES}
 
-                                                tileRowsURLs.map((row, indexRow) => (
-                                                    <div
-                                                        style={{gridRow: `1 / span ${row.length}`}}
-                                                        className="tiles-col"
-                                                        key={`${indexRow}`}>
+                                            animate={true}
 
-                                                        {
-                                                            row.map((col, indexCol) => (
+                                            provider={this.fetchTileByTmsURL}
+                                            onBoundsChanged={this.handleBoundsChange}
+                                            onClick={this.handleClick}
 
-                                                                <Tile
-                                                                    key={`${indexRow},${indexCol}`}
-                                                                    tileID={[
-                                                                        tileIdCurrentInterval + indexRow,
-                                                                        tileIdCurrentMachineIndex + indexCol
-                                                                    ]}
-                                                                    tileURL={col}
-                                                                    handleTileMouseInteraction={this.handleTileMouseInteraction}
-                                                                />
+                                            center={this.state.map.center}
 
-                                                            ))
-                                                        }
-                                                    </div>
-                                                ))
-                                            }
+                                            minZoom={this.state.map.minZoom}
+                                            maxZoom={this.state.map.maxZoom}
+                                            zoom={this.state.map.zoom}
+                                            zoomSnap={true}
 
-                                            <div className="timeline-overlay">
-                                                <svg
-                                                    height={config.TILE_SIZE * _FIXED_TILES_HEIGHT}
-                                                    width={config.TILE_SIZE * nHorizontalTiles}
-                                                >
+                                            limitBounds='edge'
 
-                                                    {
-                                                        timeSeriesMap &&
-                                                        this.renderHighlights().map((k) => k)
-                                                    }
+                                            twoFingerDrag={false}
+                                            metaWheelZoom={false}
 
-                                                </svg>
-                                            </div>
+                                            attribution={false}
+                                        >
 
-                                        </div>
-                                    </div>
+                                            {/*{*/}
+                                                {/*this.state.map.bounds &&*/}
 
-                                    <div className="right-sidebar">
-                                        <button className="menu-area-clickable btn-right"
-                                           onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._RIGHT})}>
-                                            <img id="arrow-right-svg" src={ArrowRightSvg}/>
-                                        </button>
-                                    </div>
-                                    <div className="footer">
-                                        <button className="menu-area-clickable btn-down"
-                                           onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._DOWN})}>
-                                            <img id="arrow-down-svg" src={ArrowDownSvg}/>
-                                        </button>
-                                    </div>
-                                    <div className="timeline">
+                                                {/*<Overlay*/}
+                                                    {/*anchor={this.state.map.bounds.sw}*/}
+                                                {/*>*/}
 
-                                        {
-                                            timelineData &&
+                                                    {/*<div*/}
+                                                        {/*className="pigeon-overlay-interactive"*/}
+                                                        {/*style={{*/}
+                                                            {/*width: `${config.TILE_SIZE * _FIXED_N_TILES}px`,*/}
+                                                            {/*height: `${config.TILE_SIZE * _FIXED_N_TILES}px`,*/}
+                                                        {/*}}*/}
+                                                    {/*>*/}
 
-                                            <TimeLine
-                                                width={nHorizontalTiles * config.TILE_SIZE}
-                                                nTiles={nHorizontalTiles}
-                                                data={timelineData}
-                                            />
-                                        }
+                                                    {/*</div>*/}
 
-                                    </div>
+                                                {/*</Overlay>*/}
+                                            {/*}*/}
+
+                                            {/*{*/}
+
+                                                {/*this.state.map.bounds &&*/}
+
+                                                {/*<Marker*/}
+                                                    {/*anchor={this.state.map.bounds.sw}*/}
+                                                    {/*payload={1}*/}
+                                                    {/*onClick={this.handleMarkerClick}*/}
+                                                {/*/>*/}
+                                            {/*}*/}
+
+                                            {/*{*/}
+                                            {/*timeSeriesMap &&*/}
+                                            {/*this.renderMarks().map((marker,idx) => (*/}
+                                            {/*marker*/}
+                                            {/*))*/}
+                                            {/*}*/}
+
+
+                                        </PigeonMap>
                                 </div>
-                            </div>
+                            </Row>
+                            <Row>
+                                <div className="timeline">
+
+                                    {
+                                        timelineData &&
+
+                                        <TimeLine
+                                            width={2 * config.TILE_SIZE}
+                                            nTiles={2}
+                                            data={timelineData}
+                                        />
+                                    }
+
+                                </div>
+                            </Row>
+
+
+                            {/*<div className="heatmap-container">*/}
+                                {/*<div className="wrapper">*/}
+                                    {/*<div className="header">*/}
+                                        {/*<button className="menu-area-clickable btn-up"*/}
+                                           {/*onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._UP})}>*/}
+                                            {/*<img id="arrow-up-svg" src={ArrowUpSvg}/>*/}
+                                        {/*</button>*/}
+                                    {/*</div>*/}
+                                    {/*<div className="left-sidebar">*/}
+                                        {/*<button className="menu-area-clickable btn-left"*/}
+                                            {/*onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._LEFT})}>*/}
+                                            {/*<img id="arrow-left-svg" src={ArrowLeftSvg}/>*/}
+                                        {/*</button>*/}
+                                    {/*</div>*/}
+
+                                    {/*<div className="tiles-container-bordering">*/}
+                                        {/*<div className="tiles-container" ref={this.heatMapContainerElement}>*/}
+
+                                            {/*{*/}
+                                                {/*tileRowsURLs.length > 0 &&*/}
+
+                                                {/*tileRowsURLs.map((row, indexRow) => (*/}
+                                                    {/*<div*/}
+                                                        {/*style={{gridRow: `1 / span ${row.length}`}}*/}
+                                                        {/*className="tiles-col"*/}
+                                                        {/*key={`${indexRow}`}>*/}
+
+                                                        {/*{*/}
+                                                            {/*row.map((col, indexCol) => (*/}
+
+                                                                {/*<Tile*/}
+                                                                    {/*key={`${indexRow},${indexCol}`}*/}
+                                                                    {/*tileID={[*/}
+                                                                        {/*tileIdCurrentInterval + indexRow,*/}
+                                                                        {/*tileIdCurrentMachineIndex + indexCol*/}
+                                                                    {/*]}*/}
+                                                                    {/*tileURL={col}*/}
+                                                                    {/*handleTileMouseInteraction={this.handleTileMouseInteraction}*/}
+                                                                {/*/>*/}
+
+                                                            {/*))*/}
+                                                        {/*}*/}
+                                                    {/*</div>*/}
+                                                {/*))*/}
+                                            {/*}*/}
+
+                                            {/*<div className="timeline-overlay">*/}
+                                                {/*<svg*/}
+                                                    {/*height={config.TILE_SIZE * _FIXED_TILES_HEIGHT}*/}
+                                                    {/*width={config.TILE_SIZE * nHorizontalTiles}*/}
+                                                {/*>*/}
+
+                                                    {/*{*/}
+                                                        {/*timeSeriesMap &&*/}
+                                                        {/*this.renderHighlights().map((k) => k)*/}
+                                                    {/*}*/}
+
+                                                {/*</svg>*/}
+                                            {/*</div>*/}
+
+                                        {/*</div>*/}
+                                    {/*</div>*/}
+
+                                    {/*<div className="right-sidebar">*/}
+                                        {/*<button className="menu-area-clickable btn-right"*/}
+                                           {/*onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._RIGHT})}>*/}
+                                            {/*<img id="arrow-right-svg" src={ArrowRightSvg}/>*/}
+                                        {/*</button>*/}
+                                    {/*</div>*/}
+                                    {/*<div className="footer">*/}
+                                        {/*<button className="menu-area-clickable btn-down"*/}
+                                           {/*onClick={() => this.handleMenuNavigation({type: _MENU_NAVIGATION._DOWN})}>*/}
+                                            {/*<img id="arrow-down-svg" src={ArrowDownSvg}/>*/}
+                                        {/*</button>*/}
+                                    {/*</div>*/}
+                                    {/*<div className="timeline">*/}
+
+                                        {/*{*/}
+                                            {/*timelineData &&*/}
+
+                                            {/*<TimeLine*/}
+                                                {/*width={nHorizontalTiles * config.TILE_SIZE}*/}
+                                                {/*nTiles={nHorizontalTiles}*/}
+                                                {/*data={timelineData}*/}
+                                            {/*/>*/}
+                                        {/*}*/}
+
+                                    {/*</div>*/}
+                                {/*</div>*/}
+                            {/*</div>*/}
 
                             <div className="timeserie-closable-area">
                             {
