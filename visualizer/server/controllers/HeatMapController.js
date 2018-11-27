@@ -106,14 +106,11 @@ const storeHeatMap = async (req, res) => {
         period: req.query.period,
         palette: req.query.palette,
         heatMapType: req.query.heatMapType,
+        imageType: req.query.imageType,
+        mode: req.query.mode,
     };
 
-    const imageType = req.query.imageType;
-
-    heatMapsService.heatMapBuildAndStore({
-        request: heatMapRequest,
-        imageType: imageType,
-    });
+    heatMapsService.heatMapBuildAndStore({request: heatMapRequest});
 
     return ReS(res, {payload: 'computation started'}, 200);
 };
