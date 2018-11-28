@@ -15,11 +15,6 @@ export const config = {
     WS_RECONNECTION_MAX_DELAY:  process.env.WS_RECONNECTION_MAX_DELAY   || 25000,
 
     TILE_SIZE:                  process.env.TILE_SIZE                   || 256,
-
-    MAX_TIMESERIES:             process.env.MAX_TIMESERIES              || 5,
-
-    COLOR_SCALE:                process.env.COLOR_SCALE                 || ['orange', 'red', 'blue'],
-    INTERPOLATION_TYPE:         process.env.INTERPOLATION_TYPE          || 'lch'
 };
 
 export const API_URL = config.API_PROTOCOL + '://' + config.API_HOSTNAME + ':' + config.API_PORT + config.API_ENDPOINT;

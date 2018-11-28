@@ -6,8 +6,6 @@ import * as apiFetcher from "../../services/ApiFetcher";
 
 import { config } from '../../config/config';
 
-const uuidv4 = require('uuid/v4');
-
 import { connect } from 'react-redux';
 import { notify } from '../../store/actions/notificationsAction';
 import {addItem, removeItem} from '../../store/actions/webSocketAction';
@@ -19,6 +17,8 @@ import ConfiguratorContainer from './ConfiguratorContainer';
 import HeatMapNavigatorContainer from './HeatMapNavigatorContainer';
 import TimeSeriesChartsContainer from './TimeSeriesChartsContainer';
 
+import { getAvailablePinColors as colors } from './Marker';
+
 import { Grid, Row, Col } from 'react-bootstrap';
 
 import { TimeSeries, TimeRange } from 'pondjs';
@@ -26,7 +26,6 @@ import { TimeSeries, TimeRange } from 'pondjs';
 import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
-const chroma = require('chroma-js');
 
 import '../../styles.css';
 
@@ -98,14 +97,9 @@ class StaticAnalysisContainer extends Component {
 
     componentDidMount() {
 
-        //generate the color map (chroma)
+        //generate the color map
         this.setState({
-            colorMap:
-                chroma
-                    .scale(config.COLOR_SCALE)
-                    .mode(config.INTERPOLATION_TYPE)
-                    .colors(config.MAX_TIMESERIES)
-                    .map(e => { return {color: e, busy: 0} })
+            colorMap: colors().map(e => { return {color: e, busy: 0} })
         });
 
         //fetch databases list
@@ -360,7 +354,7 @@ class StaticAnalysisContainer extends Component {
             case 'selection':
 
                 //check max number of timeseries that can be viewed (notify to the user if exceed)
-                if (timeSeriesMap.size === config.MAX_TIMESERIES) {
+                if (timeSeriesMap.size === colors().length) {
 
                     notify({
                         enable: true,
