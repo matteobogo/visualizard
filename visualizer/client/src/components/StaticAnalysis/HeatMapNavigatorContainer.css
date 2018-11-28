@@ -1,17 +1,82 @@
-.main-container {
+.wrapper {
 
+    display: grid;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    grid-template-areas:
+            "top top top"
+            "left middle right"
+            "btm btm btm"
 }
 
-.heatmap-menu-container {
+.top-panel {
+    grid-area: top;
+    width: 100%;
+    height: 50px;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+    display: flex;
+}
+
+.left-panel {
+    grid-area: left;
+    width: 50px;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+    display: flex;
+}
+
+.middle-panel {
+    grid-area: middle;
+    width: 100%;
+    height: 100%;
+}
+
+.right-panel {
+    grid-area: right;
+    height: 100%;
+    width: 50px;
+}
+
+.bottom-panel {
+    grid-area: btm;
+    height: 50px;
+    width: 100%;
+}
+
+/* Color Map */
+.colorscale-container {
+    text-align: center;
+    width: 100%;
+}
+
+/* Timeseries Timeline */
+.timeseries-timeline-container {
+    transform: rotate(90deg);
+    height: 50px;
+}
+
+.timeseries-timeline {
+}
+
+/* Map */
+.heatmap-container {
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .pigeon-map-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+.pigeon-map {
+
 }
 
 .pigeon-map img {
@@ -19,19 +84,31 @@
     height: 256px;
 }
 
-.timeline {
+/* Marker */
+
+
+/* Timestamps Timeline */
+.timestamps-timeline-container {
+    height: 50px;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-content: center;
 }
 
-.timeline p {
+.timelines {
+
+}
+
+.timelines p {
     font-size: x-small;
     color: black;
 }
 
+/* Closeable Area */
 .timeserie-closable-area {
     width: 100%;
+    height: 30px;
+    margin: 20px 0 0 0;
 }
 
 .timeserie-closable-box {
