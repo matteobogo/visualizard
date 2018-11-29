@@ -8,6 +8,8 @@ import MapPinYellow from '../../../public/images/map-pin-darkyellow.svg';
 import MapPinPurple from '../../../public/images/map-pin-darkpurple.svg';
 import MapPinCiano from '../../../public/images/map-pin-darkciano.svg';
 
+import './Marker.css';
+
 const imageOffset = {
     left: 15,
     top: 31
@@ -64,16 +66,16 @@ export default class Marker extends Component {
 
     handleMouseOver = (event) => {
         this.props.onMouseOver && this.props.onMouseOver(this.eventParameters(event))
-        this.setState({ hover: true })
+        this.props.handleMarkerHover(true);
     };
 
     handleMouseOut = (event) => {
         this.props.onMouseOut && this.props.onMouseOut(this.eventParameters(event))
-        this.setState({ hover: false })
+        this.props.handleMarkerHover(false);
     };
 
     render () {
-        const { left, top, onClick } = this.props;
+        const { left, top, onClick, pinColor } = this.props;
 
         const style = {
             position: 'absolute',
@@ -81,14 +83,16 @@ export default class Marker extends Component {
             cursor: onClick ? 'pointer' : 'default'
         };
 
+        if (!colorMap.has(pinColor)) return null;
+
         return (
             <div style={style}
-                 className='pigeon-click-block'
+                 className='marker-click-box'
                  onClick={this.handleClick}
                  onContextMenu={this.handleContextMenu}
                  onMouseOver={this.handleMouseOver}
                  onMouseOut={this.handleMouseOut}>
-                <img src={MapPinRed} width={29} height={34} alt='' />
+                <img src={colorMap.get(pinColor).ref} width={29} height={34} alt='' />
             </div>
         )
     }
@@ -97,6 +101,9 @@ export default class Marker extends Component {
         // input, passed to events
         anchor: PropTypes.array.isRequired,
         payload: PropTypes.any,
+
+        // pin type
+        pinColor: PropTypes.string.isRequired,
 
         // optional modifiers
         hover: PropTypes.bool,

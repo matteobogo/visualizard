@@ -14,12 +14,9 @@ import _ from 'lodash';
 import {Colorscale} from 'react-colorscales';
 
 import {default as PigeonMap} from 'pigeon-maps';
-//import Marker from 'pigeon-marker/react';
-import Overlay from 'pigeon-overlay';
-
 import Marker from './Marker';
 
-import { Panel, Row, Col, Form } from 'react-bootstrap';
+import { Panel, Row } from 'react-bootstrap';
 import 'react-widgets/dist/css/react-widgets.css';
 
 import { X } from 'react-feather';
@@ -27,11 +24,8 @@ import { X } from 'react-feather';
 import './HeatMapNavigatorContainer.css';
 
 import { TimeLine } from './TimeLine';
-import { HeatMapSelectionBox } from './HeatMapSelectionBox';
 
 const _FIXED_N_TILES = 2;
-const _FIXED_TILES_WIDTH = 2;
-const _FIXED_TILES_HEIGHT = 2;
 
 const convertTimestampToID = (genesis, current, period = 300, zoom) => {
 
@@ -165,12 +159,12 @@ const lat2tile = (lat,zoom) => {
     return ((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom));
 };
 
-const tile2long = (x,z) => {
-    return (x/Math.pow(2,z)*360-180);
+const tile2long = (x,zoom) => {
+    return (x/Math.pow(2,zoom)*360-180);
 };
 
-const tile2lat = (y,z) => {
-    const n = Math.PI-2*Math.PI*y/Math.pow(2,z);
+const tile2lat = (y,zoom) => {
+    const n = Math.PI-2*Math.PI*y/Math.pow(2,zoom);
     return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
 };
 
@@ -191,20 +185,20 @@ const lonLat2TileIdsPixels = (lon, lat, zoom) => {
     const yTileID = Math.trunc(yRes);
 
     //fractional part indicates the position within the tile
-    const xPoint = Math.floor((xRes % 1) * config.TILE_SIZE);
-    const yPoint = Math.floor((yRes % 1) * config.TILE_SIZE);
-
-    console.log(lon,lat)
-    console.log(xRes, yRes)
-    console.log(xTileID, yTileID)
-    console.log(xPoint, yPoint)
+    const xPoint = (xRes % 1) * config.TILE_SIZE;
+    const yPoint = (yRes % 1) * config.TILE_SIZE;
 
     return {
         xTileID: xTileID,
         yTileID: yTileID,
-        xPoint: xPoint,
-        yPoint: yPoint,
+        xPoint: Math.floor(xPoint),
+        yPoint: Math.floor(yPoint),
     }
+};
+
+const tileIdsPixels2LonLat = (x, y, zoom) => {
+
+    return [tile2lat(y, zoom), tile2long(x, zoom)]; // [lat, lon]
 };
 
 const mapOptions = {    //TODO fetch from config externally or from API
@@ -228,6 +222,7 @@ export default class HeatMapNavigatorContainer extends Component {
                 ...mapOptions,
                 zoomsMap: null,
                 marksMap: null,
+                clickable: true,
             },
 
             zooms: null,
@@ -235,7 +230,8 @@ export default class HeatMapNavigatorContainer extends Component {
             selection: {
 
                 timestamp: 'No Data',
-                timeserieIdx: 'No Data',
+                timeSerieIdx: 'No Data',
+                zoom: 'No Data',
             },
 
             clientWindowWidth: window.innerWidth,
@@ -252,6 +248,7 @@ export default class HeatMapNavigatorContainer extends Component {
         this.fetchTileByTmsURL = this.fetchTileByTmsURL.bind(this);
         this.handleBoundsChange = this.handleBoundsChange.bind(this);
         this.handleClick = this.handleClick.bind(this);
+        this.handleMarkerHover = this.handleMarkerHover.bind(this);
         this.handleMarkerClick = this.handleMarkerClick.bind(this);
     }
 
@@ -299,102 +296,6 @@ export default class HeatMapNavigatorContainer extends Component {
     handleTimeSerieDeselection(timeserieIdx) {
 
         this.props.handleTimeSerieSelection({timeSerieIdx: timeserieIdx, actionType: 'deselection'});
-    }
-
-    renderHighlights() {
-
-        const { timeSeriesMap } = this.props;
-
-        const {
-            [localConstants._TYPE_FIRST_INTERVAL]: firstInterval
-        } = this.props.dataset.heatMapBounds;
-
-        const {
-            [localConstants._TYPE_SELECTED_START_INTERVAL]: startInterval
-        } = this.props.configuration;
-
-        const {
-            [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: selectedHeatMapZoom
-        } = this.props.heatMapConfiguration;
-
-        const {
-            nHorizontalTiles,
-            tileIdCurrentInterval,
-            tileIdCurrentMachineIndex
-        } = this.state.navigation;
-
-        let paths = [];
-        for (let [key, value] of timeSeriesMap) {
-
-            const color = value.color;
-            const selection = value.selection;
-
-            //compute or re-compute highlight lines (vertical + horizontal) according to current zoom level
-
-            //get new tile ids according with the new zoom
-            const newTileIdX = convertTimestampToID(firstInterval, selection.timestamp, 300, selectedHeatMapZoom);
-            const newTileIdY = convertMeasurementIdxToID(selection.timeSerieIdx, selectedHeatMapZoom);
-
-            //get start timestamp and start timeserie idx of new tile
-            const [startTimestamp, startTimeserieIdx] = convertTileCoordinates({
-                genesis: startInterval,
-                tileIds: [newTileIdX, newTileIdY],
-                tileCoords: [0,0],
-                zoom: selectedHeatMapZoom,
-            });
-
-            //get new point coords within the tile
-            const [newPosX, newPosY] = getTilePointCoordinates(
-                startTimestamp,
-                startTimeserieIdx,
-                selection.timestamp,
-                selection.timeSerieIdx,
-                300,
-                selectedHeatMapZoom
-            );
-
-            const coords = {x: null, y: null};
-
-            //check if the VERTICAL line is in the current heatmap view (using tile ids)
-            if (newTileIdX >= tileIdCurrentInterval || newTileIdX < tileIdCurrentInterval + nHorizontalTiles) {
-
-                coords.x =
-                    (newTileIdX - tileIdCurrentInterval) * config.TILE_SIZE       //x start coordinate of tile
-                    + newPosX                                                     //x point coordinate within tile
-                ;
-            }
-
-            //check if the HORIZONTAL line is in the current heatmap view (using tile ids)
-            if (newTileIdY >= tileIdCurrentMachineIndex ||
-                newTileIdY < tileIdCurrentMachineIndex + _FIXED_TILES_HEIGHT) {
-
-                coords.y =
-                    (newTileIdY - tileIdCurrentMachineIndex) * config.TILE_SIZE   //y start coordinate of tile
-                    + newPosY                                                     //y point coordinate within tile
-                ;
-            }
-
-            //generate svg paths (horizontal + vertical lines)
-            //https://css-tricks.com/svg-path-syntax-illustrated-guide/s
-            if (coords.x)
-                paths.push(
-                    <path
-                        key={`vert_${coords.x}`}
-                        d={`M ${coords.x},0 V ${_FIXED_TILES_HEIGHT * config.TILE_SIZE}`}
-                        stroke={color}
-                    />
-                );
-
-            if (coords.y)
-                paths.push(
-                    <path
-                        key={`horiz_${coords.y}`}
-                        d={`M 0,${coords.y} H ${nHorizontalTiles * config.TILE_SIZE}`}
-                        stroke={color}
-                    />
-                );
-        }
-        return paths;
     }
 
     zoomsMapping() {
@@ -460,9 +361,8 @@ export default class HeatMapNavigatorContainer extends Component {
         //zoom (get the real zoom mapped with the tile server)
         const realZoom = zoomsMap.get(z);
 
-        //TODO revert to parametric url
-        //const baseURI = `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}/${zScore}/${palette}`;
-        const baseURI = `${TILES_URL}/google_cluster/autogen/SORT_BY_MACHINE/mean_cpu_usage_rate/2/GRAY`;
+        const baseURI = `${TILES_URL}/${database}/${policy}/${heatMapType}/${field}/${zScore}/${palette}`;
+        //const baseURI = `${TILES_URL}/google_cluster/autogen/SORT_BY_MACHINE/mean_cpu_usage_rate/2/GRAY`;
         const URL = `${baseURI}/` +
             `${realZoom}/` +
             `${x}/` +                   //timestampid
@@ -483,7 +383,7 @@ export default class HeatMapNavigatorContainer extends Component {
                 bounds: bounds,     //{ ne: [lat, lon], sw: [lat, lon] } , i.e. top-right and bottom-left corners
                 initial: initial,
             }
-        })
+        });
     }
 
     handleClick({ event, latLng, pixel }) {
@@ -500,6 +400,9 @@ export default class HeatMapNavigatorContainer extends Component {
             [localConstants._TYPE_SELECTED_PERIOD]: period,
         } = this.props.configuration;
 
+        //mouse over a mark (disable the click over the map)
+        if (!this.state.map.clickable) return;
+
         const coords = lonLat2TileIdsPixels(latLng[1], latLng[0], mappedZoom);
 
         //get back the real zoom (from pigeon's map zooms mapping)
@@ -513,7 +416,7 @@ export default class HeatMapNavigatorContainer extends Component {
             zoom: realZoom,
         });
 
-        //send back the selection
+        //send back the selection (also last focus will be configured in the parent component)
         this.props.handleTimeSerieSelection({
             timeSerieIdx: timeSerieIdx,
             timestamp: tileTimestamp,
@@ -527,9 +430,19 @@ export default class HeatMapNavigatorContainer extends Component {
         });
     }
 
+    handleMarkerHover(isMouseOverMark) {
+
+        this.setState({
+            map: {
+                ...this.state.map,
+                clickable: !isMouseOverMark,
+            }
+        });
+    }
+
     handleMarkerClick({ event, anchor, payload }) {
 
-        console.log(anchor, payload);
+        this.props.handlePointFocus(payload);
     }
 
     renderMarks() {
@@ -543,8 +456,15 @@ export default class HeatMapNavigatorContainer extends Component {
                 <Marker
                     key={key}
                     anchor={value.selection.latLon}
-                    payload={1}
+                    payload={{
+                        timestamp: value.selection.timestamp,
+                        timeSerieIdx: value.selection.timeSerieIdx,
+                        zoom: value.selection.zoom,
+                        color: value.color,
+                    }}
                     onClick={this.handleMarkerClick}
+                    pinColor={value.color}
+                    handleMarkerHover={this.handleMarkerHover}
                 />
             )
         }
@@ -593,16 +513,68 @@ export default class HeatMapNavigatorContainer extends Component {
         return results;
     }
 
-    render() {
+    renderPaletteScale(mappedPalette) {
 
-        console.log(this.state)
-        console.log(this.props)
+        //TODO make an independent jsx
+        const x = 459;
+        const y = 20;
+        const blockDim = 46;
+
+        mappedPalette = mappedPalette.slice(1, mappedPalette.length - 1).reverse();
+
+        return(
+
+            <div className="top-panel">
+                <div className="colorscale-container">
+                    <Colorscale
+                        colorscale={mappedPalette.map(e => e.color)}
+                        onClick={() => {
+                        }}
+                        //width={config.TILE_SIZE * _FIXED_N_TILES}
+                        maxWidth={config.TILE_SIZE * _FIXED_N_TILES}
+                    />
+                    <div className="palette-scale-container">
+                        <div className="lines-container">
+                            <svg width={459} height={5}>
+                                <line className="horizontal-line" x1="0" y1="0" x2="479" y2="0"/>
+                                <line id="max-range" className="vertical-line" x1="0" y1="0" x2="0" y2={y} />
+
+                                {
+                                    mappedPalette.map((k, idx) => (
+                                        <line key={idx} className="vertical-line"
+                                              x1={blockDim * (idx + 1)} y1={0} x2={blockDim * (idx + 1)} y2={y} />
+                                    ))
+                                }
+
+                                <line id="min-range" className="vertical-line" x1={x} y1="0" x2={x} y2={y} />
+                            </svg>
+                        </div>
+                        <div className="ranges-data-container">
+
+                            {
+                                mappedPalette.slice().reverse().map((k, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="data-container"
+                                        style={{width: `${blockDim}px`, height: `5px`}}>
+                                        <p>{k.value}</p>
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    render() {
 
         const { disabled, timeSeriesMap } = this.props;
         const { bounds } = this.state.map;
-        const { timestamp, timeserieIdx } = this.state.selection;
+        const { [localConstants._TYPE_MAPPED_PALETTE]: mappedPalette } = this.props.heatMapConfiguration;
 
-        //if (disabled) return null;
+        if (disabled) return null;
         if (!this.state.map.zoomsMap) return null;
 
         //TODO move in componentDidUpdate?
@@ -611,6 +583,10 @@ export default class HeatMapNavigatorContainer extends Component {
         const containerDimsStyle = {
             width: `${config.TILE_SIZE * _FIXED_N_TILES}px`,
             height: `${config.TILE_SIZE * _FIXED_N_TILES}px`,
+        };
+
+        const gridDimStyle = {
+            width: `${config.TILE_SIZE * _FIXED_N_TILES + 100}px`,
         };
 
         return (
@@ -626,33 +602,75 @@ export default class HeatMapNavigatorContainer extends Component {
 
                         <Row>
                             <div className="wrapper">
+                                <div className="grid"
+                                     style={gridDimStyle}>
 
-                                {/*<div className="heatmap-menu-container">*/}
-                                    {/*<Form>*/}
-                                        {/*<Col xs={12}>*/}
-                                            {/*<HeatMapSelectionBox*/}
-                                                {/*label=""*/}
-                                                {/*timestamp={"None"}//timestamp={timestamp}*/}
-                                                {/*machine={"None"}//machine={timeserieIdx}*/}
-                                            {/*/>*/}
-                                        {/*</Col>*/}
-                                    {/*</Form>*/}
-                                {/*</div>*/}
+                                    {(mappedPalette.length !== 0) && this.renderPaletteScale(mappedPalette)}
 
-                                <div className="colorscale-container top-panel">
-                                    <Colorscale
-                                        colorscale={
-                                            ['#3d3d3d', '#474747', '#515151', '#5b5b5b', '#666666', '#757575',
-                                                '#848484', '#939393', '#a3a3a3', '#b2b2b2']}
-                                        onClick={() => {}}
-                                        //width={config.TILE_SIZE * _FIXED_N_TILES}
-                                        maxWidth={config.TILE_SIZE * _FIXED_N_TILES}
-                                    />
-                                </div>
+                                    <div className="left-panel">
+                                        <div className="timeseries-timeline-container timeline-left">
+                                            <div className="timeseries-timeline timelines">
 
-                                <div className="left-panel">
-                                    <div className="timeseries-timeline-container">
-                                        <div className="timeseries-timeline timelines">
+                                                {
+                                                    timelineData &&
+
+                                                    <TimeLine
+                                                        width={2 * config.TILE_SIZE}
+                                                        nTiles={2}
+                                                        data={timelineData.timeseriesTimelineData}
+                                                    />
+                                                }
+
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="heatmap-container middle-panel" style={containerDimsStyle}>
+                                        <div className="pigeon-map-container">
+
+                                            <PigeonMap
+                                                boxClassname="pigeon-map"
+                                                height={config.TILE_SIZE * _FIXED_N_TILES}
+                                                width={config.TILE_SIZE * _FIXED_N_TILES}
+
+                                                animate={true}
+
+                                                provider={this.fetchTileByTmsURL}
+                                                onBoundsChanged={this.handleBoundsChange}
+                                                onClick={this.handleClick}
+
+                                                center={this.state.map.center}
+
+                                                minZoom={this.state.map.minZoom}
+                                                maxZoom={this.state.map.maxZoom}
+                                                zoom={this.state.map.zoom}
+                                                zoomSnap={true}
+
+                                                limitBounds='edge'
+
+                                                twoFingerDrag={false}
+                                                metaWheelZoom={false}
+
+                                                attribution={false}
+                                            >
+
+                                                {
+                                                    timeSeriesMap &&
+                                                    this.renderMarks().map((marker, idx) => (
+                                                        marker
+                                                    ))
+                                                }
+
+                                            </PigeonMap>
+                                        </div>
+                                    </div>
+
+                                    <div className="right-panel">
+
+                                    </div>
+
+                                    <div className="timestamps-timeline-container bottom-panel">
+                                        <div className="timestamps-timeline timelines">
 
                                             {
                                                 timelineData &&
@@ -660,113 +678,35 @@ export default class HeatMapNavigatorContainer extends Component {
                                                 <TimeLine
                                                     width={2 * config.TILE_SIZE}
                                                     nTiles={2}
-                                                    data={timelineData.timeseriesTimelineData}
+                                                    data={timelineData.timestampsTimelineData}
                                                 />
                                             }
 
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="heatmap-container middle-panel" style={containerDimsStyle}>
-                                    <div className="pigeon-map-container">
-
-                                        <PigeonMap
-                                            boxClassname="pigeon-map"
-                                            height={config.TILE_SIZE * _FIXED_N_TILES}
-                                            width={config.TILE_SIZE * _FIXED_N_TILES}
-
-                                            animate={true}
-
-                                            provider={this.fetchTileByTmsURL}
-                                            onBoundsChanged={this.handleBoundsChange}
-                                            onClick={this.handleClick}
-
-                                            center={this.state.map.center}
-
-                                            minZoom={this.state.map.minZoom}
-                                            maxZoom={this.state.map.maxZoom}
-                                            zoom={this.state.map.zoom}
-                                            zoomSnap={true}
-
-                                            limitBounds='edge'
-
-                                            twoFingerDrag={false}
-                                            metaWheelZoom={false}
-
-                                            attribution={false}
-                                        >
-
-                                            <Marker
-                                                anchor={[50.874, 4.6947]}
-                                                payload={1}
-                                                onClick={this.handleMarkerClick}
-                                            />
-
-                                            {/*{*/}
-                                                {/*this.state.map.bounds &&*/}
-
-                                                {/*<Overlay*/}
-                                                    {/*anchor={this.state.map.bounds.sw}*/}
-                                                {/*>*/}
-
-                                                    {/*<div*/}
-                                                        {/*className="pigeon-overlay-interactive"*/}
-                                                        {/*style={{*/}
-                                                            {/*width: `${config.TILE_SIZE * _FIXED_N_TILES}px`,*/}
-                                                            {/*height: `${config.TILE_SIZE * _FIXED_N_TILES}px`,*/}
-                                                        {/*}}*/}
-                                                    {/*>*/}
-
-                                                    {/*</div>*/}
-
-                                                {/*</Overlay>*/}
-                                            {/*}*/}
-
-                                            {/*{*/}
-
-                                                {/*this.state.map.bounds &&*/}
-
-                                                {/*<Marker*/}
-                                                    {/*anchor={this.state.map.bounds.sw}*/}
-                                                    {/*payload={1}*/}
-                                                    {/*onClick={this.handleMarkerClick}*/}
-                                                {/*/>*/}
-                                            {/*}*/}
-
-                                            {/*{*/}
-                                                {/*timeSeriesMap &&*/}
-                                                {/*this.renderMarks().map((marker, idx) => (*/}
-                                                    {/*marker*/}
-                                                {/*))*/}
-                                            {/*}*/}
-
-                                        </PigeonMap>
-                                    </div>
-                                </div>
-
-                                <div className="right-panel">
-
-                                </div>
-
-                                <div className="timestamps-timeline-container bottom-panel">
-                                    <div className="timestamps-timeline timelines">
-
-                                        {
-                                            timelineData &&
-
-                                            <TimeLine
-                                                width={2 * config.TILE_SIZE}
-                                                nTiles={2}
-                                                data={timelineData.timestampsTimelineData}
-                                            />
-                                        }
-
-                                    </div>
                                 </div>
 
                             </div>
+
                         </Row>
+                        {/*<Row>*/}
+                            {/*<div className="heatmap-menu-container">*/}
+                                {/*<Form>*/}
+                                    {/*<Col xs={12}>*/}
+                                        {/*<div className="selection-box-container">*/}
+                                            {/*{*/}
+                                                {/*(timestamp && timeSerieIdx) &&*/}
+                                                {/*<HeatMapSelectionBox*/}
+                                                    {/*timestamp={timestamp}//timestamp={timestamp}*/}
+                                                    {/*machine={timeSerieIdx}//machine={timeserieIdx}*/}
+                                                {/*/>*/}
+                                            {/*}*/}
+                                        {/*</div>*/}
+                                    {/*</Col>*/}
+                                {/*</Form>*/}
+                            {/*</div>*/}
+                        {/*</Row>*/}
                         <Row>
 
                             <div className="timeserie-closable-area">
@@ -780,7 +720,7 @@ export default class HeatMapNavigatorContainer extends Component {
                                             </button>
                                         </div>
                                         <div className="timeserie-closable-content">
-                                            <p>{timeSeriesMap.get(k).name} ({k})</p>
+                                            <p>{timeSeriesMap.get(k).name} ({k}) ({timeSeriesMap.get(k).selection.timestamp})</p>
                                         </div>
                                     </div>
                                 ))
