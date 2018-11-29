@@ -8,7 +8,7 @@ import { LoadingOverlay, Loader } from 'react-overlay-loader';
 import 'react-overlay-loader/styles.css';
 
 import { TimeSeries, TimeRange } from 'pondjs';
-import { Charts, ChartContainer, ChartRow, YAxis, LineChart, Baseline, Resizable, Legend, styler
+import { Charts, ChartContainer, ChartRow, YAxis, LineChart, Baseline, Resizable, Legend, styler, EventMarker,
 } from "react-timeseries-charts";
 
 import './TimeSeriesChartsContainer.css';
@@ -19,6 +19,46 @@ const trackerStyle = {
         cursor: "crosshair",
         pointerEvents: "none"
     }
+};
+
+const NullMarker = props => {
+    return <g />;
+};
+
+const buildMarkerInfo = (timeSeries, tracker, mainField, sideFields, mode='object') => {
+
+    let trackerEvents = [];
+    for (let [key, value] of timeSeries) {
+        trackerEvents.push(value.atTime(tracker));
+    }
+
+    let infos = [];
+    trackerEvents.forEach((trackerEvent, idx) => {
+
+        let sideFieldsValues = "";
+        sideFields.forEach((sideField) => {
+
+            sideFieldsValues += `${trackerEvent.get(sideField)} (${sideField}) `;
+        });
+
+        let label;
+        if (mode === 'object') {
+            label = {
+                label: `${Array.from(timeSeries.values())[idx].name()}`,
+                value: `${trackerEvent.get(mainField)}${sideFieldsValues}`,
+            };
+        }
+        //generate label string: <timeserie_name>: <value_main_field> <value_side_field> ... <value_side_field>
+        else if (mode === 'string') {
+            label =
+                `
+                [${trackerEvent.get(mainField)}]${sideFieldsValues}]
+                `;
+        }
+
+        infos.push(label);
+    });
+    return infos;
 };
 
 export default class TimeSeriesChartsContainer extends React.Component {
@@ -38,6 +78,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
 
             tracker: null,
             trackerEvents: null,
+            trackerValues: null,
 
             max: 0,          //max value over the different timeseries (need to calibrate the yAxis in the chart)
             min: 0,          //as above with min
@@ -78,12 +119,14 @@ export default class TimeSeriesChartsContainer extends React.Component {
         const { configuration, mainField, timeSeriesMap } = this.props;
         const { max , min } = this.state;
 
+        //mapping timeserie-index => timeserie object (pond.js)
+        const timeSeries = new Map();
+
         //max/min over all the timeseries
         //need to calibrate the Y-Axis of the chart when multiple timeseries are selected
         let newMax = max;
         let newMin = min;
 
-        let timeSeries = [];
         let colors = [];
         let legendCategs = [];
         let legendStyles = [];
@@ -97,7 +140,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
             });
 
             //assign the timeserie obj
-            timeSeries.push(timeserie);
+            timeSeries.set(key, timeserie);
 
             //colors
             colors.push(value.color);
@@ -145,45 +188,117 @@ export default class TimeSeriesChartsContainer extends React.Component {
     handleTrackerChanged(tracker) {
 
         const { timeSeries } = this.state;
-        const { timeSerieCurrentPointSelection: focus } = this.props;
+        const { currentFocus, mainField } = this.props;
 
         if (!timeSeries) return;
 
-        if (!focus) this.setState({ tracker: null, trackerEvents: null });
+        if (currentFocus.timestamp === 'No Data') this.setState({ tracker: null, trackerEvents: null });
 
         //if the user doesn't have the focus on the chart, we track the ts focused in the heatmap (if any)
         if (!tracker) {
-            tracker = new Date(focus);
+            tracker = new Date(currentFocus.timestamp);
         }
-        else {
 
-            let trackerEvents = [];
+        let trackerEvents = [];
+        let trackerValues = [];
 
-            timeSeries.forEach((v) => {
+        for (let [key, value] of timeSeries) {
 
-                trackerEvents.push(v.at(v.bisect(tracker)));
-            });
-
-            this.setState({
-                tracker: tracker,
-                trackerEvents: trackerEvents,
-            });
+            trackerEvents.push(value.at(value.bisect(tracker)));
+            trackerValues.push(value.atTime(tracker).get(mainField));
         }
+
+        this.setState({
+            tracker: tracker,
+            trackerEvents: trackerEvents,
+            trackerValues: trackerValues,
+        });
     }
 
     handleTimeRangeChange (timeRange) {
         this.setState({ timeRange });
     }
 
-    render() {
+    renderFocusMarker = () => {
 
-        console.log(this.state)
-        console.log(this.props)
+        const { currentFocus, mainField, sideFields } = this.props;
+        const { timeSeries } = this.state;
+
+        if (!currentFocus || !timeSeries || !mainField || !sideFields) return <NullMarker/>;
+        if (!timeSeries.has(currentFocus.timeSerieIdx)) return <NullMarker/>;
+
+        const tracker = new Date(currentFocus.timestamp);
+
+        //build new map with only the current timeserie focused
+        //TODO need to re-design this shit
+        const newTimeSeries = new Map(timeSeries);
+        for(let [key, _] of timeSeries) {
+            if (key !== currentFocus.timeSerieIdx) newTimeSeries.delete(key);
+        }
+
+        return(
+            <EventMarker
+                type="point"
+                axis="usage"
+                event={Array.from(newTimeSeries.values())[0].atTime(tracker)}
+                column={mainField}
+                markerRadius={4}
+                markerStyle={{fill: `${currentFocus.color}`, stroke: "black"}}
+                markerLabel={buildMarkerInfo(newTimeSeries,tracker,mainField,sideFields,'string')}
+                markerLabelAlign="top"
+                markerLabelStyle={{
+                    opacity: 1.0,
+                    stroke: "black",
+                    fill: "white",
+                    strokeWidth: 1,
+                }}
+            />
+        );
+    };
+
+    renderMarker = () => {
+
+        const { mainField, sideFields } = this.props;
+        const { timeSeries, tracker, trackerEvents } = this.state;
+
+        if (!this.state.tracker) {
+            return <NullMarker/>;
+        }
+
+        return (
+
+            <EventMarker
+                type="flag"
+                axis="usage"
+                event={trackerEvents[0]}
+                column={mainField}
+                info={buildMarkerInfo(timeSeries, tracker, mainField, sideFields,'object')}
+                infoWidth={350}
+                infoHeight={30 * trackerEvents.length}
+                // infoStyle={{
+                //     fill: "none",
+                //     strokeWidth: 1,
+                //     opacity: 1.0,
+                //     stroke: `${currentFocus.color}`,
+                // }}
+                markerRadius={2}
+                markerStyle={{ fill: "#2db3d1" }}
+            />
+        );
+    };
+
+    render() {
 
         const { disabled, isLoading, mainField, sideFields, fieldStats } = this.props;
         const { timeSeries, timeRange, colors, legendCategs, legendStyles, max, min } = this.state;
 
         if (disabled) return null;
+
+        const markerStyle = {
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            color: "#AAA",
+            marginLeft: "5px"
+        };
 
         return(
 
@@ -200,40 +315,41 @@ export default class TimeSeriesChartsContainer extends React.Component {
                             {
                                 timeSeries &&
                                 <div>
-                                    <Row>
-                                        <Col xs={12}>
-                                            <div className="tracker-info-container">
-                                                {
-                                                    this.state.tracker ?
+                                    {/*<Row>*/}
+                                        {/*<Col xs={12}>*/}
+                                            {/*<div className="tracker-info-container">*/}
+                                                {/*{*/}
+                                                    {/*this.state.tracker ?*/}
 
-                                                        this.state.trackerEvents.map((e, idx) => (
+                                                        {/*this.state.trackerEvents.map((e, idx) => (*/}
 
-                                                            <Col xs={12} key={idx}>
-                                                                <div className="tracker-info-box">
-                                                                    <svg height="5" width="15">
-                                                                        <line
-                                                                            x1="0" y1="4" x2="10" y2="4"
-                                                                            style={{stroke: colors[idx]}}
-                                                                        />
-                                                                    </svg>
-                                                                    <p>{mainField}: {e.get(mainField)}</p>
-                                                                    {
-                                                                        sideFields.map((f, idx) => (
-                                                                            <p key={idx}>{f}: {e.get(f)}</p>
-                                                                        ))
-                                                                    }
-                                                                    <p>({this.state.tracker.toISOString()})</p>
-                                                                </div>
-                                                            </Col>
-                                                        ))
+                                                            {/*<Col xs={12} key={idx}>*/}
+                                                                {/*<div className="tracker-info-box">*/}
+                                                                    {/*<svg height="5" width="15">*/}
+                                                                        {/*<line*/}
+                                                                            {/*x1="0" y1="4" x2="10" y2="4"*/}
+                                                                            {/*style={{stroke: colors[idx]}}*/}
+                                                                        {/*/>*/}
+                                                                    {/*</svg>*/}
+                                                                    {/*<p>{mainField}: {e.get(mainField)}</p>*/}
+                                                                    {/*{*/}
+                                                                        {/*sideFields.map((f, idx) => (*/}
+                                                                            {/*<p key={idx}>{f}: {e.get(f)}</p>*/}
+                                                                        {/*))*/}
+                                                                    {/*}*/}
+                                                                    {/*<p>({this.state.tracker.toISOString()})</p>*/}
+                                                                {/*</div>*/}
+                                                            {/*</Col>*/}
+                                                        {/*))*/}
 
-                                                        : null
-                                                }
-                                            </div>
-                                        </Col>
-                                    </Row>
+                                                        {/*: null*/}
+                                                {/*}*/}
+                                            {/*</div>*/}
+                                        {/*</Col>*/}
+                                    {/*</Row>*/}
                                     <Row>
                                         <Col md={12}>
+
                                             <Resizable>
                                                 <ChartContainer
                                                     timeRange={timeRange}
@@ -266,7 +382,7 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                             />
 
                                                             {
-                                                                timeSeries.map((k, idx) => (
+                                                                Array.from(timeSeries.values()).map((k, idx) => (
                                                                     <LineChart
                                                                         key={idx}
                                                                         axis="usage"
@@ -284,7 +400,12 @@ export default class TimeSeriesChartsContainer extends React.Component {
                                                                 ))
                                                             }
 
+                                                            { this.renderMarker() }
+
+                                                            { this.renderFocusMarker() }
+
                                                         </Charts>
+
                                                     </ChartRow>
                                                 </ChartContainer>
                                             </Resizable>
