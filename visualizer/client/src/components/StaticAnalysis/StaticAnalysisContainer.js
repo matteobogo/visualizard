@@ -72,6 +72,7 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_GROUP_HEATMAP]: {
 
                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: null,
+                [localConstants._TYPE_MAPPED_PALETTE]: [],
             },
 
             [localConstants._TYPE_GROUP_ANALYSES]: {
@@ -80,8 +81,16 @@ class StaticAnalysisContainer extends Component {
                 [localConstants._TYPE_PSPT_ANALYSIS]: null,
             },
 
+            //contains data of points (and their timeseries) clicked in the heatmap
             timeSeriesMap: new Map(),
-            timeSerieCurrentPointSelection: null,
+
+            //contains the last focus (i.e. the last point/marker clicked)
+            currentFocus: {
+                timestamp: 'No Data',
+                timeSerieIdx: 'No Data',
+                zoom: 'No Data',
+                color: 'No Data',
+            },
 
             pendingRequests: {},    //map of pending requests in process through redux
             pendingDeletion: [],    //uuid list of pending requests consumed (need to be deleted from redux store)
@@ -93,6 +102,7 @@ class StaticAnalysisContainer extends Component {
         this.setItem = this.setItem.bind(this);
         this.handleError = this.handleError.bind(this);
         this.handleTimeSerieSelection = this.handleTimeSerieSelection.bind(this);
+        this.handlePointFocus = this.handlePointFocus.bind(this);
     }
 
     componentDidMount() {
@@ -184,6 +194,8 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_SELECTED_POLICY]: selectedPolicy,
             [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: selectedHeatMapType,
             [localConstants._TYPE_SELECTED_FIELD]: selectedField,
+            [localConstants._TYPE_SELECTED_ZSCORE]: selectedZScore,
+            [localConstants._TYPE_SELECTED_PALETTE]: selectedPalette,
             [localConstants._TYPE_SELECTED_START_INTERVAL]: selectedStartInterval,
             [localConstants._TYPE_SELECTED_END_INTERVAL]: selectedEndInterval,
         } = this.state[localConstants._TYPE_GROUP_CONFIGURATION];
@@ -206,7 +218,7 @@ class StaticAnalysisContainer extends Component {
 
         //guard
         if (!selectedDatabase || !selectedPolicy || !selectedHeatMapType || !selectedField
-            || !selectedStartInterval || !selectedEndInterval) return;
+            || !selectedStartInterval || !selectedEndInterval || !selectedZScore || !selectedPalette) return;
 
         //configuration (from configurator) is changed
         if (JSON.stringify(this.state[localConstants._TYPE_GROUP_CONFIGURATION]) !==
@@ -229,6 +241,21 @@ class StaticAnalysisContainer extends Component {
                 args: {
                     database: selectedDatabase,
                     policy: selectedPolicy,
+                }
+            });
+
+            //fetch mapped palette
+            this.fetchData({
+                groupType: localConstants._TYPE_GROUP_HEATMAP,
+                type: localConstants._TYPE_MAPPED_PALETTE,
+                args: {
+                    database: selectedDatabase,
+                    policy: selectedPolicy,
+                    startInterval: selectedStartInterval,
+                    endInterval: selectedEndInterval,
+                    field: selectedField,
+                    palette: selectedPalette,
+                    zScore: selectedZScore,
                 }
             });
         }
@@ -325,6 +352,15 @@ class StaticAnalysisContainer extends Component {
         }
     }
 
+    handlePointFocus(pointData) {
+
+        this.setState({
+            currentFocus: {
+                ...pointData,
+            }
+        });
+    }
+
     handleTimeSerieSelection(
         {
             timeSerieIdx,
@@ -402,14 +438,15 @@ class StaticAnalysisContainer extends Component {
 
                         this.setState({
                             [localConstants._TYPE_GROUP_HEATMAP]: {
-                                [localConstants._TYPE_SELECTED_HEATMAP_TYPE]: heatMapType,
-                                [localConstants._TYPE_SELECTED_FIELD]: fields[0],
+                                ...this.state[localConstants._TYPE_GROUP_HEATMAP],
                                 [localConstants._TYPE_SELECTED_HEATMAP_ZOOM]: zoom,
                             },
                             timeSeriesMap: timeSeriesMap.set(timeSerieIdx, data),
-                            timeSerieCurrentPointSelection: {
+                            currentFocus: {
                                 timeSerieIdx: timeSerieIdx,
-                                timestamp: timestamp
+                                timestamp: timestamp,
+                                zoom: zoom,
+                                color: data.color,
                             },
                             isLoading: false,
                         });
@@ -467,7 +504,7 @@ class StaticAnalysisContainer extends Component {
             [localConstants._TYPE_GROUP_HEATMAP]: heatmapConfiguration,
             [localConstants._TYPE_GROUP_ANALYSES]: analyses,
             timeSeriesMap,
-            timeSerieCurrentPointSelection,
+            currentFocus,
             isLoading,
 
         } = this.state;
@@ -533,6 +570,8 @@ class StaticAnalysisContainer extends Component {
                                     timeSeriesMap={timeSeriesMap}
                                     setItem={this.setItem}
                                     handleTimeSerieSelection={this.handleTimeSerieSelection}
+                                    handlePointFocus={this.handlePointFocus}
+                                    currentFocus={currentFocus}
                                     onError={this.handleError}
                                 />
                             </Col>
@@ -546,7 +585,7 @@ class StaticAnalysisContainer extends Component {
                                     sideFields={['n_jobs', 'n_tasks']}
                                     fieldStats={selectedFieldStats}
                                     timeSeriesMap={timeSeriesMap}
-                                    timeSerieCurrentPointSelection={timeSerieCurrentPointSelection}
+                                    currentFocus={currentFocus}
                                     isLoading={isLoading}
                                 />
                             </Col>

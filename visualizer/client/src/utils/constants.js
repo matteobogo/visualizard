@@ -37,6 +37,9 @@ export const _TYPE_SELECTED_PALETTE             = 'palette';
 export const _TYPE_SELECTED_START_INTERVAL      = 'startInterval';
 export const _TYPE_SELECTED_END_INTERVAL        = 'endInterval';
 
+//MAPPED PALETTE WITH ZSCORES (COLORMAP NEAR HEATMAP)
+export const _TYPE_MAPPED_PALETTE               = 'mappedPalette';
+
 export const _TYPE_SELECTED_STATISTIC           = 'statistic';
 export const _TYPE_SELECTED_HEATMAP_ZOOM        = 'heatMapZoom';
 
@@ -47,9 +50,6 @@ export const _TYPE_SELECTED_ANALYSIS            = 'analysis';
 
 export const _TYPE_REQUESTS_QUEUE               = 'REQUESTS_QUEUE';
 export const _TYPE_RESPONSES_QUEUE              = 'RESPONSES_QUEUE';
-
-export const _TYPE_OPTION_ANALYSIS              = 'optionAnalysis';
-export const _TYPE_OPTION_HEATMAP               = 'optionHeatMap';
 
 export const _ERROR_FETCH_FAILED                = 'ERROR_FETCH_FAILED';
 
@@ -65,5 +65,5 @@ export const _TYPE_MOUSE_WHEEL                  = 'MOUSE_WHEEL';
 
 export const _TYPE_GROUP_DATASET                = 'dataset';
 export const _TYPE_GROUP_CONFIGURATION          = 'configuration';
-export const _TYPE_GROUP_HEATMAP                = 'heatmapConfiguration';
+export const _TYPE_GROUP_HEATMAP                = 'heatMapConfiguration';
 export const _TYPE_GROUP_ANALYSES               = 'analyses';

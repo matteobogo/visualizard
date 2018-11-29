@@ -43,6 +43,16 @@ const _URL_ANALYSES = (req) =>
     `endInterval=${req[localConstants._TYPE_SELECTED_END_INTERVAL]}&` +
     `type=${req[localConstants._TYPE_SELECTED_ANALYSIS]}`;
 
+const _URL_MAPPED_PALETTE = (req) =>
+    `/heatmaps/mapped-palette?` +
+    `database=${req[localConstants._TYPE_SELECTED_DATABASE]}&` +
+    `policy=${req[localConstants._TYPE_SELECTED_POLICY]}&` +
+    `startInterval=${req[localConstants._TYPE_SELECTED_START_INTERVAL]}&` +
+    `endInterval=${req[localConstants._TYPE_SELECTED_END_INTERVAL]}&` +
+    `field=${req[localConstants._TYPE_SELECTED_FIELD]}&` +
+    `palette=${req[localConstants._TYPE_SELECTED_PALETTE]}&` +
+    `zScore=${req[localConstants._TYPE_SELECTED_ZSCORE]}`;
+
 const fetchResources = (resource_uri) => {
 
     return fetch(config.API_URL + resource_uri)
@@ -108,6 +118,10 @@ export const fetchData = ({itemType, args = {}, format = {}}) => {
 
         case localConstants._TYPE_PSPT_ANALYSIS:
             _URL = _URL_ANALYSES(args);
+            break;
+
+        case localConstants._TYPE_MAPPED_PALETTE:
+            _URL = _URL_MAPPED_PALETTE(args);
             break;
 
         default:
