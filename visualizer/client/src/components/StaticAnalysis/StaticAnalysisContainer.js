@@ -109,7 +109,7 @@ class StaticAnalysisContainer extends Component {
 
         //generate the color map
         this.setState({
-            colorMap: colors().map(e => { return {color: e, busy: 0} })
+            colorMap: colors().map(e => { return {color: e, busy: 0, lastAssignedTimeSerieIdx: null} })
         });
 
         //fetch databases list
@@ -434,7 +434,7 @@ class StaticAnalysisContainer extends Component {
                         };
 
                         //assign color to timeserie
-                        data["color"] = this.colorMapping();
+                        data["color"] = this.colorMapping(timeSerieIdx);
 
                         this.setState({
                             [localConstants._TYPE_GROUP_HEATMAP]: {
@@ -474,14 +474,25 @@ class StaticAnalysisContainer extends Component {
         }
     }
 
-    colorMapping() {
+    colorMapping(timeSerieIdx) {
 
         const { colorMap } = this.state;
+
+        //colors consistency
+        for (let i = 0; i < colorMap.length; ++i) {
+
+            if (colorMap[i].lastAssignedTimeSerieIdx === timeSerieIdx) {
+                colorMap[i].busy = 0;
+                colorMap[i].lastAssignedTimeSerieIdx = null;
+                break;
+            }
+        }
 
         let color = null;
         for (let i = 0; i < colorMap.length; ++i) {
             if (!colorMap[i].busy) {
                 colorMap[i].busy = 1;
+                colorMap[i].lastAssignedTimeSerieIdx = timeSerieIdx;
                 color = colorMap[i].color;
                 break;
             }
