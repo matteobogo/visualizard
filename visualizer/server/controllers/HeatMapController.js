@@ -57,6 +57,16 @@ const getZScores = async (req, res) => {
     return ReS(res, {payload: zScores}, 200);
 };
 
+const getPaletteMappedWithZScores = async (req, res) => {
+
+    const paletteMapped = await heatMapsService.getPaletteMappedWithZScores(req.query);
+
+    if (!paletteMapped || paletteMapped.length === 0) return ReE(res, 'no mapped palette available');
+
+    res.setHeader('Content-Type', mime.json);
+    return ReS(res, {payload: paletteMapped}, 200);
+};
+
 const getHeatMapBounds = async (req, res) => {
 
     let bounds, err;
@@ -157,6 +167,7 @@ module.exports = {
     getImageTypes: getImageTypes,
     getHeatMapGenerationModes: getHeatMapGenerationModes,
     getZScores: getZScores,
+    getPaletteMappedWithZScores: getPaletteMappedWithZScores,
     getHeatMapBounds: getHeatMapBounds,
     getZoomLevels: getZoomLevels,
     getHeatMapComputationStatus: getHeatMapComputationStatus,

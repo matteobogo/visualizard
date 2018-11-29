@@ -41,6 +41,7 @@ router.get('/heatmaps/types', HeatMapController.getHeatMapTypes);
 router.get('/heatmaps/image-types', HeatMapController.getImageTypes);
 router.get('/heatmaps/modes', HeatMapController.getHeatMapGenerationModes);
 router.get('/heatmaps/z-scores', HeatMapController.getZScores);
+router.get('/heatmaps/mapped-palette', HeatMapController.getPaletteMappedWithZScores);
 router.get('/heatmaps/zooms', HeatMapController.getZoomLevels);
 router.get('/heatmaps/status', HeatMapController.getHeatMapComputationStatus);
 router.post('/heatmaps/stop', HeatMapController.stopHeatMapComputation);

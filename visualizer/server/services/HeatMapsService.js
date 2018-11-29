@@ -52,7 +52,16 @@ const getPalettesRGB = (palette) => {
 
         return constants.PALETTES[palette.toUpperCase()].RGB_SCALE;
     }
-    else throw Error(`palette ${palette} not available`);
+    else throw Error(`palette ${palette} RGBs not available`);
+};
+
+const getPalettesHEX = (palette) => {
+
+    if (constants.PALETTES.hasOwnProperty(palette)) {
+
+        return constants.PALETTES[palette.toUpperCase()].HEX_SCALE;
+    }
+    else throw Error(`palette ${palette} HEXs not available`);
 };
 
 const getPalettesBounds = (palette) => {
@@ -109,6 +118,72 @@ const getHeatMapTypes = () => {
 const getZScores = () => {
 
     return config.HEATMAPS.Z_SCORE.split(',');
+};
+
+const getPaletteMappedWithZScores = async (request) => {
+
+    request.database = request.database || gf.checkParam`Database`;
+    request.policy = request.policy || gf.checkParam`Policy`;
+    request.startInterval = request.startInterval || gf.checkParam`Start Interval`;
+    request.endInterval = request.endInterval || gf.checkParam`End Interval`;
+    request.field = request.field || gf.checkParam`Field`;
+    request.palette = request.palette || gf.checkParam`Palette`;
+    request.zScore = request.zScore || gf.checkParam`ZScore`;
+
+    //
+    const paletteRGB = getPalettesHEX(request.palette);
+    let [paletteMinRGB, paletteMaxRGB] = getPalettesBounds(request.palette);
+
+    //
+    const minZScore = -Math.abs(Number(request.zScore));
+    const maxZScore = Math.abs(Number(request.zScore));
+
+    //
+    const results = await analysisService.getAnalysisCached({
+        database: request.database,             //required
+        policy: request.policy,                 //required
+        startInterval: request.startInterval,   //not necessary for dataset analysis
+        endInterval: request.endInterval,       //not necessary for dataset analysis
+        type: sharedConstants.ANALYSIS_DATASET,
+        visualizationFlag: 'server',            //not necessary for dataset analysis
+    });
+
+    let fieldStats = null;
+    for (let i = 0; i < results.fieldsStats.length; ++i) {
+        if (results.fieldsStats[i].field === request.field) {
+            fieldStats = results.fieldsStats[i];
+            break;
+        }
+    }
+
+    if (!fieldStats) throw Error(`Failed to retrieve dataset analysis during palette/zscores mapping`);
+
+    const { mean, std } = fieldStats;
+
+    const range = Math.abs(maxZScore - minZScore);
+    const bucket_len = (range / paletteRGB.length);
+
+    const getMappedValue = (standardizedValue, mean, std) => (standardizedValue * std) + mean;
+
+    let mappedPalette = [];
+
+    //min
+    mappedPalette.push({ color: paletteMinRGB, value: 'outliers_min' });
+
+    for (let i = 0, b = minZScore; i < paletteRGB.length - 1; ++i, b += bucket_len) {
+
+        mappedPalette.push({
+           color: paletteRGB[i], value: getMappedValue(b, mean, std).toFixed(4),
+        });
+    }
+    mappedPalette.push({
+        color: paletteRGB[paletteRGB.length - 1],
+        value: getMappedValue(maxZScore, mean, std).toFixed(4),
+    });
+
+    mappedPalette.push({ color: paletteMaxRGB, value: 'outliers_max' });
+
+    return mappedPalette;
 };
 
 const getHeatMapGenerationModes = () => {
@@ -1401,5 +1476,6 @@ module.exports = {
     getPalettes: getPalettes,
     getHeatMapGenerationModes: getHeatMapGenerationModes,
     getZScores: getZScores,
+    getPaletteMappedWithZScores: getPaletteMappedWithZScores,
     getDataByMachineIdxByHeatMapType: getDataByMachineIdxByHeatMapType,
 };
