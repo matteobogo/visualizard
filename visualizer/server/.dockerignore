@@ -6,3 +6,6 @@ npm-debug.log
 .eslintrc.json
 api-dev.env
 api-prod.env
+
+# ignoring public folder content (using it only for local testing)
+public/images/*
