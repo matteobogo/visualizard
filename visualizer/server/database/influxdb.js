@@ -361,7 +361,7 @@ const fetchPointsFromHttpApi = async (
 
                                 fields.forEach((field, index) => {
 
-                                    obj[field] = 0;
+                                    obj[field] = -1;    //anomaly
                                 });
 
                                 points.push(obj);
