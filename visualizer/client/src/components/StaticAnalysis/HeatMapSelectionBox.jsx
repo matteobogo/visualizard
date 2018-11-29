@@ -9,7 +9,6 @@ export const HeatMapSelectionBox = (props) => {
 
     return (
         <div className="main-box-container">
-            <ControlLabel>{props.label}</ControlLabel>
             <div className="properties-container">
                 <div className="icon-box">
                     <Clock/>
@@ -29,7 +28,6 @@ export const HeatMapSelectionBox = (props) => {
 };
 
 HeatMapSelectionBox.propTypes = {
-    label: PropTypes.string.isRequired,
     timestamp: PropTypes.string.isRequired,
     machine: PropTypes.string.isRequired,
 };
