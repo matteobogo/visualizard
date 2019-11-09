@@ -44,7 +44,7 @@
   "dependencies": {
     "bootstrap": "^3.3.7",
     "dotenv-webpack": "^1.5.7",
-    "lodash": "^4.17.10",
+    "lodash": "^4.17.13",
     "moment": "^2.22.2",
     "npm-install-peers": "^1.2.1",
     "pigeon-maps": "^0.11.8",
