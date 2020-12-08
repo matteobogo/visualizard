@@ -19,7 +19,7 @@
     "dotenvenc": "^1.0.4",
     "ejs": "^2.6.1",
     "express": "^4.16.3",
-    "fast-csv": "^2.4.1",
+    "fast-csv": "^4.3.6",
     "influx": "^5.0.0-alpha.4",
     "ioredis": "^4.0.0",
     "lodash": "^4.17.10",
